@@ -74,9 +74,12 @@ valeur initiale ; toute activation demande un acte explicite de l'hôte.
       `EvidenceOrigin::can_create_hard_rule` exclut `ModelInference` ;
       même test.
 - [x] Les contradictions restent conservées.
-      `Profile` conserve toutes les règles ; `RuleState::Conflicted` est un
-      état terminal non supprimé (§9). Le profil dérivé ne supprime pas
-      silencieusement.
+      `Profile` conserver toutes les règles ; `RuleState::Conflicted` est un
+      état terminal non supprimé (§9). Test authentique :
+      `t06_profile_poisoning_contradictory_evidence_becomes_conflicted` (un
+      `UserRejection` contre un `UserApproval` existant -> `Conflicted`,
+      jamais `Active`, les 3 preuves restent dans le journal). Le profil dérivé
+      ne supprime pas silencieusement.
 - [x] Toute règle possède une provenance.
       `JournalEvent` porte `origin`/`evidence_origin`/`evidence_id` (S6).
 - [x] Tout état persistant est reconstructible.

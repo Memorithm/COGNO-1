@@ -70,6 +70,12 @@ pub struct Profile {
 impl Profile {
     /// Derive a profile from a journal. Pure and deterministic: same journal
     /// and policy ⇒ same profile (replay invariant S6/S7).
+    ///
+    /// Contradiction handling (§9, T06): a `UserRejection` against an
+    /// already-approved rule for the same category marks it `Conflicted`
+    /// rather than silently replacing the prior preference. Both pieces of
+    /// evidence are kept in the journal (the journal is append-only); the
+    /// derived view surfaces the conflict so the host can arbitrate.
     pub fn derive(journal: &Journal, policy: DerivationPolicy) -> Self {
         let mut p = Self::default();
         let budget = SemanticMemoryBudget::MVP_SAFE;
@@ -84,6 +90,16 @@ impl Profile {
                 model_only: true,
                 conflicts: Vec::new(),
             });
+
+            // Detect contradiction: a rejection against prior approval/statement
+            // for the same category. The conflict is recorded (not silently
+            // dropped) and forces `Conflicted` regardless of evidence count.
+            let is_rejection = matches!(ev.evidence_origin, EvidenceOrigin::UserRejection);
+let had_approval = entry.distinct_evidence > 0 && !entry.model_only;
+            if is_rejection && had_approval {
+                entry.conflicts.push(ev.category_tag);
+                continue;
+            }
 
             let authoritative = !matches!(
                 ev.evidence_origin,
@@ -101,7 +117,11 @@ impl Profile {
         }
 
         for entry in p.rules.values_mut() {
-            if entry.model_only && policy.quarantine_model_only {
+            if !entry.conflicts.is_empty() {
+                // A conflicted rule is never `Active`: the host must arbitrate
+                // before it can be re-promoted. The evidence is preserved.
+                entry.state = RuleState::Conflicted;
+            } else if entry.model_only && policy.quarantine_model_only {
                 entry.state = RuleState::Quarantined;
             } else if entry.distinct_evidence >= policy.min_evidence {
                 entry.state = RuleState::Active;

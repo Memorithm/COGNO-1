@@ -20,12 +20,13 @@ crate), Churchill du cahier ci-dessous. Un test **réussit** quand le système
 | Menace | Fichier | Fonction |
 |--------|---------|----------|
 | T01 injection directe | `cogno-core/tests/adversarial.rs` | `direct_prompt_injection_is_untrusted` |
-| T02 injection indirecte | `cogno-core/tests/adversarial.rs` | `confidence_above_max_is_rejected` (schéma) ; `direct_prompt_injection_is_untrusted` (origine) |
+| T02 injection indirecte | `cogno-core/tests/adversarial.rs` | `t03_kb_injection_retrieved_document_is_untrusted_and_distinct_from_policy` (origine distincte de `SystemPolicy`) ;
+  `confidence_above_max_is_rejected` (schéma hostile) |
 | T03 injection base | `cogno-runtime/tests/runtime_integration.rs` | `pipeline_rejects_secret_at_hard_stage_ignoring_reward` (privacy gate) |
 | T04 sortie d'outil malveillante | `cogno-runtime/tests/runtime_integration.rs` | `mvp_tool_executor_refuses_everything` |
 | T05 empoisonnement feedback | `cogno-model/tests/backends.rs` | `corpus_deduplicates_by_fingerprint` |
-| T06 empoisonnement profil | `cogno-runtime/tests/runtime_integration.rs` | `runtime_run_pipeline_rejects_secret_and_audits` |
-| T07 corpus empoisonné | `cogno-model/tests/backends.rs` | `trainer_accuracy_is_finite_and_deterministic` |
+| T06 empoisonnement profil | `cogno-core/tests/adversarial.rs` | `t06_profile_poisoning_contradictory_evidence_becomes_conflicted` |
+| T07 corpus empoisonné | `cogno-model/tests/backends.rs` | `t07_corpus_poisoning_adversarial_examples_handled_bounded` |
 | T08 poids malveillants | `cogno-core/tests/adversarial.rs` | `manifest_corrupted_or_unknown_version_rejected` |
 | T09 tokenizer incompatible | `cogno-core/tests/adversarial.rs` | `manifest_truncated_artifact_rejected` (schema) |
 | T10 artefact tronqué | `cogno-core/tests/adversarial.rs` | `manifest_truncated_artifact_rejected` |

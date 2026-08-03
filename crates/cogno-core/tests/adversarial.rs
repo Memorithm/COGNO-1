@@ -533,3 +533,61 @@ fn t04_tool_output_never_elevated_to_policy() {
         TrustClass::UntrustedExternalData
     );
 }
+
+#[test]
+fn t06_profile_poisoning_contradictory_evidence_becomes_conflicted() {
+    // §9, T06: a contradictory preference does not silently replace the
+    // previous one. The journal keeps both pieces of evidence (append-only);
+    // the derived view surfaces the conflict as `Conflicted`, never `Active`,
+    // so the host must arbitrate before re-promotion.
+    use cogno_core::{
+        DerivationPolicy, EvidenceOrigin, Fingerprint, InputOrigin, Journal, JournalEvent,
+        RuleState,
+    };
+    let mut j = Journal::default();
+    // First: explicit approval for category 7 (2 distinct approvals -> would
+    // normally become Active under default min_evidence=2).
+    for i in 0..2u8 {
+        let mut fp = [0u8; 32];
+        fp[0] = i + 1;
+        j.append(JournalEvent {
+            id: cogno_core::EventId(0),
+            fingerprint: Fingerprint(fp),
+            origin: InputOrigin::ExplicitUserInstruction,
+            evidence_origin: EvidenceOrigin::ExplicitUserApproval,
+            evidence_id: EvidenceId::from_u64(100 + i as u64),
+            category_tag: 7,
+            payload: Vec::new(),
+        });
+    }
+    // Then: a rejection against the same category — contradiction.
+    let mut fp = [0u8; 32];
+    fp[0] = 99;
+    j.append(JournalEvent {
+        id: cogno_core::EventId(0),
+        fingerprint: Fingerprint(fp),
+        origin: InputOrigin::ExplicitUserInstruction,
+        evidence_origin: EvidenceOrigin::UserRejection,
+        evidence_id: EvidenceId::from_u64(200),
+        category_tag: 7,
+        payload: Vec::new(),
+    });
+    let p = cogno_core::Profile::derive(&j, DerivationPolicy::DEFAULT);
+    let rule = p.rule(7).expect("rule preserved (not silently dropped)");
+    assert_eq!(
+        rule.state,
+        RuleState::Conflicted,
+        "contradiction -> Conflicted, never Active"
+    );
+    assert!(!rule.is_active(), "conflicted rule must not be Active");
+    assert!(
+        !rule.conflicts.is_empty(),
+        "conflict recorded, not silenced"
+    );
+    // Both pieces of evidence remain in the journal (S6/S7: reconstructible).
+    assert_eq!(
+        j.len(),
+        3,
+        "all evidence preserved in the append-only journal"
+    );
+}
