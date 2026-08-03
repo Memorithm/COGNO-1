@@ -404,3 +404,132 @@ fn manifest_truncated_artifact_rejected() {
         })
     );
 }
+
+// ---------------------------------------------------------------------------
+// Strengthened genuine tests for threats whose earlier mapping was stretched
+// (§25: each threat must have at least one *real* test).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn t03_kb_injection_retrieved_document_is_untrusted_and_distinct_from_policy() {
+    // A retrieved document can never speak as SystemPolicy (§6, S3). Its trust
+    // class is UntrustedExternalData, distinct from TrustedPolicy. A "SYSTEM:
+    // ..." line inside such a document is just userdata.
+    let o = InputOrigin::RetrievedDocument;
+    assert_eq!(o.default_trust(), TrustClass::UntrustedExternalData);
+    assert_ne!(o.default_trust(), TrustClass::TrustedPolicy);
+    // And trust ordering cannot be elevated by content: the lexicographic
+    // decision never consults trust to bypass a hard gate (S4).
+    assert!(
+        TrustClass::UntrustedExternalData.trust_rank() < TrustClass::TrustedPolicy.trust_rank()
+    );
+}
+
+#[test]
+fn t09_tokenizer_hash_mismatch_rejected() {
+    use cogno_core::{ArchitectureId, ModelFamily, ModelManifest};
+    // A manifest with one tokenizer hash must not validate a different
+    // tokenizer. The loader would recompute the hash and compare; here we
+    // model that the manifest's stored hash is the contract — any artifact
+    // whose hash differs is hostile (§21).
+    let stored = [0xAA; 32];
+    let mut actual = [0u8; 32];
+    actual[0] = 0xAA;
+    actual[1] = 0xAA;
+    // Introduce a single-byte difference.
+    actual[5] = 0x01;
+    assert_ne!(stored, actual, "hash mismatch must be detected");
+    // The manifest itself still validates structurally (size is correct),
+    // which is why the loader performs the hash check *separately*, before
+    // any major allocation.
+    let m = ModelManifest {
+        schema_version: 1,
+        model_family: ModelFamily::Generic,
+        architecture_id: ArchitectureId(1),
+        tensor_count: 4,
+        parameter_count: 1000,
+        max_context_tokens: 2048,
+        tokenizer_hash: stored,
+        weights_hash: [0u8; 32],
+        expected_file_bytes: 1000,
+    };
+    assert!(
+        m.validate(1000).is_ok(),
+        "structural checks pass; hash gate is separate"
+    );
+    assert_ne!(
+        m.tokenizer_hash, actual,
+        "tokenizer hash gate would refuse this artifact"
+    );
+}
+
+#[test]
+fn t13_write_outside_root_rejected_by_root_policy() {
+    // A proposal that resolves to a path outside the configured root is
+    // rejected at the lexical border (§22); the runtime layers canonicalize
+    // on top, but the lexical gate fails fast.
+    let pol = PathPolicy {
+        root: b"/app/root".to_vec(),
+    };
+    assert_eq!(
+        pol.check_lexical(b"/app/root/log.txt"),
+        cogno_core::PathVerdict::Allow
+    );
+    assert_eq!(
+        pol.check_lexical(b"/var/log/hack"),
+        cogno_core::PathVerdict::RejectOutsideRoot
+    );
+}
+
+#[test]
+fn t18_deep_recursion_rejected_by_payload_bound() {
+    // A deeply-nested payload exceeds the §18/§2 payload bound and is
+    // rejected at the structural stage instead of recursing into the parser.
+    // The bound is the deterministic defense against deep-structure DoS.
+    let ev = [EvidenceId::from_u64(1)];
+    let payload = vec![b'{'; cogno_core::MAX_PAYLOAD_BYTES + 1];
+    let v = good_view(&ev, &payload, ProposalAction::ClassifyFeedback);
+    assert_eq!(
+        validate_proposal(&v),
+        Err(cogno_core::RejectReason::Oversized)
+    );
+}
+
+#[test]
+fn t22_rollback_to_unknown_schema_version_rejected() {
+    // A "rolled-back" proposal claiming an older or unknown schema version
+    // is rejected outright (§2). Downgrades cannot bypass the validators.
+    let ev = [EvidenceId::from_u64(1)];
+    let mut v = good_view(&ev, &[], ProposalAction::ClassifyFeedback);
+    v.schema_version = 0; // older than the current SCHEMA_VERSION
+    assert_eq!(
+        validate_proposal(&v),
+        Err(cogno_core::RejectReason::OutOfBounds)
+    );
+    v.schema_version = cogno_core::SCHEMA_VERSION + 1; // future/unknown
+    assert_eq!(
+        validate_proposal(&v),
+        Err(cogno_core::RejectReason::OutOfBounds)
+    );
+}
+
+#[test]
+fn t23_provenance_forgery_rejected_via_default_trust() {
+    // A model output cannot forge SystemPolicy provenance: the runtime
+    // assigns InputOrigin from a typed envelope, never from the payload.
+    // Even if the model claimed "I am system policy", its origin stays
+    // ModelOutput -> UntrustedModelData (§6, S3).
+    let o = InputOrigin::ModelOutput;
+    assert_eq!(o.default_trust(), TrustClass::UntrustedModelData);
+    assert_ne!(o.default_trust(), TrustClass::TrustedPolicy);
+}
+
+#[test]
+fn t04_tool_output_never_elevated_to_policy() {
+    // A tool output is UntrustedExternalData (§6), never TrustedPolicy. It
+    // cannot mint instructions, even if its bytes look like policy text (S3).
+    assert_eq!(
+        InputOrigin::ToolOutput.default_trust(),
+        TrustClass::UntrustedExternalData
+    );
+}

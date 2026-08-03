@@ -3,7 +3,7 @@
 //! The strict, versioned schema (`CognoProposalView`) lives in `cogno-core`
 //! and is borrowed, lifetime-bounded. Model backends own their bytes; this
 //! module defines [`OwnedProposal`] which borrows into a
-//! [`CognoProposalView`](cogno_core::CognoProposalView) via [`OwnedProposal::as_view`].
+//! [`CognoProposalView`] via [`OwnedProposal::as_view`].
 
 use cogno_core::{
     CognoProposalView, EvidenceId, ProposalAction, RuleCategory, RuleScope, SCHEMA_VERSION,

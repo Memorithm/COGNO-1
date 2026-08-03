@@ -136,8 +136,10 @@ ne contiennent aucun `unsafe`.
 - `docs/ARCHITECTURE.md` — autorité du noyau, pipeline obligatoire, responsabilités des crates.
 - `docs/THREAT_MODEL.md` — modèle de menace obligatoire (26 menaces × 10 champs).
 - `docs/MEMORY_MODEL.md` — mémoire volatile vs sémantique, budgets, admission, KV cache, rétention.
-- `docs/MODEL_CARD.md` — carte modèle (Phase 0 : aucun modèle chargé).
+- `docs/MODEL_CARD.md` — carte modèle (statut Phases 0–5, gate fermée).
 - `docs/DATA_GOVERNANCE.md` — classification des données, provenance, secrets, rétention.
+- `docs/DEPENDENCIES.md` — inventaire des dépendances (§24), zéro dépendance externe, CI `--locked`/`--frozen`.
+- `docs/ACCEPTANCE.md` — critères d'acceptation §28, chaque item pointé vers son test.
 
 ## Licence
 

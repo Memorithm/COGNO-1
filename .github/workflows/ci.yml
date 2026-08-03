@@ -1,0 +1,96 @@
+name: CI
+
+# COGNO-1 V2 §24 — chaîne d'approvisionnement:
+#   - conserver Cargo.lock ;
+#   - exécuter la CI avec --locked ;
+#   - tester les constructions hors réseau avec --frozen lorsque possible ;
+#   - minimiser et documenter les dépendances ;
+#   - `#![forbid(unsafe_code)]` dans tout code propriétaire.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  # Basics: deny warnings globally; crates also enforce forbid(unsafe_code)
+  # and deny(missing_debug_implementations, unreachable_pub) at source level.
+
+jobs:
+  fmt:
+    name: cargo fmt --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: cargo clippy --locked -- -D warnings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: clippy (all targets, locked)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+  test:
+    name: cargo test --locked
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo test (all targets, locked)
+        run: cargo test --all-targets --locked
+
+  frozen:
+    name: cargo build --frozen --release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: build offline (frozen) — §24 hors réseau
+        run: cargo build --release --frozen --all-targets
+
+  doc:
+    name: cargo doc --locked
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo doc (no-deps, locked)
+        run: cargo doc --no-deps --locked
+
+  # Lightweight dependency-audit reminder. There are zero external deps at the
+  # time of writing; this step fails if a new external dependency appears
+  # without an entry in docs/DEPENDENCIES.md. It is intentionally conservative
+  # so supply-chain additions are explicit (§24: document every dependency).
+  no-external-deps:
+    name: zero external dependencies (§24)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: build then list Cargo.lock external entries
+        run: |
+          cargo generate-lockfile --frozen 2>/dev/null || cargo generate-lockfile
+          # External crates are any `name = "..."` in Cargo.lock that are not
+          # cogno-* and not the standard library pseudo-entries.
+          ext=$(grep -E '^name = "' Cargo.lock | sed 's/name = "//; s/"//' | grep -v '^cogno-' || true)
+          if [ -n "$ext" ]; then
+            echo "External dependency detected — document it in docs/DEPENDENCIES.md:"
+            echo "$ext"
+            exit 1
+          fi
+          echo "OK: zero external dependencies (cogno-core is dep-free by design §23)."
