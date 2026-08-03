@@ -1,35 +1,49 @@
-//! # cogno-runtime — runtime for COGNO-1.
+//! # cogno-runtime — execution runtime for COGNO-1.
 //!
-//! Hosts the deterministic execution pipeline that turns external input into
-//! either a rejected decision or a (possibly side-effecting) action, never
-//! executing a side effect before the full chain has completed
-//! (COGNO-1 V2 §3):
+//! Hosts the deterministic pipeline that turns external input into either a
+//! rejected decision or a (possibly side-effecting) action, never executing a
+//! side effect before the full chain has completed (§3):
 //!
 //! ```text
 //! external input
-//!     -> trust classification
-//!     -> size control
-//!     -> strict parsing
-//!     -> structural validation
-//!     -> symbolic validation
-//!     -> safety rule application
-//!     -> neuro-symbolic evaluation
-//!     -> deterministic decision
-//!     -> audit
-//!     -> possible side effect
+//!   -> trust classification
+//!   -> size control
+//!   -> strict parsing (via ModelBackend / scripts)
+//!   -> structural validation
+//!   -> symbolic validation
+//!   -> hard safety rules
+//!   -> reward engine (scalar)
+//!   -> deterministic decision (lexicographic)
+//!   -> audit
+//!   -> possible side effect (tools gated in Phase 5)
 //! ```
 //!
-//! ## Phase 0 scope (current)
+//! No allocations happen on hot paths; no tool is executed in the MVP;
+//! every validator fails closed (S10).
 //!
-//! Skeleton. Will progressively host: `MemoryBudget` admission control (§11-12),
-//! allocation policy (§13), `RequestScratch` buffers (§14), `BoundedVec`
-//! (§15), backpressure/queues (§16), KV cache policy (§17), and pipeline
-//! orchestration.
+//! ## Crate lint policy (§23)
 //!
-//! In the MVP, COGNO-1 executes no tools (§7). When a tool system is added, the
-//! model only produces a typed `ToolProposalView`; the executor enforces a
-//! positive tool list, positive arguments, an allowed file root, and
-//! duration/memory/output/process/network limits. The forbidden construction
-//! `Command::new("sh").arg("-c").arg(model_text)` is a hard rejection.
+//! ```ignore
+//! #![forbid(unsafe_code)]
+//! #![deny(warnings, missing_debug_implementations, unreachable_pub)]
+//! ```
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
+
+pub mod admission;
+pub mod audit;
+pub mod executor;
+pub mod kv_controller;
+pub mod path;
+pub mod pipeline;
+pub mod queue;
+pub mod runtime;
+
+pub use admission::{Admission, AdmissionError};
+pub use audit::Audit;
+pub use executor::{ToolExecutor, ToolOutcome};
+pub use kv_controller::{KvController, KvError};
+pub use path::{ResolvedPath, RootError, RootPolicy};
+pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
+pub use queue::{BoundedQueue, QueueError, QueueStats};
+pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport};

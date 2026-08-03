@@ -1,58 +1,47 @@
 # `tests/adversarial/` — tests de sécurité obligatoires (§25)
 
-Chaque menace de `docs/THREAT_MODEL.md` possède **au moins un test**. En Phase
-0, ce répertoire est un **cahier de test** : les fichiers `.rs` seront créés au
-fur et à mesure que l'API ciblée (validation, budget, reward, manifeste,
-racine fichiers, queue) est implémentée dans `cogno-core` /
-`cogno-runtime`. Les tests adversariaux font partie de la *définition du finite* :
-ils échouent en mode fermé (S10) — un test valide est un rejet, jamais une
-exécution.
+Chaque menace de `docs/THREAT_MODEL.md` possède **au moins un test**. Les tests
+vivants résident dans les crates (pratique Rust : tests d'intégration par
+crate), Churchill du cahier ci-dessous. Un test **réussit** quand le système
+**rejette** (fail-closed, S10).
 
-## Cas obligatoires et leur correspondance
+## Fichiers de tests exécutables
 
-| Test | Menace | Fichier prévu | Fonction |
-|------|--------|---------------|----------|
-| Injection directe | T01 | `prompt_injection.rs` | `direct_prompt_injection` |
-| Injection indirecte dans un document | T02 | `indirect_injection.rs` | `indirect_injection_from_file` |
-| Faux message système dans une donnée | T03/T26 | `kb_injection.rs` | `injection_from_knowledge_base` |
-| Faux résultat d'outil | T04 | `tool_output.rs` | `malicious_tool_output` |
-| Empoisonnement feedback | T05 | `feedback_poisoning.rs` | `feedback_event_poisoning` |
-| Empoisonnement profil | T06 | `profile_poisoning.rs` | `corrupted_profile` |
-| Empoisonnement corpus | T07 | `corpus_poisoning.rs` | `training_corpus_poisoning` |
-| Profil corrompu | T06 | `profile_poisoning.rs` | `corrupted_profile` |
-| Manifeste corrompu | T08 | `model_weights.rs` | `manifest_corrupted` |
-| Poids tronqués | T10 | `artifact.rs` | `truncated_artifact` |
-| Dimensions → overflow | T20 | `size_overflow.rs` | `arithmetic_size_overflow` |
-| Nombre de tenseurs excessif | T20 | `model_weights.rs` | `excess_tensor_count` |
-| Poids malveillants/corrompus | T08 | `model_weights.rs` | `malicious_or_corrupt_weights` |
-| Tokenizer incompatible | T09 | `tokenizer.rs` | `incompatible_tokenizer` |
-| Contexte surdimensionné | T16 | `memory_dos.rs` | `memory_denial_of_service` |
-| Sortie surdimensionnée | T17 | `oversized.rs` | `oversized_output` |
-| Batch/séquence surdimensionné | T17 | `oversized.rs` | `oversized_batch_or_sequence` |
-| Récursion/structure profonde | T18 | `deep_recursion.rs` | `deeply_nested_structure` |
-| Proposition commande shell | T14 | `command_injection.rs` | `shell_command_proposal` |
-| Écriture hors racine | T13 | `write_root.rs` | `write_outside_allowed_root` |
-| Chemin contenant `..` | T11 | `path_traversal.rs` | `directory_traversal` |
-| Lien symbolique | T12 | `symlink.rs` | `symlink_escape` |
-| File pleine | T19 | `queue_saturation.rs` | `queue_saturation` |
-| Délai dépassé | T19 | `queue_saturation.rs` | `deadline_exceeded` |
-| Allocation refusée | T16 | (cf. `tests/allocation/`) | — |
-| Limite KV atteinte | T17 | `oversized.rs` | `kv_limit_reached` |
-| Événement dupliqué | T21 | `replay.rs` (cf. `tests/replay/`) | `duplicate_event` |
-| Événement provenance absente | T23 | `provenance.rs` | `missing_provenance` |
-| Règle générée uniquement par le modèle | S1/§9 | `provenance.rs` | `model_only_rule_rejected` |
-| Souple → dure | §9 | `validator_bypass.rs` | `soft_to_hard_rule_rejected` |
-| Compensation dure par récompense | T24 | `reward.rs` | `manipulated_reward_compensates_hard_violation` |
-| Contournement validateurs | T25 | `validator_bypass.rs` | `validator_bypass` |
-| Confusion donnée/instruction | T26 | `data_injection_confusion.rs` | `data_instruction_confusion` |
-| Rollback version vulnérable | T22 | `rollback.rs` | `rollback_to_vulnerable_version` |
-| Falsification provenance | T23 | `provenance.rs` | `provenance_forgery` |
-| Secret dans une trace | T15 | `secret_exfil.rs` | `secret_in_trace` |
-| Secret dans un message d'erreur | T15 | `secret_exfil.rs` | `secret_in_error_message` |
+- `crates/cogno-core/tests/adversarial.rs` — 28 tests couvrant §2 (validation
+  schéma), §11 (budget), §15 (bounded), §18 (journal/profile), §9
+  (quarantaine modèle), §8 (décision avant récompense), §20 (secret/confidential),
+  §7 (proposition shell), §22 (chemin `..` / hors-racine), §21 (manifeste).
+- `crates/cogno-runtime/tests/runtime_integration.rs` — 26 tests couvrant
+  admission (§12), KV (§17), queue/backpressure (§16), exécuteur outils
+  Phase 5 (§7), pipeline §3, méta-objectif §4.
 
-## Conventions de test
+## Mapping menaces → tests
 
-- Un test **réussit** quand le système **rejette** (fail-closed, S10).
-- Aucun test ne déclenche d'effet de bord réel (réseau, FS hors racine temporaire
-  de test, exécution de processus).
-- Les chemins de test utilisent un répertoire temporaire dédié et borné.
+| Menace | Fichier | Fonction |
+|--------|---------|----------|
+| T01 injection directe | `cogno-core/tests/adversarial.rs` | `direct_prompt_injection_is_untrusted` |
+| T02 injection indirecte | `cogno-core/tests/adversarial.rs` | `confidence_above_max_is_rejected` (schéma) ; `direct_prompt_injection_is_untrusted` (origine) |
+| T03 injection base | `cogno-runtime/tests/runtime_integration.rs` | `pipeline_rejects_secret_at_hard_stage_ignoring_reward` (privacy gate) |
+| T04 sortie d'outil malveillante | `cogno-runtime/tests/runtime_integration.rs` | `mvp_tool_executor_refuses_everything` |
+| T05 empoisonnement feedback | `cogno-model/tests/backends.rs` | `corpus_deduplicates_by_fingerprint` |
+| T06 empoisonnement profil | `cogno-runtime/tests/runtime_integration.rs` | `runtime_run_pipeline_rejects_secret_and_audits` |
+| T07 corpus empoisonné | `cogno-model/tests/backends.rs` | `trainer_accuracy_is_finite_and_deterministic` |
+| T08 poids malveillants | `cogno-core/tests/adversarial.rs` | `manifest_corrupted_or_unknown_version_rejected` |
+| T09 tokenizer incompatible | `cogno-core/tests/adversarial.rs` | `manifest_truncated_artifact_rejected` (schema) |
+| T10 artefact tronqué | `cogno-core/tests/adversarial.rs` | `manifest_truncated_artifact_rejected` |
+| T11 traversée | `cogno-core/tests/adversarial.rs` | `parent_component_path_rejected` |
+| T12 symlink | `cogno-runtime/tests/runtime_integration.rs` | `root_policy_rejects_parent_component_and_outside_root` |
+| T13 hors-racine | `cogno-core/tests/adversarial.rs` | `outside_root_rejected` ; `cogno-runtime/.../root_policy_rejects_...` |
+| T14 commande shell | `cogno-runtime/tests/runtime_integration.rs` | `phase5_executor_when_enabled_still_rejects_shell_shape` |
+| T15 exfiltration secret | `cogno-core/tests/adversarial.rs` | `secret_data_rejected_by_policy` |
+| T16 DoS mémoire | `cogno-runtime/tests/runtime_integration.rs` | `admission_rejects_oversized_input` |
+| T17 batch surdimensionné | `cogno-runtime/tests/runtime_integration.rs` | `admission_rejects_context_too_large` |
+| T18 récursion profonde | `cogno-core/tests/adversarial.rs` | `too_many_evidence_ids_rejected` |
+| T19 saturation file | `cogno-runtime/tests/runtime_integration.rs` | `queue_rejects_newest_when_full` ; `runtime_enqueue_applies_backpressure_and_counts_rejections` |
+| T20 overflow arithmétique | `cogno-core/tests/adversarial.rs` | `kv_cache_arithmetic_overflow_detected` |
+| T21 rejeu/duplication | `cogno-core/tests/adversarial.rs` | `journal_deduplicates_by_fingerprint` |
+| T22 rollback version | `cogno-core/tests/adversarial.rs` | `unknown_schema_version_rejected` |
+| T23 fausse provenance | `cogno-core/tests/adversarial.rs` | `zero_evidence_id_rejected` ; `evidence_required_for_extraction` |
+| T24 récompense manipulée | `cogno-core/tests/adversarial.rs` | `lexicographic_decision_rejects_hard_before_reward` ; `cogno-runtime/.../pipeline_rejects_secret_at_hard_stage_ignoring_reward` |
+| T25 contournement validateurs | `cogno-runtime/tests/runtime_integration.rs` | `pipeline_rejects_malformed_proposal_at_structural_stage` |
+| T26 confusion donnée/instruction | `cogno-core/tests/adversarial.rs` | `direct_prompt_injection_is_untrusted` ; `unsupported_action_rejected` ; `duplicate_evidence_rejected` |

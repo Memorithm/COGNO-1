@@ -7,14 +7,14 @@
 
 | Champ | Valeur |
 |-------|--------|
-| Phase | **0 — Noyau déterministe** |
-| Modèle chargé | **Aucun** |
-| Backend | N/A (simulateur déterministe prévu en Phase 1) |
-| Paramètres | 0 |
-| Contexte max | N/A |
-| Tokenizer | N/A |
-| Origine des poids | N/A |
-| Licence du modèle | N/A |
+| Phase | **0–5** (gate fermée) — Phase 4/5 désactivées par défaut |
+| Modèle chargé | **Simulateur déterministe** (`cogno_model::SimBackend`) ; modèle lecture seule via `ReadOnlyModel` |
+| Backend | `SimBackend` (Phase 1) + `ReadOnlyModel` sur `TrainedModel` (Phase 2) |
+| Paramètres | 0 (simulateur) ; `TrainedModel` : entiers perceptron hashé 128–256 features |
+| Contexte max | défini par `MemoryBudget.max_context_tokens` (MVP CLI : 2048) |
+| Tokenizer | Aucun (Phase 0–3 : pas d'entrée textuelle) |
+| Origine des poids | Aucun (aucun poids téléchargé ; noyau n'accède pas au réseau) |
+| Licence du modèle | MIT (code) |
 
 Aucune inférence n'a lieu. Aucune donnée n'est envoyée à un modèle.
 
@@ -95,14 +95,21 @@ négatifs. Aucun secret (donnée `Secret`, §20) dans les jeux d'entraînement.
 
 ## 7. Évaluation (Phase 4)
 
-L'objectif Meta-NeuroSymbolic n'est activé que lorsque :
-le moteur scalaire est validé ; la politique de référence est figée ; les
-log-probabilités sont disponibles ; le backend est réellement différentiable ;
-les tests held-out sont en place ; les garde-fous contre l'empoisonnement
-fonctionnent.
+L'objectif Meta-NeuroSymbolic est implémenté (`cogno_core::MetaObjective`)
+mais **gated** : `activate()` retourne `Err(PreconditionMissing)` tant que
+toutes les préconditions ne sont pas attestées par l'hôte (moteur scalaire
+validé, politique figée, log-probabilités disponibles, backend réellement
+différentiable, tests held-out, anti-empoisonnement). COGNO-1 n'embarque pas
+de backend tensoriel différentiable ; l'objectif reste donc en quarantaine
+par défaut (S10). Scénario d'activation testé dans
+`crates/cogno-runtime/tests/runtime_integration.rs` (`runtime_meta_objective_*`).
 
 ## 8. Limites connues
 
-- En Phase 0, **aucune** capacité n'est active.
-- Le noyau Rust reste la seule autorité, independamment du modèle_intégré.
+- Phase 3 utilise un **perceptron entier** sur features hashées — remplaçant
+  honnête d'un vrai réseau (Phase 4 nécessite un backend tensoriel
+  différentiable, sciemment absent pour rester fidèle au gating §27).
+- Le noyau Rust reste la seule autorité, indépendamment du modèle intégré.
 - Le modèle n'est jamais une source fiable (S1).
+- Les outils sont **refusés** par défaut (`ToolExecutor::mvp`) ; Phase 5
+  ajoutée derrière `phase5(true, positive_tools)` après audit spécifique.

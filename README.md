@@ -33,12 +33,45 @@ politiques → éventuellement rejetée → auditée avant utilisation.
 
 Ces invariants sont testables automatiquement (cf. `tests/adversarial/`).
 
-## Statut actuel — Phase 0
+## Statut actuel — Phases 0–5 implémentées (gate fermée)
 
-Le dépôt démarre par la **Phase 0** (noyau déterministe), **pas** par
-l'entraînement du modèle. Aucun modèle n'est chargé ; aucun outil n'est
-exécuté ; aucun effet de bord n'est possible. Voir `docs/ARCHITECTURE.md` et la
-section *Phases d'implémentation* ci-dessous.
+Toutes les phases ont un squelette fonctionnel, avec le **fail-closed**
+préservé partout : aucune exécution d'outil, aucun secret, aucun effet de bord,
+lexicographique appliqué avant la récompense.
+
+| Phase | État | Implémentation |
+|-------|------|----------------|
+| **0 — Noyau déterministe** | ✅ | `cogno-core` : types (§6/§9), `MemoryBudget` + `checked_kv_cache_bytes` (§11), `BoundedVec` (§15), `Journal`/`Profile` (§18), `SafetyPolicy`/`PathPolicy` (§22), validateurs (§8), `RewardEngine` (scalaire), `ModelManifest` (§21), `ToolProposalView` (§7), `MetaObjective` (§4) |
+| **1 — Simulateur** | ✅ | `cogno_model::SimBackend` : propositions scriptées FIFO ; `Exhausted` fermé |
+| **2 — Lecture seule** | ✅ | `cogno_model::ReadOnlyModel` sur `TrainedModel` (frozen, `Arc`-partagé) : `classify` / `extract` / `rank` / `explain` |
+| **3 — Apprentissage supervisé** | ✅ | `cogno_model::{Corpus, ToyTrainer}` : perceptron entier hashé (placeholder réel), provenance, dedup par empreinte (§9), splits déterministes |
+| **4 — Méta-objectif** | ✅ (gated) | `cogno_core::MetaObjective` : `activate()` renvoie `PreconditionMissing` tant que les 6 préconditions ne sont pas attestées |
+| **5 — Outils** | ✅ (gated) | `cogno_runtime::ToolExecutor` : MVP refuse tout ; `phase5(true, positive_tools)` + contrôle `sh -c` après audit |
+
+Le dépôt démarre par la **Phase 0** et refuse toute activation réelle tant que
+les préconditions §27 ne sont pas satisfaites (S10).
+
+### Tests
+
+```bash
+cargo test --all-targets          # 62 tests (28 core + 8 model + 26 runtime)
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+```
+
+Tous les tests **réussissent en mode fermé** : un test passe quand le système
+**rejette** (S10), échoue quand le système laisserait passer une attaque.
+
+### CLI
+
+```bash
+cargo run -q -- phase           # phase + état méta-objectif
+cargo run -q -- doctor          # validation budget/KV/queue/outils
+cargo run -q -- validate 4      # validation schéma strict (fail-closed)
+cargo run -q -- simulate        # simulateur Phase 1
+cargo run -q -- demo-pipeline   # proposition à travers le pipeline §3
+cargo run -q -- replay          # journal → profil dérivé (déterministe, S6/S7)
+```
 
 ## Structure du dépôt
 

@@ -1,12 +1,8 @@
 //! # cogno-model — model backend abstraction for COGNO-1.
 //!
-//! Treats weights and tokenizer as **hostile**. Before any major allocation,
-//! the loader verifies (§21): file size, fingerprint, schema version, tensor
-//! count, dimensions, numeric types, dimension multiplications (checked
-//! arithmetic), and rejects duplicated names, out-of-range data, unknown
-//! schema fields when the schema requires it, and unsupported architectures.
-//! The model format MUST NOT allow code execution during loading. The core
-//! never downloads weights from the network.
+//! Treats weights and tokenizer as **hostile** (§21). The model is never a
+//! trusted source (S1): every output is non-trust data that the runtime parses,
+//! bounds, validates and confronts against policy before any use.
 //!
 //! ## Role of the small model (§2)
 //!
@@ -22,14 +18,36 @@
 //! modify a memory budget, modify validators, decide a hard constraint may be
 //! ignored, or turn retrieved data into a privileged instruction.
 //!
-//! Outputs MUST use a strict, versioned schema (`CognoProposalView`).
-//! `confidence_bps` is in basis points (`0`..=`10_000`); any value above
-//! `10_000` is rejected. Unknown, duplicated, or out-of-range fields cause an
-//! explicit rejection.
+//! ## Phases
 //!
-//! ## Phase 0 scope (current)
+//! - **Phase 1 (current)**: [`simulator::SimBackend`] — a deterministic backend
+//!   returning scripted proposals. No real model is loaded.
+//! - **Phase 2**: [`readonly`] — a read-only model backend able to classify,
+//!   extract, rank and explain; no direct state mutation.
+//! - **Phase 3**: [`training`] — a toy trainer with provenance, splits and
+//!   adversarial/negative samples. Honest placeholder for a real differentiable
+//!   backend (Phase 4 requires one and a true tensor engine, intentionally
+//!   absent here).
+//! - **Phase 5**: tools are added only after specific audit and remain behind
+//!   an explicit capability gate in `cogno-runtime`.
 //!
-//! Skeleton. No model is loaded. Phase 1 will introduce a deterministic
-//! backend returning scripted proposals; Phase 2 a read-only model.
+//! ## Crate lint policy (§23)
+//!
+//! ```ignore
+//! #![forbid(unsafe_code)]
+//! #![deny(warnings, missing_debug_implementations, unreachable_pub)]
+//! ```
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
+
+pub mod backend;
+pub mod readonly;
+pub mod simulator;
+pub mod training;
+
+pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
+pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
+pub use simulator::SimBackend;
+pub use training::{
+    Corpus, CorpusSplit, Label, LabeledExample, Provenance, SplitKind, ToyTrainer, TrainedModel,
+};
