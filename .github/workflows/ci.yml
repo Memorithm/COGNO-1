@@ -19,8 +19,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
-  # Basics: deny warnings globally; crates also enforce forbid(unsafe_code)
-  # and deny(missing_debug_implementations, unreachable_pub) at source level.
 
 jobs:
   fmt:
@@ -30,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           components: rustfmt
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
@@ -41,6 +40,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           components: clippy
       - name: clippy (all targets, locked)
         run: cargo clippy --all-targets --locked -- -D warnings
@@ -51,6 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       - name: cargo test (all targets, locked)
         run: cargo test --all-targets --locked
 
@@ -60,6 +62,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       - name: build offline (frozen) — §24 hors réseau
         run: cargo build --release --frozen --all-targets
 
@@ -69,24 +73,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       - name: cargo doc (no-deps, locked)
         run: cargo doc --no-deps --locked
 
-  # Lightweight dependency-audit reminder. There are zero external deps at the
-  # time of writing; this step fails if a new external dependency appears
-  # without an entry in docs/DEPENDENCIES.md. It is intentionally conservative
-  # so supply-chain additions are explicit (§24: document every dependency).
   no-external-deps:
     name: zero external dependencies (§24)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       - name: build then list Cargo.lock external entries
         run: |
           cargo generate-lockfile --frozen 2>/dev/null || cargo generate-lockfile
-          # External crates are any `name = "..."` in Cargo.lock that are not
-          # cogno-* and not the standard library pseudo-entries.
           ext=$(grep -E '^name = "' Cargo.lock | sed 's/name = "//; s/"//' | grep -v '^cogno-' || true)
           if [ -n "$ext" ]; then
             echo "External dependency detected — document it in docs/DEPENDENCIES.md:"
