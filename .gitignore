@@ -20,3 +20,6 @@ Thumbs.db
 
 # Local scaffolding unrelated to the project
 /.commandcode/
+
+# Knowledge graph build artifact (kept locally; not committed)
+/graphify-out/
