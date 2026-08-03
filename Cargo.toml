@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cogno-core",
+    "crates/cogno-runtime",
+    "crates/cogno-model",
+    "crates/cogno-cli",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+authors = ["COGNO-1 contributors"]
+repository = "https://github.com/Memorithm/COGNO-1"
+homepage = "https://github.com/Memorithm/COGNO-1"
+description = "COGNO-1 — neuro-symbolic personalization system with bounded memory and a deterministic Rust authority core"
+
+[workspace.dependencies]
+cogno-core = { path = "crates/cogno-core", version = "0.0.1" }
+cogno-runtime = { path = "crates/cogno-runtime", version = "0.0.1" }
+cogno-model = { path = "crates/cogno-model", version = "0.0.1" }
+
+# Release profile: lean and deterministic-friendly.
+[profile.release]
+opt-level = "s"
+lto = false
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

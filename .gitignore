@@ -1,0 +1,22 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# Profiles / coverage
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+coverage/
+
+#IDE
+.idea/
+.vscode/
+*.iml
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Local scaffolding unrelated to the project
+/.commandcode/

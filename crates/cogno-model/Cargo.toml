@@ -1,0 +1,18 @@
+[package]
+name = "cogno-model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Model backend abstraction for COGNO-1: hostile weights/tokenizer are validated before loading. Read-only model role in Phase 2."
+
+[lib]
+name = "cogno_model"
+path = "src/lib.rs"
+
+[dependencies]
+cogno-core = { workspace = true }
+
+# Lint policy is declared at the top of src/lib.rs.

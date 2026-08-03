@@ -1,0 +1,23 @@
+[package]
+name = "cogno-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Deterministic authority core for COGNO-1: types, validators, reward, memory budgets, journal, profile, security. No network, no process exec, no FS access, no unsafe."
+
+[lib]
+name = "cogno_core"
+path = "src/lib.rs"
+
+# No dependencies by design. This crate MUST remain:
+#  - no network access
+#  - no process execution
+#  - no implicit filesystem access
+#  - no mandatory neural backend
+#  - no proprietary `unsafe`
+#  - deterministic
+#  - testable offline
+# Lint policy is declared at the top of src/lib.rs (forbid(unsafe_code) etc.).

@@ -1,0 +1,18 @@
+[package]
+name = "cogno-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Runtime for COGNO-1: admission control, memory budget enforcement, KV cache policy, bounded queues/backpressure, pipeline orchestration."
+
+[lib]
+name = "cogno_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+cogno-core = { workspace = true }
+
+# Lint policy is declared at the top of src/lib.rs.
