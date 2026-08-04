@@ -4,6 +4,7 @@ members = [
     "crates/cogno-core",
     "crates/cogno-runtime",
     "crates/cogno-model",
+    "crates/cogno-scirust",
     "crates/cogno-cli",
 ]
 

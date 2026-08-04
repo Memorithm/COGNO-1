@@ -28,3 +28,10 @@ version = "0.0.1"
 dependencies = [
  "cogno-core",
 ]
+
+[[package]]
+name = "cogno-scirust"
+version = "0.0.1"
+dependencies = [
+ "cogno-core",
+]
