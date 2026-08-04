@@ -1,0 +1,31 @@
+[package]
+name = "cogno-scirust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Optional differentiable, neuro-symbolic, contrastive backend for COGNO-1. Self-contained safe-Rust implementation behind a fallible, bounded COGNO API. Hard constraints remain enforced by cogno-core and are never compensable (S4)."
+
+[lib]
+name = "cogno_scirust"
+path = "src/lib.rs"
+
+[dependencies]
+cogno-core = { workspace = true }
+
+# COGNO-1 V2 §24 supply-chain policy: this crate adds NO external dependency.
+# The external `scirust` crate (v0.0.5) was evaluated and rejected: it does not
+# compile on stable Rust 1.97 (37 errors: `#[feature]` not allowed on stable,
+# missing `Self: Sized` bounds, edition-incompatible code), pulls 20 transitive
+# crates including `rdrand` (RDRAND `unsafe` intrinsic), `fuchsia-cprng`,
+# `winapi`/`libc`, has NO autograd / differentiable capability, and uses
+# `panic!` extensively. The spec's §"SciRust" integration clause anticipates
+# exactly this case and requires adapting such components behind a fallible,
+# bounded COGNO API. This crate therefore implements the SciRust-style
+# capabilities (differentiable tensors, contrastive losses, symbolic
+# satisfaction, InfoNCE, calibration, optimizers, bounded KV) in pure safe
+# Rust, panic-free, with checked arithmetic, behind `Result`-returning APIs.
+#
+# Lint policy is declared at the top of src/lib.rs.
