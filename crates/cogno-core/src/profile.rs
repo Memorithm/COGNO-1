@@ -95,7 +95,7 @@ impl Profile {
             // for the same category. The conflict is recorded (not silently
             // dropped) and forces `Conflicted` regardless of evidence count.
             let is_rejection = matches!(ev.evidence_origin, EvidenceOrigin::UserRejection);
-let had_approval = entry.distinct_evidence > 0 && !entry.model_only;
+            let had_approval = entry.distinct_evidence > 0 && !entry.model_only;
             if is_rejection && had_approval {
                 entry.conflicts.push(ev.category_tag);
                 continue;
