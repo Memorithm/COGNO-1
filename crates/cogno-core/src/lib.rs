@@ -50,6 +50,7 @@ pub mod bounded;
 pub mod communication;
 pub mod data;
 pub mod decision;
+pub mod dialogue_observer;
 pub mod evidence;
 pub mod ids;
 pub mod journal;
@@ -79,6 +80,11 @@ pub use communication::{
 };
 pub use data::DataClassification;
 pub use decision::{decide, Candidate, Decision, RejectReason};
+pub use dialogue_observer::{
+    observe_dialogue, DialogueObservation, DialogueObservationError, DialogueObservationOutcome,
+    ObservedDialogueKind, ObservedSenderClass, DIALOGUE_OBSERVATION_CATEGORY_TAG,
+    MAX_DIALOGUE_OBSERVATION_PAYLOAD_BYTES,
+};
 pub use evidence::{Evidence, EvidenceId, EvidenceOrigin, RuleState};
 pub use ids::{CandidateScore, RuleRef, TokenId, ValidationResult};
 pub use journal::{AppendOutcome, EventId, Fingerprint, Journal, JournalEvent};
