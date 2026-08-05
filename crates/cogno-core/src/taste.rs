@@ -208,8 +208,7 @@ impl ScientificTasteProfile {
             if matches!(entry.state, TasteState::Conflicted | TasteState::Rejected) {
                 continue;
             }
-            entry.state = if entry.non_model_confirmations
-                >= policy.minimum_non_model_confirmations
+            entry.state = if entry.non_model_confirmations >= policy.minimum_non_model_confirmations
                 && entry.confidence_bps >= policy.activation_threshold_bps
             {
                 TasteState::Active
@@ -225,7 +224,10 @@ impl ScientificTasteProfile {
 
     #[must_use]
     pub fn active_count(&self) -> usize {
-        self.preferences.values().filter(|item| item.is_active()).count()
+        self.preferences
+            .values()
+            .filter(|item| item.is_active())
+            .count()
     }
 }
 
