@@ -47,6 +47,7 @@
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
 pub mod bounded;
+pub mod communication;
 pub mod data;
 pub mod decision;
 pub mod evidence;
@@ -71,6 +72,11 @@ pub mod tool;
 pub mod validators;
 
 pub use bounded::{BoundedVec, CapacityError};
+pub use communication::{
+    CommunicationAuthorization, CommunicationKind, CommunicationMaturity,
+    CommunicationMaturityPolicy, CommunicationRecipient, CommunicationRole,
+    COMMUNICATION_SCHEMA_VERSION, MAX_COMMUNICATION_CONFIDENCE_BPS,
+};
 pub use data::DataClassification;
 pub use decision::{decide, Candidate, Decision, RejectReason};
 pub use evidence::{Evidence, EvidenceId, EvidenceOrigin, RuleState};
