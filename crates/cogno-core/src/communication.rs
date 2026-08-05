@@ -65,6 +65,7 @@ pub struct CommunicationMaturity {
 }
 
 impl CommunicationMaturity {
+    #[must_use]
     pub fn derive(
         profile: &ScientificTasteProfile,
         policy: CommunicationMaturityPolicy,
@@ -78,7 +79,8 @@ impl CommunicationMaturity {
             match preference.state {
                 TasteState::Active => {
                     active_preferences = active_preferences.saturating_add(1);
-                    confidence_sum = confidence_sum.saturating_add(u64::from(preference.confidence_bps));
+                    confidence_sum =
+                        confidence_sum.saturating_add(u64::from(preference.confidence_bps));
                 }
                 TasteState::Conflicted => {
                     conflicted_preferences = conflicted_preferences.saturating_add(1);
@@ -93,7 +95,8 @@ impl CommunicationMaturity {
             (confidence_sum / active_preferences as u64) as u16
         };
 
-        let human_gate = !policy.require_explicit_human_authorization || authorization.human_authorized;
+        let human_gate =
+            !policy.require_explicit_human_authorization || authorization.human_authorized;
         let mature = active_preferences >= policy.minimum_active_preferences
             && conflicted_preferences <= policy.maximum_conflicted_preferences
             && mean_confidence_bps >= policy.minimum_mean_confidence_bps
@@ -111,6 +114,7 @@ impl CommunicationMaturity {
         }
     }
 
+    #[must_use]
     pub const fn permits(
         &self,
         kind: CommunicationKind,
@@ -132,10 +136,10 @@ impl CommunicationMaturity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::taste::{ScientificTaste, TasteError, TastePolicy};
+    use crate::taste::{TasteError, TastePolicy};
 
     fn empty_profile() -> Result<ScientificTasteProfile, TasteError> {
-        ScientificTaste::derive(&[], TastePolicy::default())
+        ScientificTasteProfile::derive(&[], TastePolicy::DEFAULT)
     }
 
     #[test]
