@@ -66,6 +66,7 @@ pub mod reward;
 pub mod reward_engine;
 pub mod scratch;
 pub mod semantic;
+pub mod taste;
 pub mod tool;
 pub mod validators;
 
@@ -94,6 +95,10 @@ pub use reward::Reward;
 pub use reward_engine::{RewardEngine, RewardParams};
 pub use scratch::RequestScratch;
 pub use semantic::SemanticMemoryBudget;
+pub use taste::{
+    ScientificTaste, ScientificTasteProfile, TasteError, TasteEvent, TasteEventKind, TasteOrigin,
+    TastePolicy, TasteScope, TasteState, MAX_TASTE_CONFIDENCE_BPS, MAX_TASTE_EVIDENCE_IDS,
+};
 pub use tool::{
     classify_tool_proposal, looks_like_shell_invocation, CapabilityId, ReasonCode, ToolId,
     ToolProposalView, TypedArgument, MVP_TOOLS_ENABLED,
