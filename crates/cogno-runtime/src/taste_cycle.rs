@@ -90,10 +90,7 @@ pub fn commit_taste_cycle(
             &staging_path.join("taste.validations"),
             &artifacts.validation_store,
         )?;
-        write_synced(
-            &staging_path.join("replay.json"),
-            &artifacts.replay_report,
-        )?;
+        write_synced(&staging_path.join("replay.json"), &artifacts.replay_report)?;
         write_synced(&staging_path.join("taste.profile"), &artifacts.profile)?;
         write_synced(
             &staging_path.join("generation.manifest"),
@@ -142,10 +139,7 @@ fn validate_artifact(
 }
 
 fn write_synced(path: &Path, bytes: &[u8]) -> Result<(), TasteCycleError> {
-    let mut file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(path)?;
+    let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     Ok(())
@@ -193,7 +187,10 @@ mod tests {
         };
         let committed = commit_taste_cycle(&root, &manifest, &artifacts).expect("commit");
         assert!(committed.generation_path.join("taste.profile").is_file());
-        assert_eq!(fs::read_to_string(root.join("CURRENT")).expect("current"), "1\n");
+        assert_eq!(
+            fs::read_to_string(root.join("CURRENT")).expect("current"),
+            "1\n"
+        );
         assert!(!root.join(".generation-1.tmp").exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
