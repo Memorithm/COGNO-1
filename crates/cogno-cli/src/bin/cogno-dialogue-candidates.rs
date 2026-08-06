@@ -4,7 +4,7 @@
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
 use cogno_runtime::{CandidateOrigin, DialogueCandidateReport};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::path::Path;
 
 fn main() {
@@ -56,9 +56,7 @@ const fn origin_name(origin: CandidateOrigin) -> &'static str {
         CandidateOrigin::HumanObservation => "human_observation",
         CandidateOrigin::ModelInference => "model_inference",
         CandidateOrigin::RuntimeObservation => "runtime_observation",
-        CandidateOrigin::DeterministicKernelObservation => {
-            "deterministic_kernel_observation"
-        }
+        CandidateOrigin::DeterministicKernelObservation => "deterministic_kernel_observation",
     }
 }
 
@@ -78,7 +76,10 @@ mod tests {
 
     #[test]
     fn model_origin_is_named_without_authority() {
-        assert_eq!(origin_name(CandidateOrigin::ModelInference), "model_inference");
+        assert_eq!(
+            origin_name(CandidateOrigin::ModelInference),
+            "model_inference"
+        );
     }
 
     #[test]
