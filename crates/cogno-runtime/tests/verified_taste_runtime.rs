@@ -1,7 +1,9 @@
 //! End-to-end attachment of a verified scientific taste profile to Runtime.
 
 use cogno_core::{KvCachePolicy, MemoryBudget, QueueFullPolicy};
-use cogno_runtime::{Runtime, RuntimeConfig, VerifiedTasteProfile};
+use cogno_runtime::{
+    Runtime, RuntimeConfig, RuntimeTasteProfileError, VerifiedTasteProfile,
+};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -115,8 +117,12 @@ fn runtime_exposes_only_verified_active_preferences() {
     let mut runtime = Runtime::try_new(runtime_config()).expect("runtime");
     assert!(runtime.verified_taste_profile().is_none());
     assert!(runtime.active_taste_preferences().is_empty());
+    assert!(!runtime.report().taste_profile_loaded);
+    assert_eq!(runtime.report().active_taste_preferences, 0);
 
-    runtime.install_verified_taste_profile(profile);
+    runtime
+        .install_verified_taste_profile(profile)
+        .expect("initial profile installation");
 
     let active = runtime.active_taste_preferences();
     assert_eq!(active.len(), 1);
@@ -126,6 +132,16 @@ fn runtime_exposes_only_verified_active_preferences() {
     assert_eq!(active[0].validations, 2);
     assert_eq!(runtime.active_taste_preference(42), Some(&active[0]));
     assert_eq!(runtime.active_taste_preference(99), None);
+    assert!(runtime.report().taste_profile_loaded);
+    assert_eq!(runtime.report().active_taste_preferences, 1);
+
+    let replacement = VerifiedTasteProfile::load(&replay_path, &candidates_path, &root)
+        .expect("replacement profile");
+    assert_eq!(
+        runtime.install_verified_taste_profile(replacement),
+        Err(RuntimeTasteProfileError::AlreadyInstalled)
+    );
+    assert_eq!(runtime.active_taste_preferences(), active);
 
     fs::remove_dir_all(root).expect("cleanup");
 }
