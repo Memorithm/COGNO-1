@@ -155,11 +155,8 @@ impl Runtime {
         candidates: &[TasteDecisionCandidate],
         applications: &[TastePreferenceApplication],
     ) -> TasteDecision {
-        let decision = decide_with_verified_taste(
-            candidates,
-            self.active_taste_preferences(),
-            applications,
-        );
+        let decision =
+            decide_with_verified_taste(candidates, self.active_taste_preferences(), applications);
         self.audit.taste_decision(&decision);
         decision
     }
