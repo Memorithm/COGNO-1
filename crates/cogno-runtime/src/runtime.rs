@@ -12,6 +12,9 @@ use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
+use crate::taste_decision::{
+    decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TastePreferenceApplication,
+};
 use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
@@ -140,6 +143,25 @@ impl Runtime {
         self.active_taste_preferences()
             .iter()
             .find(|preference| preference.preference_id == preference_id)
+    }
+
+    /// Make and audit one bounded taste-aware soft decision.
+    ///
+    /// Only active verified preferences are visible here. Candidate hard
+    /// constraints are evaluated before score comparison and can never be
+    /// compensated by taste influence.
+    pub fn decide_with_taste(
+        &mut self,
+        candidates: &[TasteDecisionCandidate],
+        applications: &[TastePreferenceApplication],
+    ) -> TasteDecision {
+        let decision = decide_with_verified_taste(
+            candidates,
+            self.active_taste_preferences(),
+            applications,
+        );
+        self.audit.taste_decision(&decision);
+        decision
     }
 
     /// Run admission control for an incoming request. Updates counters.
