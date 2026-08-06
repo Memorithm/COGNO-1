@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const SCHEMA_VERSION: u16 = 1;
 const PROFILE_AUTHORITY: &str = "derived_cache_only";
@@ -61,15 +61,15 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let replay_path = args.next().ok_or(
-        "usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT",
-    )?;
-    let candidates_path = args.next().ok_or(
-        "usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT",
-    )?;
-    let store_root = args.next().ok_or(
-        "usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT",
-    )?;
+    let replay_path = args
+        .next()
+        .ok_or("usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT")?;
+    let candidates_path = args
+        .next()
+        .ok_or("usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT")?;
+    let store_root = args
+        .next()
+        .ok_or("usage: cogno-taste-profile REPLAY_JSON CANDIDATES_JSON STORE_ROOT")?;
     if args.next().is_some() {
         return Err("too many arguments".to_string());
     }
