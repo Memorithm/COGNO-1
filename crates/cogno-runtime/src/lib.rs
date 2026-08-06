@@ -61,9 +61,7 @@ pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
 pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError};
-pub use taste_cycle::{
-    commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError,
-};
+pub use taste_cycle::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError};
 pub use taste_decision::{
     decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TasteInfluence,
     TastePreferenceApplication, MAX_TASTE_WEIGHT_BPS,
