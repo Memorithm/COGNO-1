@@ -42,6 +42,7 @@ pub mod pipeline;
 pub mod queue;
 pub mod runtime;
 pub mod scientific_exchange;
+pub mod taste_autonomy;
 pub mod taste_benchmark;
 pub mod taste_cycle;
 pub mod taste_decision;
@@ -69,6 +70,10 @@ pub use scientific_exchange::{
     classify_scientific_exchange, ScientificExchangeDisposition, ScientificExchangeError,
     ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
     MAX_SCIENTIFIC_EXCHANGE_PAYLOAD_BYTES,
+};
+pub use taste_autonomy::{
+    run_autonomous_scientific_taste, AutonomousTasteError, AutonomousTasteReport,
+    MAX_AUTONOMOUS_EXCHANGE_RECORDS,
 };
 pub use taste_benchmark::{
     evaluate_taste_benchmark, TasteBenchmarkCase, TasteBenchmarkError, TasteBenchmarkReport,
