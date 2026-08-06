@@ -10,6 +10,7 @@ use std::path::Path;
 
 const SCHEMA_VERSION: u16 = 1;
 const PROFILE_AUTHORITY: &str = "derived_cache_only";
+const REPLAY_AUTHORITY: &str = "deterministic_replay_only";
 const VERIFIED_AUTHORITY: &str = "verified_profile_view_only";
 const VALIDATION_FILE: &str = "taste.validations";
 const PROFILE_FILE: &str = "taste.profile";
@@ -30,6 +31,18 @@ struct PersistedProfile {
     schema_version: u16,
     authority: String,
     replay_sha256: String,
+    candidate_report_sha256: String,
+    validation_store_sha256: String,
+    validation_records: usize,
+    minimum_non_model_confirmations: u32,
+    activation_threshold_bps: u16,
+    preferences: Vec<ProfilePreference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct ReplayReport {
+    schema_version: u16,
+    authority: String,
     candidate_report_sha256: String,
     validation_store_sha256: String,
     validation_records: usize,
@@ -90,7 +103,11 @@ fn run() -> Result<(), String> {
 
     let profile: PersistedProfile = serde_json::from_slice(&profile_bytes)
         .map_err(|error| format!("invalid taste profile: {error}"))?;
+    let replay: ReplayReport = serde_json::from_slice(&replay_bytes)
+        .map_err(|error| format!("invalid replay report: {error}"))?;
+
     validate_profile(&profile)?;
+    validate_replay(&replay)?;
 
     verify_digest(&profile.replay_sha256, &replay_bytes, "replay report")?;
     verify_digest(
@@ -103,6 +120,7 @@ fn run() -> Result<(), String> {
         &validation_bytes,
         "validation store",
     )?;
+    verify_profile_matches_replay(&profile, &replay)?;
 
     let active_preferences = profile
         .preferences
@@ -144,13 +162,42 @@ fn validate_profile(profile: &PersistedProfile) -> Result<(), String> {
     if profile.authority != PROFILE_AUTHORITY {
         return Err("profile authority must be derived_cache_only".to_string());
     }
-    if profile.activation_threshold_bps > 10_000 {
+    validate_policy_and_preferences(
+        profile.activation_threshold_bps,
+        profile.minimum_non_model_confirmations,
+        &profile.preferences,
+    )
+}
+
+fn validate_replay(replay: &ReplayReport) -> Result<(), String> {
+    if replay.schema_version != SCHEMA_VERSION {
+        return Err(format!(
+            "unsupported replay schema version {}",
+            replay.schema_version
+        ));
+    }
+    if replay.authority != REPLAY_AUTHORITY {
+        return Err("replay authority must be deterministic_replay_only".to_string());
+    }
+    validate_policy_and_preferences(
+        replay.activation_threshold_bps,
+        replay.minimum_non_model_confirmations,
+        &replay.preferences,
+    )
+}
+
+fn validate_policy_and_preferences(
+    activation_threshold_bps: u16,
+    minimum_non_model_confirmations: u32,
+    preferences: &[ProfilePreference],
+) -> Result<(), String> {
+    if activation_threshold_bps > 10_000 {
         return Err("activation threshold exceeds 10000".to_string());
     }
-    if profile.minimum_non_model_confirmations == 0 {
+    if minimum_non_model_confirmations == 0 {
         return Err("minimum non-model confirmations must be non-zero".to_string());
     }
-    for preference in &profile.preferences {
+    for preference in preferences {
         if preference.confidence_bps > 10_000 {
             return Err(format!(
                 "preference {} confidence exceeds 10000",
@@ -164,13 +211,13 @@ fn validate_profile(profile: &PersistedProfile) -> Result<(), String> {
                     preference.preference_id
                 ));
             }
-            if preference.non_model_confirmations < profile.minimum_non_model_confirmations {
+            if preference.non_model_confirmations < minimum_non_model_confirmations {
                 return Err(format!(
                     "active preference {} lacks confirmations",
                     preference.preference_id
                 ));
             }
-            if preference.confidence_bps < profile.activation_threshold_bps {
+            if preference.confidence_bps < activation_threshold_bps {
                 return Err(format!(
                     "active preference {} is below confidence threshold",
                     preference.preference_id
@@ -182,6 +229,31 @@ fn validate_profile(profile: &PersistedProfile) -> Result<(), String> {
                 preference.preference_id
             ));
         }
+    }
+    Ok(())
+}
+
+fn verify_profile_matches_replay(
+    profile: &PersistedProfile,
+    replay: &ReplayReport,
+) -> Result<(), String> {
+    if profile.candidate_report_sha256 != replay.candidate_report_sha256 {
+        return Err("candidate digest differs between profile and replay".to_string());
+    }
+    if profile.validation_store_sha256 != replay.validation_store_sha256 {
+        return Err("validation digest differs between profile and replay".to_string());
+    }
+    if profile.validation_records != replay.validation_records {
+        return Err("validation record count differs between profile and replay".to_string());
+    }
+    if profile.minimum_non_model_confirmations != replay.minimum_non_model_confirmations {
+        return Err("confirmation policy differs between profile and replay".to_string());
+    }
+    if profile.activation_threshold_bps != replay.activation_threshold_bps {
+        return Err("activation threshold differs between profile and replay".to_string());
+    }
+    if profile.preferences != replay.preferences {
+        return Err("preference contents differ between profile and replay".to_string());
     }
     Ok(())
 }
@@ -219,6 +291,17 @@ fn digest_hex(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    fn preference() -> ProfilePreference {
+        ProfilePreference {
+            preference_id: 7,
+            state: "active".to_string(),
+            confidence_bps: 8_000,
+            non_model_confirmations: 2,
+            validations: 2,
+            can_activate: true,
+        }
+    }
+
     fn profile() -> PersistedProfile {
         PersistedProfile {
             schema_version: 1,
@@ -229,14 +312,20 @@ mod tests {
             validation_records: 2,
             minimum_non_model_confirmations: 2,
             activation_threshold_bps: 7_000,
-            preferences: vec![ProfilePreference {
-                preference_id: 7,
-                state: "active".to_string(),
-                confidence_bps: 8_000,
-                non_model_confirmations: 2,
-                validations: 2,
-                can_activate: true,
-            }],
+            preferences: vec![preference()],
+        }
+    }
+
+    fn replay() -> ReplayReport {
+        ReplayReport {
+            schema_version: 1,
+            authority: REPLAY_AUTHORITY.to_string(),
+            candidate_report_sha256: "cd".repeat(32),
+            validation_store_sha256: "ef".repeat(32),
+            validation_records: 2,
+            minimum_non_model_confirmations: 2,
+            activation_threshold_bps: 7_000,
+            preferences: vec![preference()],
         }
     }
 
@@ -257,6 +346,18 @@ mod tests {
         let mut item = profile();
         item.preferences[0].confidence_bps = 6_999;
         assert!(validate_profile(&item).is_err());
+    }
+
+    #[test]
+    fn profile_contents_must_match_replay() {
+        let mut item = profile();
+        item.preferences[0].confidence_bps = 9_999;
+        assert!(verify_profile_matches_replay(&item, &replay()).is_err());
+    }
+
+    #[test]
+    fn valid_profile_matches_replay() {
+        assert_eq!(verify_profile_matches_replay(&profile(), &replay()), Ok(()));
     }
 
     #[test]
