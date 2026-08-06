@@ -126,11 +126,12 @@ fn runtime_exposes_only_verified_active_preferences() {
 
     let active = runtime.active_taste_preferences();
     assert_eq!(active.len(), 1);
-    assert_eq!(active[0].preference_id, 42);
-    assert_eq!(active[0].confidence_bps, 8200);
-    assert_eq!(active[0].non_model_confirmations, 2);
-    assert_eq!(active[0].validations, 2);
-    assert_eq!(runtime.active_taste_preference(42), Some(&active[0]));
+    let active_preference = active[0];
+    assert_eq!(active_preference.preference_id, 42);
+    assert_eq!(active_preference.confidence_bps, 8200);
+    assert_eq!(active_preference.non_model_confirmations, 2);
+    assert_eq!(active_preference.validations, 2);
+    assert_eq!(runtime.active_taste_preference(42), Some(&active_preference));
     assert_eq!(runtime.active_taste_preference(99), None);
     assert!(runtime.report().taste_profile_loaded);
     assert_eq!(runtime.report().active_taste_preferences, 1);
@@ -141,7 +142,7 @@ fn runtime_exposes_only_verified_active_preferences() {
         runtime.install_verified_taste_profile(replacement),
         Err(RuntimeTasteProfileError::AlreadyInstalled)
     );
-    assert_eq!(runtime.active_taste_preferences(), active);
+    assert_eq!(runtime.active_taste_preferences(), &[active_preference]);
 
     fs::remove_dir_all(root).expect("cleanup");
 }
