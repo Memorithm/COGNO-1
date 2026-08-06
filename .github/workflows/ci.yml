@@ -78,21 +78,47 @@ jobs:
       - name: cargo doc (no-deps, locked)
         run: cargo doc --no-deps --locked
 
-  no-external-deps:
-    name: zero external dependencies (§24)
+  dependency-policy:
+    name: documented external dependencies (§24)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      - name: build then list Cargo.lock external entries
+      - name: verify locked dependency inventory
+        shell: bash
         run: |
-          cargo generate-lockfile --frozen 2>/dev/null || cargo generate-lockfile
-          ext=$(grep -E '^name = "' Cargo.lock | sed 's/name = "//; s/"//' | grep -v '^cogno-' || true)
-          if [ -n "$ext" ]; then
-            echo "External dependency detected — document it in docs/DEPENDENCIES.md:"
-            echo "$ext"
+          set -euo pipefail
+          cargo metadata --locked --format-version 1 --no-deps >/dev/null
+          actual="$(grep -E '^name = "' Cargo.lock | sed 's/name = "//; s/"//' | grep -v '^cogno-' | sort -u)"
+          expected="$(cat <<'EOF' | sort -u
+          block-buffer
+          cfg-if
+          cpufeatures
+          crypto-common
+          digest
+          generic-array
+          itoa
+          libc
+          memchr
+          proc-macro2
+          quote
+          serde
+          serde_core
+          serde_derive
+          serde_json
+          sha2
+          syn
+          typenum
+          unicode-ident
+          version_check
+          zmij
+          EOF
+          )"
+          if [ "$actual" != "$expected" ]; then
+            echo "External dependency inventory differs from docs/DEPENDENCIES.md"
+            diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") || true
             exit 1
           fi
-          echo "OK: zero external dependencies (cogno-core is dep-free by design §23)."
+          echo "OK: locked external dependency inventory is documented."

@@ -4,59 +4,118 @@ Conformément à COGNO-1 V2 §24 (chaîne d'approvisionnement).
 
 ## Vue d'ensemble
 
-À ce jour, **COGNO-1 n'a aucune dépendance externe**. Le workspace ne déclare
-aucun crate hors `cogno-*`. `cogno-core` est intentionnellement sans
-dépendances (§23 : sans réseau, sans process, sans FS, sans `unsafe`
-propriétaire). Les autres crates ne dépendent que de `cogno-core` (chemin
-local).
+Le noyau `cogno-core` reste intentionnellement sans dépendance externe. Les
+crates d'intégration utilisent un ensemble réduit et verrouillé de dépendances
+pour la sérialisation déterministe des artefacts et le calcul de leurs
+empreintes cryptographiques.
 
-| Crate | Dépendances externes | Dépendances internes |
-|-------|----------------------|----------------------|
+| Crate | Dépendances externes directes | Dépendances internes |
+|-------|-------------------------------|----------------------|
 | `cogno-core` | 0 | 0 |
-| `cogno-runtime` | 0 | `cogno-core` |
+| `cogno-runtime` | `serde`, `serde_json`, `sha2` | `cogno-core` |
 | `cogno-model` | 0 | `cogno-core` |
-| `cogno-cli` | 0 | `cogno-core`, `cogno-runtime`, `cogno-model` |
+| `cogno-cli` | `serde`, `serde_json`, `sha2` | `cogno-core`, `cogno-runtime`, `cogno-model` |
+
+## Justification des dépendances directes
+
+### `serde` 1.x
+
+- usage : structures sérialisables et désérialisables pour les profils,
+  validations et rapports vérifiés ;
+- feature activée : `derive` ;
+- licence : MIT OR Apache-2.0 ;
+- proc-macro transitif : `serde_derive` ;
+- aucune autorité réseau, processus, outil ou système de fichiers n'est
+  accordée par cette dépendance.
+
+### `serde_json` 1.x
+
+- usage : lecture et écriture déterministes des artefacts JSON de contrôle ;
+- features activées : défaut uniquement ;
+- licence : MIT OR Apache-2.0 ;
+- les octets persistés sont ensuite liés à leurs empreintes SHA-256 et revérifiés
+  avant exposition au runtime.
+
+### `sha2` 0.10.x
+
+- usage : empreintes SHA-256 des journaux, rapports, profils et manifests de
+  génération ;
+- features activées : défaut uniquement ;
+- licence : MIT OR Apache-2.0 ;
+- la fonction de hachage sert à l'intégrité et à la provenance, pas à créer une
+  autorité ou une preuve de confiance autonome.
+
+## Inventaire verrouillé transitif
+
+La CI compare l'ensemble exact des crates externes présentes dans `Cargo.lock`
+à l'inventaire suivant :
+
+```text
+block-buffer
+cfg-if
+cpufeatures
+crypto-common
+digest
+generic-array
+itoa
+libc
+memchr
+proc-macro2
+quote
+serde
+serde_core
+serde_derive
+serde_json
+sha2
+syn
+typenum
+unicode-ident
+version_check
+zmij
+```
+
+Toute apparition, disparition ou modification de cet ensemble fait échouer le
+job `documented external dependencies (§24)` jusqu'à mise à jour explicite de
+ce document et de la politique CI.
 
 ## Vérification
 
 ```bash
-# La CI (.github/workflows/ci.yml, job no-external-deps) échoue si une
-# dépendance externe apparaît sans être documentée ici.
-cargo generate-lockfile
-grep -E '^name = "' Cargo.lock | sed 's/name = "//; s/"//' | grep -v '^cogno-'
+cargo metadata --locked --format-version 1 --no-deps >/dev/null
+grep -E '^name = "' Cargo.lock \
+  | sed 's/name = "//; s/"//' \
+  | grep -v '^cogno-' \
+  | sort -u
 ```
 
 ## Politique (§24)
 
-- **Cargo.lock conservé** dans le dépôt (committé dès l'init).
-- **CI en `--locked`** pour `clippy` et `test` : la résolution utilisée est
-  celle enregistrée dans `Cargo.lock`.
-- **Build hors réseau en `--frozen`** pour le job `frozen` : empêche Cargo
-  d'accéder au réseau.
-- **Aucune dépendance Git non épinglée**. Aucune dépendance Git dans le
-  workspace.
-- **Aucun script de build** ni **macro procédurale** dans le workspace.
-- **Licences** : N/A (code propriétaire uniquement, sous MIT).
-- **Vulnérabilités connues** : à auditer via `cargo audit` lorsqu'une
-  dépendance externe sera ajoutée. Aucune dépendance externe aujourd'hui donc
-  aucune surface d'audit aujourd'hui.
-- **Features** : aucune feature activée (rien à désactiver).
+- **Cargo.lock conservé** dans le dépôt.
+- **CI en `--locked`** pour les tests, Clippy et la documentation.
+- **Build hors réseau en `--frozen`** pour la construction release.
+- **Aucune dépendance Git** : toutes les dépendances externes viennent du
+  registre crates.io et sont verrouillées par checksum.
+- **Aucun script de build propriétaire**.
+- **Aucun `unsafe` propriétaire** : chaque crate COGNO conserve
+  `#![forbid(unsafe_code)]`.
+- **Dépendances minimales et justifiées** : `cogno-core` reste sans dépendance ;
+  les dépendances externes sont confinées aux couches runtime/CLI.
+- **Vulnérabilités connues** : l'inventaire doit être audité lors de chaque
+  changement de version ou ajout de crate.
 
-## Ajout d'une dépendance externe
+## Ajout ou mise à jour d'une dépendance externe
 
-Avant d'ajouter une dépendance externe :
-
-1. Évaluer si l'objectif peut être atteint sans elle (le noyau doit rester
-   déterministe, sans réseau, sans `unsafe` propriétaire — §23).
-2. Si oui, l'ajouter ici avec : nom, version **épinglée**, licence, justification
-   courte, features activées, surface `unsafe` connue, sponsors/mainteneurs.
-3. Vérifier les vulnérabilités connues (`cargo audit`).
-4. Auditer les scripts de build et proc-macros de la dépendance.
-5. Commettre le `Cargo.lock` mis à jour.
-6. Mettre à jour le job `no-external-deps` si la politique change.
+1. Vérifier que l'objectif ne peut pas être atteint raisonnablement avec les
+   abstractions déjà présentes.
+2. Documenter le nom, la version, la licence, la justification, les features,
+   les proc-macros, scripts de build et surfaces `unsafe` connues.
+3. Régénérer et vérifier `Cargo.lock`.
+4. Mettre à jour l'inventaire transitif exact ci-dessus et le job CI.
+5. Exécuter `cargo fmt`, `cargo test --locked`, `cargo clippy --locked` et
+   `cargo build --frozen --release`.
 
 ## Note sur l'invariant `unsafe`
 
-`#![forbid(unsafe_code)]` dans tout le code propriétaire n'empêche pas les
-dépendances externes de contenir du `unsafe`. C'est pourquoi chaque ajout de
-dépendance externalise l'audit `unsafe` et le documente dans cet inventaire.
+`#![forbid(unsafe_code)]` protège le code propriétaire du workspace. Les crates
+transitives peuvent contenir du code `unsafe`; leur présence est donc rendue
+explicite, verrouillée et soumise à revue de chaîne d'approvisionnement.

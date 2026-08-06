@@ -47,8 +47,10 @@
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
 pub mod bounded;
+pub mod communication;
 pub mod data;
 pub mod decision;
+pub mod dialogue_observer;
 pub mod evidence;
 pub mod ids;
 pub mod journal;
@@ -66,12 +68,23 @@ pub mod reward;
 pub mod reward_engine;
 pub mod scratch;
 pub mod semantic;
+pub mod taste;
 pub mod tool;
 pub mod validators;
 
 pub use bounded::{BoundedVec, CapacityError};
+pub use communication::{
+    CommunicationAuthorization, CommunicationKind, CommunicationMaturity,
+    CommunicationMaturityPolicy, CommunicationRecipient, CommunicationRole,
+    COMMUNICATION_SCHEMA_VERSION, MAX_COMMUNICATION_CONFIDENCE_BPS,
+};
 pub use data::DataClassification;
 pub use decision::{decide, Candidate, Decision, RejectReason};
+pub use dialogue_observer::{
+    observe_dialogue, DialogueObservation, DialogueObservationError, DialogueObservationOutcome,
+    ObservedDialogueKind, ObservedSenderClass, DIALOGUE_OBSERVATION_CATEGORY_TAG,
+    MAX_DIALOGUE_OBSERVATION_PAYLOAD_BYTES,
+};
 pub use evidence::{Evidence, EvidenceId, EvidenceOrigin, RuleState};
 pub use ids::{CandidateScore, RuleRef, TokenId, ValidationResult};
 pub use journal::{AppendOutcome, EventId, Fingerprint, Journal, JournalEvent};
@@ -94,6 +107,10 @@ pub use reward::Reward;
 pub use reward_engine::{RewardEngine, RewardParams};
 pub use scratch::RequestScratch;
 pub use semantic::SemanticMemoryBudget;
+pub use taste::{
+    ScientificTaste, ScientificTasteProfile, TasteError, TasteEvent, TasteEventKind, TasteOrigin,
+    TastePolicy, TasteScope, TasteState, MAX_TASTE_CONFIDENCE_BPS, MAX_TASTE_EVIDENCE_IDS,
+};
 pub use tool::{
     classify_tool_proposal, looks_like_shell_invocation, CapabilityId, ReasonCode, ToolId,
     ToolProposalView, TypedArgument, MVP_TOOLS_ENABLED,

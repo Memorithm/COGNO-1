@@ -12,6 +12,10 @@ use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
+use crate::taste_decision::{
+    decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TastePreferenceApplication,
+};
+use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
@@ -33,9 +37,18 @@ pub struct RuntimeReport {
     pub phase: u8,
     pub tools_enabled: bool,
     pub meta_active: bool,
+    pub taste_profile_loaded: bool,
+    pub active_taste_preferences: usize,
     pub admissions: u64,
     pub rejections: u64,
     pub truncations: u64,
+}
+
+/// Failure while attaching verified taste state to a runtime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeTasteProfileError {
+    /// A verified profile was already attached and cannot be replaced.
+    AlreadyInstalled,
 }
 
 /// The runtime. Holds the validated budget, KV controller, queue, tool
@@ -55,6 +68,7 @@ pub struct Runtime {
     pub admissions: u64,
     pub rejections: u64,
     pub truncations: u64,
+    taste_profile: Option<VerifiedTasteProfile>,
 }
 
 /// A cheap queue payload used by the runtime (here: a placeholder ticket the
@@ -85,7 +99,66 @@ impl Runtime {
             admissions: 0,
             rejections: 0,
             truncations: 0,
+            taste_profile: None,
         })
+    }
+
+    /// Attach a profile that has already passed deterministic verification.
+    ///
+    /// Installation is allowed exactly once. Refusing replacement prevents a
+    /// live runtime from changing scientific preferences after initialization.
+    /// The installed profile remains read-only and cannot grant tool, policy
+    /// or kernel authority.
+    pub fn install_verified_taste_profile(
+        &mut self,
+        profile: VerifiedTasteProfile,
+    ) -> Result<(), RuntimeTasteProfileError> {
+        if self.taste_profile.is_some() {
+            return Err(RuntimeTasteProfileError::AlreadyInstalled);
+        }
+        self.taste_profile = Some(profile);
+        Ok(())
+    }
+
+    /// Return the complete verified profile as a read-only runtime view.
+    #[must_use]
+    pub fn verified_taste_profile(&self) -> Option<&VerifiedTasteProfile> {
+        self.taste_profile.as_ref()
+    }
+
+    /// Return all active verified preferences.
+    ///
+    /// An unconfigured runtime returns an empty slice and therefore fails
+    /// closed rather than inferring or synthesizing preferences.
+    #[must_use]
+    pub fn active_taste_preferences(&self) -> &[VerifiedTastePreference] {
+        self.taste_profile
+            .as_ref()
+            .map_or(&[], VerifiedTasteProfile::active_preferences)
+    }
+
+    /// Look up one active preference by its stable identifier.
+    #[must_use]
+    pub fn active_taste_preference(&self, preference_id: u64) -> Option<&VerifiedTastePreference> {
+        self.active_taste_preferences()
+            .iter()
+            .find(|preference| preference.preference_id == preference_id)
+    }
+
+    /// Make and audit one bounded taste-aware soft decision.
+    ///
+    /// Only active verified preferences are visible here. Candidate hard
+    /// constraints are evaluated before score comparison and can never be
+    /// compensated by taste influence.
+    pub fn decide_with_taste(
+        &mut self,
+        candidates: &[TasteDecisionCandidate],
+        applications: &[TastePreferenceApplication],
+    ) -> TasteDecision {
+        let decision =
+            decide_with_verified_taste(candidates, self.active_taste_preferences(), applications);
+        self.audit.taste_decision(&decision);
+        decision
     }
 
     /// Run admission control for an incoming request. Updates counters.
@@ -174,6 +247,8 @@ impl Runtime {
             phase: 0,
             tools_enabled: self.tools.tools_enabled,
             meta_active: self.meta.is_active(),
+            taste_profile_loaded: self.taste_profile.is_some(),
+            active_taste_preferences: self.active_taste_preferences().len(),
             admissions: self.admissions,
             rejections: self.rejections,
             truncations: self.truncations,

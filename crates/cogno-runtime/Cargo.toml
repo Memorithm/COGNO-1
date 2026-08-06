@@ -14,5 +14,8 @@ path = "src/lib.rs"
 
 [dependencies]
 cogno-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
 
 # Lint policy is declared at the top of src/lib.rs.
