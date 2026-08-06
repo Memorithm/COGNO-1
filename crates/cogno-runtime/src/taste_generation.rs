@@ -113,7 +113,9 @@ impl TasteGenerationChain {
 
     #[must_use]
     pub fn latest(&self) -> Option<&TasteGenerationManifest> {
-        self.manifests.last_key_value().map(|(_, manifest)| manifest)
+        self.manifests
+            .last_key_value()
+            .map(|(_, manifest)| manifest)
     }
 
     #[must_use]
@@ -159,9 +161,7 @@ mod tests {
     #[test]
     fn stale_or_forked_generation_is_rejected() {
         let mut chain = TasteGenerationChain::default();
-        chain
-            .append(manifest(1, GENESIS_DIGEST, 1))
-            .expect("first");
+        chain.append(manifest(1, GENESIS_DIGEST, 1)).expect("first");
         assert_eq!(
             chain.append(manifest(3, [9; 32], 3)),
             Err(TasteGenerationError::NonMonotonicGeneration)
@@ -171,9 +171,7 @@ mod tests {
     #[test]
     fn rollback_requires_a_known_generation() {
         let mut chain = TasteGenerationChain::default();
-        chain
-            .append(manifest(1, GENESIS_DIGEST, 1))
-            .expect("first");
+        chain.append(manifest(1, GENESIS_DIGEST, 1)).expect("first");
         assert_eq!(
             chain.select_rollback(9),
             Err(TasteGenerationError::UnknownRollbackGeneration)
