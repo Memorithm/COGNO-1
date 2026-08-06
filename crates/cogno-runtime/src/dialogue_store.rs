@@ -5,9 +5,8 @@
 //! enum values, invalid lengths or digest mismatch.
 
 use cogno_core::{
-    observe_dialogue, DialogueObservation, DialogueObservationError,
-    DialogueObservationOutcome, Journal, ObservedDialogueKind, ObservedSenderClass,
-    MAX_DIALOGUE_OBSERVATION_PAYLOAD_BYTES,
+    observe_dialogue, DialogueObservation, DialogueObservationError, DialogueObservationOutcome,
+    Journal, ObservedDialogueKind, ObservedSenderClass, MAX_DIALOGUE_OBSERVATION_PAYLOAD_BYTES,
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
