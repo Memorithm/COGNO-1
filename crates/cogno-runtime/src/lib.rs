@@ -42,6 +42,7 @@ pub mod pipeline;
 pub mod queue;
 pub mod runtime;
 pub mod taste_validation_store;
+pub mod verified_taste_profile;
 
 pub use admission::{Admission, AdmissionError};
 pub use audit::Audit;
@@ -60,4 +61,7 @@ pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport};
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
     StoredValidationVerdict, TasteValidationAppendOutcome, TasteValidationStoreError,
+};
+pub use verified_taste_profile::{
+    VerifiedTastePreference, VerifiedTasteProfile, VerifiedTasteProfileError,
 };
