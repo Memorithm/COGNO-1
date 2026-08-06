@@ -1,9 +1,7 @@
 //! End-to-end attachment of a verified scientific taste profile to Runtime.
 
 use cogno_core::{KvCachePolicy, MemoryBudget, QueueFullPolicy};
-use cogno_runtime::{
-    Runtime, RuntimeConfig, RuntimeTasteProfileError, VerifiedTasteProfile,
-};
+use cogno_runtime::{Runtime, RuntimeConfig, RuntimeTasteProfileError, VerifiedTasteProfile};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -131,7 +129,10 @@ fn runtime_exposes_only_verified_active_preferences() {
     assert_eq!(active_preference.confidence_bps, 8200);
     assert_eq!(active_preference.non_model_confirmations, 2);
     assert_eq!(active_preference.validations, 2);
-    assert_eq!(runtime.active_taste_preference(42), Some(&active_preference));
+    assert_eq!(
+        runtime.active_taste_preference(42),
+        Some(&active_preference)
+    );
     assert_eq!(runtime.active_taste_preference(99), None);
     assert!(runtime.report().taste_profile_loaded);
     assert_eq!(runtime.report().active_taste_preferences, 1);
