@@ -57,9 +57,7 @@ pub use kv_controller::{KvController, KvError};
 pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
-pub use runtime::{
-    QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError,
-};
+pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError};
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
     StoredValidationVerdict, TasteValidationAppendOutcome, TasteValidationStoreError,
