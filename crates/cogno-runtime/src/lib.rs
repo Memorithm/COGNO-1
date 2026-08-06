@@ -41,9 +41,14 @@ pub mod path;
 pub mod pipeline;
 pub mod queue;
 pub mod runtime;
+pub mod scientific_exchange;
+pub mod taste_autonomy;
+pub mod taste_benchmark;
 pub mod taste_cycle;
 pub mod taste_decision;
 pub mod taste_generation;
+pub mod taste_longitudinal;
+pub mod taste_orchestrator;
 pub mod taste_validation_store;
 pub mod verified_taste_profile;
 
@@ -61,6 +66,19 @@ pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
 pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError};
+pub use scientific_exchange::{
+    classify_scientific_exchange, ScientificExchangeDisposition, ScientificExchangeError,
+    ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
+    MAX_SCIENTIFIC_EXCHANGE_PAYLOAD_BYTES,
+};
+pub use taste_autonomy::{
+    run_autonomous_scientific_taste, AutonomousTasteError, AutonomousTasteReport,
+    MAX_AUTONOMOUS_EXCHANGE_RECORDS,
+};
+pub use taste_benchmark::{
+    evaluate_taste_benchmark, TasteBenchmarkCase, TasteBenchmarkError, TasteBenchmarkReport,
+    MAX_BENCHMARK_CASES,
+};
 pub use taste_cycle::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError};
 pub use taste_decision::{
     decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TasteInfluence,
@@ -68,6 +86,17 @@ pub use taste_decision::{
 };
 pub use taste_generation::{
     TasteGenerationChain, TasteGenerationError, TasteGenerationManifest, GENESIS_DIGEST,
+};
+pub use taste_longitudinal::{
+    TasteDriftState, TasteHistoryObservation, TasteLongitudinalError, TasteLongitudinalStatus,
+    TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE,
+    STALE_GENERATION_GAP,
+};
+pub use taste_orchestrator::{
+    orchestrate_scientific_taste_cycle, validation_origin_is_non_model,
+    OrchestratedTasteCandidate, OrchestratedTasteOutcome, OrchestratedTasteState,
+    ScientificTasteCycleReport, ScientificTasteOrchestratorError, MAX_ORCHESTRATED_CANDIDATES,
+    MAX_ORCHESTRATED_VALIDATIONS, MIN_PROMOTION_CONFIRMATIONS, PROMOTION_THRESHOLD_BPS,
 };
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
