@@ -41,6 +41,7 @@ pub mod path;
 pub mod pipeline;
 pub mod queue;
 pub mod runtime;
+pub mod taste_validation_store;
 
 pub use admission::{Admission, AdmissionError};
 pub use audit::Audit;
@@ -56,3 +57,7 @@ pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
 pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport};
+pub use taste_validation_store::{
+    PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
+    StoredValidationVerdict, TasteValidationAppendOutcome, TasteValidationStoreError,
+};
