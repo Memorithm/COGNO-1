@@ -32,6 +32,7 @@
 
 pub mod admission;
 pub mod audit;
+pub mod dialogue_candidates;
 pub mod dialogue_snapshot;
 pub mod dialogue_store;
 pub mod executor;
@@ -43,6 +44,10 @@ pub mod runtime;
 
 pub use admission::{Admission, AdmissionError};
 pub use audit::Audit;
+pub use dialogue_candidates::{
+    CandidateOrigin, DialogueCandidateError, DialogueCandidateReport,
+    QuarantinedPreferenceCandidate,
+};
 pub use dialogue_snapshot::{DialogueSnapshot, DialogueSnapshotError};
 pub use dialogue_store::{DialogueStoreError, PersistentDialogueStore};
 pub use executor::{ToolExecutor, ToolOutcome};
