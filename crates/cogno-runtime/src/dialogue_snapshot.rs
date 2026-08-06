@@ -195,7 +195,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("time")
             .as_nanos();
-        std::env::temp_dir().join(format!("cogno-dialogue-snapshot-{}-{nonce}", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "cogno-dialogue-snapshot-{}-{nonce}",
+            std::process::id()
+        ))
     }
 
     #[test]
