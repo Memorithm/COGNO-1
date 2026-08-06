@@ -41,12 +41,14 @@ pub mod path;
 pub mod pipeline;
 pub mod queue;
 pub mod runtime;
+pub mod taste_cycle;
 pub mod taste_decision;
+pub mod taste_generation;
 pub mod taste_validation_store;
 pub mod verified_taste_profile;
 
 pub use admission::{Admission, AdmissionError};
-pub use audit::Audit;
+pub use audit::{Audit, TasteDecisionAudit, TasteInfluenceAudit};
 pub use dialogue_candidates::{
     CandidateOrigin, DialogueCandidateError, DialogueCandidateReport,
     QuarantinedPreferenceCandidate,
@@ -59,9 +61,15 @@ pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
 pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError};
+pub use taste_cycle::{
+    commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError,
+};
 pub use taste_decision::{
     decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TasteInfluence,
     TastePreferenceApplication, MAX_TASTE_WEIGHT_BPS,
+};
+pub use taste_generation::{
+    TasteGenerationChain, TasteGenerationError, TasteGenerationManifest, GENESIS_DIGEST,
 };
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
