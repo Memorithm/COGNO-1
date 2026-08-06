@@ -34,9 +34,18 @@ pub struct RuntimeReport {
     pub phase: u8,
     pub tools_enabled: bool,
     pub meta_active: bool,
+    pub taste_profile_loaded: bool,
+    pub active_taste_preferences: usize,
     pub admissions: u64,
     pub rejections: u64,
     pub truncations: u64,
+}
+
+/// Failure while attaching verified taste state to a runtime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeTasteProfileError {
+    /// A verified profile was already attached and cannot be replaced.
+    AlreadyInstalled,
 }
 
 /// The runtime. Holds the validated budget, KV controller, queue, tool
@@ -93,11 +102,19 @@ impl Runtime {
 
     /// Attach a profile that has already passed deterministic verification.
     ///
-    /// This initialization-only operation transfers ownership into the
-    /// runtime. The profile is subsequently exposed only through immutable
-    /// references and cannot grant tool, policy or kernel authority.
-    pub fn install_verified_taste_profile(&mut self, profile: VerifiedTasteProfile) {
+    /// Installation is allowed exactly once. Refusing replacement prevents a
+    /// live runtime from changing scientific preferences after initialization.
+    /// The installed profile remains read-only and cannot grant tool, policy
+    /// or kernel authority.
+    pub fn install_verified_taste_profile(
+        &mut self,
+        profile: VerifiedTasteProfile,
+    ) -> Result<(), RuntimeTasteProfileError> {
+        if self.taste_profile.is_some() {
+            return Err(RuntimeTasteProfileError::AlreadyInstalled);
+        }
         self.taste_profile = Some(profile);
+        Ok(())
     }
 
     /// Return the complete verified profile as a read-only runtime view.
@@ -211,6 +228,8 @@ impl Runtime {
             phase: 0,
             tools_enabled: self.tools.tools_enabled,
             meta_active: self.meta.is_active(),
+            taste_profile_loaded: self.taste_profile.is_some(),
+            active_taste_preferences: self.active_taste_preferences().len(),
             admissions: self.admissions,
             rejections: self.rejections,
             truncations: self.truncations,
