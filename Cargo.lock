@@ -45,6 +45,8 @@ name = "cogno-runtime"
 version = "0.0.1"
 dependencies = [
  "cogno-core",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 
