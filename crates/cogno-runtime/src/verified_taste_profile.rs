@@ -66,11 +66,7 @@ impl VerifiedTasteProfile {
         validate_profile(&profile)?;
         validate_replay(&replay)?;
         verify_profile_matches_replay(&profile, &replay)?;
-        verify_digest(
-            &profile.replay_sha256,
-            &replay_bytes,
-            ArtifactKind::Replay,
-        )?;
+        verify_digest(&profile.replay_sha256, &replay_bytes, ArtifactKind::Replay)?;
         verify_digest(
             &profile.candidate_report_sha256,
             &candidate_bytes,
@@ -291,10 +287,11 @@ fn read_bounded(path: &Path, kind: ArtifactKind) -> Result<Vec<u8>, VerifiedTast
         artifact: kind.label(),
         path: path.to_path_buf(),
     })?;
-    let length = usize::try_from(metadata.len())
-        .map_err(|_| VerifiedTasteProfileError::InvalidArtifactSize {
+    let length = usize::try_from(metadata.len()).map_err(|_| {
+        VerifiedTasteProfileError::InvalidArtifactSize {
             artifact: kind.label(),
-        })?;
+        }
+    })?;
     if length == 0 || length > MAX_ARTIFACT_BYTES {
         return Err(VerifiedTasteProfileError::InvalidArtifactSize {
             artifact: kind.label(),
