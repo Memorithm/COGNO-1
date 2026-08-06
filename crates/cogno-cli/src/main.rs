@@ -91,7 +91,9 @@ fn print_help() {
     println!("  simulate                 Run the deterministic proposal simulator");
     println!("  demo-pipeline            Run a proposal through the full deterministic pipeline");
     println!("  replay                   Replay a scripted journal and derive a profile");
-    println!("  observe-jsonl <root>      Persist validated SciAgent observation envelopes from stdin");
+    println!(
+        "  observe-jsonl <root>      Persist validated SciAgent observation envelopes from stdin"
+    );
     println!("  help                     Show this help");
 }
 
@@ -106,7 +108,8 @@ fn cmd_observe_jsonl(root: Option<&String>) -> Result<(), String> {
 
     for (index, line_result) in stdin.lock().lines().enumerate() {
         let line_number = index + 1;
-        let line = line_result.map_err(|error| format!("cannot read line {line_number}: {error}"))?;
+        let line =
+            line_result.map_err(|error| format!("cannot read line {line_number}: {error}"))?;
         if line.trim().is_empty() {
             continue;
         }
@@ -235,7 +238,10 @@ fn cmd_doctor() {
 }
 
 fn cmd_validate(n_arg: Option<&String>) {
-    let count: usize = n_arg.and_then(|value| value.parse().ok()).unwrap_or(3).min(64);
+    let count: usize = n_arg
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(3)
+        .min(64);
     let mut simulator = script_simulator(count);
     let mut ok = 0usize;
     let mut rejected = 0usize;
