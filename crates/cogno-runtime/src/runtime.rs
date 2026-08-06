@@ -12,6 +12,7 @@ use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
+use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
@@ -55,6 +56,7 @@ pub struct Runtime {
     pub admissions: u64,
     pub rejections: u64,
     pub truncations: u64,
+    taste_profile: Option<VerifiedTasteProfile>,
 }
 
 /// A cheap queue payload used by the runtime (here: a placeholder ticket the
@@ -85,7 +87,42 @@ impl Runtime {
             admissions: 0,
             rejections: 0,
             truncations: 0,
+            taste_profile: None,
         })
+    }
+
+    /// Attach a profile that has already passed deterministic verification.
+    ///
+    /// This initialization-only operation transfers ownership into the
+    /// runtime. The profile is subsequently exposed only through immutable
+    /// references and cannot grant tool, policy or kernel authority.
+    pub fn install_verified_taste_profile(&mut self, profile: VerifiedTasteProfile) {
+        self.taste_profile = Some(profile);
+    }
+
+    /// Return the complete verified profile as a read-only runtime view.
+    #[must_use]
+    pub fn verified_taste_profile(&self) -> Option<&VerifiedTasteProfile> {
+        self.taste_profile.as_ref()
+    }
+
+    /// Return all active verified preferences.
+    ///
+    /// An unconfigured runtime returns an empty slice and therefore fails
+    /// closed rather than inferring or synthesizing preferences.
+    #[must_use]
+    pub fn active_taste_preferences(&self) -> &[VerifiedTastePreference] {
+        self.taste_profile
+            .as_ref()
+            .map_or(&[], VerifiedTasteProfile::active_preferences)
+    }
+
+    /// Look up one active preference by its stable identifier.
+    #[must_use]
+    pub fn active_taste_preference(&self, preference_id: u64) -> Option<&VerifiedTastePreference> {
+        self.active_taste_preferences()
+            .iter()
+            .find(|preference| preference.preference_id == preference_id)
     }
 
     /// Run admission control for an incoming request. Updates counters.
