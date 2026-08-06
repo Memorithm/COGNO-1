@@ -131,7 +131,10 @@ mod tests {
     fn model_dialogue_is_journaled_as_model_inference() {
         let mut journal = Journal::default();
         let outcome = observe_dialogue(&mut journal, observation()).expect("valid observation");
-        assert_eq!(outcome, DialogueObservationOutcome::Appended { id: EventId(0) });
+        assert_eq!(
+            outcome,
+            DialogueObservationOutcome::Appended { id: EventId(0) }
+        );
         let event = journal.iter().next().expect("event");
         assert_eq!(event.origin, InputOrigin::ModelOutput);
         assert_eq!(event.evidence_origin, EvidenceOrigin::ModelInference);
@@ -143,7 +146,10 @@ mod tests {
         let mut journal = Journal::default();
         observe_dialogue(&mut journal, observation()).expect("first observation");
         let outcome = observe_dialogue(&mut journal, observation()).expect("duplicate observation");
-        assert_eq!(outcome, DialogueObservationOutcome::Duplicate { id: EventId(0) });
+        assert_eq!(
+            outcome,
+            DialogueObservationOutcome::Duplicate { id: EventId(0) }
+        );
         assert_eq!(journal.len(), 1);
     }
 
@@ -151,6 +157,9 @@ mod tests {
     fn zero_fingerprint_fails_closed() {
         let mut item = observation();
         item.fingerprint = [0; 32];
-        assert_eq!(item.validate(), Err(DialogueObservationError::ZeroFingerprint));
+        assert_eq!(
+            item.validate(),
+            Err(DialogueObservationError::ZeroFingerprint)
+        );
     }
 }
