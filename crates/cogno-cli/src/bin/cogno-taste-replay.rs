@@ -59,9 +59,10 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("invalid candidates report: {error}"))?;
     validate_candidate_report(&report)?;
 
-    let store = PersistentTasteValidationStore::open(Path::new(&store_root))
+    let store_root = Path::new(&store_root);
+    let store = PersistentTasteValidationStore::open(store_root)
         .map_err(|error| format!("cannot replay validation store: {error:?}"))?;
-    let output = derive_output(&report, &store, &candidate_bytes)?;
+    let output = derive_output(&report, &store, &candidate_bytes, store_root)?;
     println!(
         "{}",
         serde_json::to_string_pretty(&output)
@@ -102,6 +103,7 @@ fn derive_output(
     report: &CandidateReport,
     store: &PersistentTasteValidationStore,
     candidate_bytes: &[u8],
+    store_root: &Path,
 ) -> Result<Value, String> {
     let candidate_ids: BTreeSet<u64> = report
         .candidates
@@ -169,7 +171,7 @@ fn derive_output(
     }
 
     let candidate_sha256: [u8; 32] = Sha256::digest(candidate_bytes).into();
-    let validation_file = store_root_file(store);
+    let validation_file = store_root.join("taste.validations");
     let validation_sha256: [u8; 32] = Sha256::digest(
         fs::read(&validation_file)
             .map_err(|error| format!("cannot hash validation store: {error}"))?,
@@ -186,10 +188,6 @@ fn derive_output(
         "activation_threshold_bps": TastePolicy::DEFAULT.activation_threshold_bps,
         "preferences": preferences
     }))
-}
-
-fn store_root_file(store: &PersistentTasteValidationStore) -> std::path::PathBuf {
-    store.path().to_path_buf()
 }
 
 fn hex_digest(digest: [u8; 32]) -> String {
