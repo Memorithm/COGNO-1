@@ -134,15 +134,15 @@ fn exact_selected_generation_binds_restart_provenance() {
     let expected_generation_sha256 = generation.sha256();
     let manifest = restart_manifest();
 
-    let bound = GenerationBoundControlledRestartTasteProfile::prepare(
-        &manifest,
-        &generation,
-        profile,
-    )
-    .expect("generation-bound restart");
+    let bound =
+        GenerationBoundControlledRestartTasteProfile::prepare(&manifest, &generation, profile)
+            .expect("generation-bound restart");
 
     assert_eq!(bound.generation(), 1);
-    assert_eq!(bound.generation_manifest_sha256(), expected_generation_sha256);
+    assert_eq!(
+        bound.generation_manifest_sha256(),
+        expected_generation_sha256
+    );
     assert_eq!(bound.restart_manifest_sha256(), manifest.manifest_sha256);
     assert_eq!(bound.active_preferences()[0].preference_id, 41);
     fs::remove_dir_all(root).expect("cleanup");
