@@ -94,14 +94,13 @@ pub use taste_generation::{
 };
 pub use taste_longitudinal::{
     TasteDriftState, TasteHistoryObservation, TasteLongitudinalError, TasteLongitudinalStatus,
-    TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE,
-    STALE_GENERATION_GAP,
+    TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE, STALE_GENERATION_GAP,
 };
 pub use taste_orchestrator::{
-    orchestrate_scientific_taste_cycle, validation_origin_is_non_model,
-    OrchestratedTasteCandidate, OrchestratedTasteOutcome, OrchestratedTasteState,
-    ScientificTasteCycleReport, ScientificTasteOrchestratorError, MAX_ORCHESTRATED_CANDIDATES,
-    MAX_ORCHESTRATED_VALIDATIONS, MIN_PROMOTION_CONFIRMATIONS, PROMOTION_THRESHOLD_BPS,
+    orchestrate_scientific_taste_cycle, validation_origin_is_non_model, OrchestratedTasteCandidate,
+    OrchestratedTasteOutcome, OrchestratedTasteState, ScientificTasteCycleReport,
+    ScientificTasteOrchestratorError, MAX_ORCHESTRATED_CANDIDATES, MAX_ORCHESTRATED_VALIDATIONS,
+    MIN_PROMOTION_CONFIRMATIONS, PROMOTION_THRESHOLD_BPS,
 };
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
