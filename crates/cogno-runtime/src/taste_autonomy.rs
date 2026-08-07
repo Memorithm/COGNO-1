@@ -80,7 +80,8 @@ pub fn run_autonomous_scientific_taste(
 
     let cycle = orchestrate_scientific_taste_cycle(candidates, &validations)
         .map_err(AutonomousTasteError::Orchestrator)?;
-    let benchmark = evaluate_taste_benchmark(benchmark_cases).map_err(AutonomousTasteError::Benchmark)?;
+    let benchmark =
+        evaluate_taste_benchmark(benchmark_cases).map_err(AutonomousTasteError::Benchmark)?;
 
     for outcome in &cycle.outcomes {
         longitudinal
@@ -110,10 +111,7 @@ mod tests {
     use super::*;
     use crate::scientific_exchange::{ScientificExchangeOrigin, ScientificExchangeVerdict};
 
-    fn exchange(
-        observation_id: u64,
-        origin: ScientificExchangeOrigin,
-    ) -> ScientificExchangeRecord {
+    fn exchange(observation_id: u64, origin: ScientificExchangeOrigin) -> ScientificExchangeRecord {
         ScientificExchangeRecord {
             observation_id,
             preference_id: 7,
@@ -142,7 +140,10 @@ mod tests {
         .expect("autonomous pass");
         assert_eq!(report.quarantined_model_observations, 1);
         assert_eq!(report.accepted_validations, 2);
-        assert_eq!(report.cycle.outcomes[0].state, OrchestratedTasteState::Active);
+        assert_eq!(
+            report.cycle.outcomes[0].state,
+            OrchestratedTasteState::Active
+        );
         assert_eq!(history.len(), 1);
     }
 }
