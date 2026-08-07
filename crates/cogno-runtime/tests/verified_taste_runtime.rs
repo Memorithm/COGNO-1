@@ -137,8 +137,8 @@ fn sealed_profile(
     candidates_path: &Path,
     root: &Path,
 ) -> ControlledRestartTasteProfile {
-    let profile = VerifiedTasteProfile::load(replay_path, candidates_path, root)
-        .expect("verified profile");
+    let profile =
+        VerifiedTasteProfile::load(replay_path, candidates_path, root).expect("verified profile");
     ControlledRestartTasteProfile::prepare(&restart_manifest(), profile).expect("restart seal")
 }
 
