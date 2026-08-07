@@ -130,10 +130,10 @@ pub fn validate_proposal(p: &CognoProposalView) -> Result<(), RejectReason> {
 
     let mut last = None;
     for &eid in p.evidence_ids {
-        if let Some(prev) = last {
-            if eid == prev {
-                return Err(RejectReason::Malformed);
-            }
+        if let Some(prev) = last
+            && eid == prev
+        {
+            return Err(RejectReason::Malformed);
         }
         if eid.0 == 0 {
             return Err(RejectReason::Malformed);
