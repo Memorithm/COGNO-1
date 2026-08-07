@@ -68,7 +68,10 @@ fn current_replays_complete_hash_linked_generation_chain() {
     assert_eq!(selection.selected_generation, 2);
     assert_eq!(selection.chain.len(), 2);
     assert_eq!(selection.chain.selected(), Some(&second));
-    assert_eq!(selection.selected_generation_path, root.join("generation-2"));
+    assert_eq!(
+        selection.selected_generation_path,
+        root.join("generation-2")
+    );
 
     fs::remove_dir_all(root).expect("cleanup");
 }
