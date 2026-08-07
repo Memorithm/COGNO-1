@@ -3,9 +3,10 @@
 use cogno_core::{KvCachePolicy, MemoryBudget, QueueFullPolicy};
 use cogno_runtime::{
     build_taste_restart_manifest, ControlledRestartTasteError, ControlledRestartTasteProfile,
-    Runtime, RuntimeConfig, RuntimeTasteProfileError, TasteCampaignReviewAuthority,
-    TasteCampaignReviewDisposition, TasteCampaignReviewReport, TastePreferenceReview,
-    TasteRestartManifest, TasteRestartPreference, VerifiedTasteProfile,
+    GenerationBoundControlledRestartTasteProfile, Runtime, RuntimeConfig, RuntimeTasteProfileError,
+    TasteCampaignReviewAuthority, TasteCampaignReviewDisposition, TasteCampaignReviewReport,
+    TasteGenerationChain, TasteGenerationManifest, TastePreferenceReview, TasteRestartManifest,
+    TasteRestartPreference, VerifiedTasteProfile, GENESIS_DIGEST,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -154,6 +155,21 @@ fn load_profile(root: &Path, replay: &Path, candidates: &Path) -> VerifiedTasteP
     VerifiedTasteProfile::load(replay, candidates, root).expect("verified profile")
 }
 
+fn selected_chain(profile: &VerifiedTasteProfile) -> TasteGenerationChain {
+    let mut chain = TasteGenerationChain::default();
+    chain
+        .append(TasteGenerationManifest {
+            generation: 1,
+            previous_manifest_sha256: GENESIS_DIGEST,
+            profile_sha256: profile.profile_sha256(),
+            replay_sha256: profile.replay_sha256(),
+            candidate_report_sha256: profile.candidate_report_sha256(),
+            validation_store_sha256: profile.validation_store_sha256(),
+        })
+        .expect("selected generation");
+    chain
+}
+
 fn hash_preferences(preferences: &[TasteRestartPreference]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(RESTART_MANIFEST_DOMAIN);
@@ -191,10 +207,12 @@ fn full_restart_chain_exposes_only_reviewed_active_preferences() {
     let root = temp_root();
     let (replay, candidates) = write_profile_fixture(&root);
     let profile = load_profile(&root, &replay, &candidates);
+    let chain = selected_chain(&profile);
     let manifest =
         build_taste_restart_manifest(&eligible_review(8_200, 7_900), [1; 32], [2; 32], [3; 32])
             .expect("manifest");
-    let sealed = ControlledRestartTasteProfile::prepare(&manifest, profile).expect("seal");
+    let sealed = GenerationBoundControlledRestartTasteProfile::prepare(&manifest, &chain, profile)
+        .expect("generation-bound seal");
     let mut runtime = Runtime::try_new(runtime_config()).expect("runtime");
 
     runtime
@@ -207,8 +225,13 @@ fn full_restart_chain_exposes_only_reviewed_active_preferences() {
     assert!(runtime.active_taste_preference(99).is_none());
 
     let replacement_profile = load_profile(&root, &replay, &candidates);
-    let replacement = ControlledRestartTasteProfile::prepare(&manifest, replacement_profile)
-        .expect("replacement seal");
+    let replacement_chain = selected_chain(&replacement_profile);
+    let replacement = GenerationBoundControlledRestartTasteProfile::prepare(
+        &manifest,
+        &replacement_chain,
+        replacement_profile,
+    )
+    .expect("replacement seal");
     assert_eq!(
         runtime.install_controlled_restart_taste_profile(replacement),
         Err(RuntimeTasteProfileError::AlreadyInstalled)
