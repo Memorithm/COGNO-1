@@ -5,7 +5,9 @@
 //! digests and proves that each new generation extends the currently selected
 //! persisted hash chain before writing a complete staging directory, fsyncing
 //! it, atomically renaming it into place, then atomically advancing `CURRENT`.
-//! Partial, skipped, or forked generations are never selected.
+//! Partial, skipped, or forked generations are never selected. A crash after
+//! the generation rename but before `CURRENT` advances can be resumed only
+//! when every already-persisted byte exactly matches the requested commit.
 
 use crate::taste_generation::{TasteGenerationManifest, GENESIS_DIGEST};
 use crate::taste_persisted_chain::{
@@ -13,7 +15,7 @@ use crate::taste_persisted_chain::{
 };
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 const MAX_CYCLE_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
@@ -46,6 +48,8 @@ pub enum TasteCycleError {
     PreviousManifestDigestMismatch,
     InvalidPersistedPredecessor(PersistedTasteGenerationError),
     GenerationAlreadyExists,
+    RecoveryManifestMismatch,
+    RecoveryArtifactMismatch(&'static str),
     Io(io::Error),
 }
 
@@ -83,7 +87,17 @@ pub fn commit_taste_cycle(
 
     let final_path = root.join(format!("generation-{}", manifest.generation));
     if final_path.exists() {
-        return Err(TasteCycleError::GenerationAlreadyExists);
+        if current_points_to(root, manifest.generation)? {
+            return Err(TasteCycleError::GenerationAlreadyExists);
+        }
+        verify_persisted_predecessor(root, manifest)?;
+        verify_recoverable_generation(&final_path, manifest, artifacts)?;
+        advance_current(root, manifest.generation)?;
+        return Ok(TasteCycleCommit {
+            generation: manifest.generation,
+            generation_path: final_path,
+            manifest_sha256: manifest.sha256(),
+        });
     }
     verify_persisted_predecessor(root, manifest)?;
 
@@ -111,16 +125,7 @@ pub fn commit_taste_cycle(
         sync_directory(&staging_path)?;
         fs::rename(&staging_path, &final_path)?;
         sync_directory(root)?;
-
-        let current_tmp = root.join(".CURRENT.tmp");
-        let current = root.join("CURRENT");
-        write_synced(
-            &current_tmp,
-            format!("{}\n", manifest.generation).as_bytes(),
-        )?;
-        fs::rename(&current_tmp, &current)?;
-        sync_directory(root)?;
-        Ok::<(), TasteCycleError>(())
+        advance_current(root, manifest.generation)
     })();
 
     if result.is_err() && staging_path.exists() {
@@ -133,6 +138,58 @@ pub fn commit_taste_cycle(
         generation_path: final_path,
         manifest_sha256: manifest.sha256(),
     })
+}
+
+fn current_points_to(root: &Path, generation: u64) -> Result<bool, TasteCycleError> {
+    match fs::read(root.join("CURRENT")) {
+        Ok(bytes) => Ok(bytes == format!("{generation}\n").as_bytes()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(TasteCycleError::Io(error)),
+    }
+}
+
+fn verify_recoverable_generation(
+    generation_path: &Path,
+    manifest: &TasteGenerationManifest,
+    artifacts: &TasteCycleArtifacts,
+) -> Result<(), TasteCycleError> {
+    let persisted_manifest = fs::read(generation_path.join("generation.manifest"))?;
+    if persisted_manifest != manifest.canonical_bytes() {
+        return Err(TasteCycleError::RecoveryManifestMismatch);
+    }
+    verify_recovery_artifact(
+        &generation_path.join("candidates.json"),
+        "candidate report",
+        &artifacts.candidate_report,
+    )?;
+    verify_recovery_artifact(
+        &generation_path.join("taste.validations"),
+        "validation store",
+        &artifacts.validation_store,
+    )?;
+    verify_recovery_artifact(
+        &generation_path.join("replay.json"),
+        "replay report",
+        &artifacts.replay_report,
+    )?;
+    verify_recovery_artifact(
+        &generation_path.join("taste.profile"),
+        "profile",
+        &artifacts.profile,
+    )?;
+    Ok(())
+}
+
+fn verify_recovery_artifact(
+    path: &Path,
+    label: &'static str,
+    expected: &[u8],
+) -> Result<(), TasteCycleError> {
+    let persisted = fs::read(path)?;
+    if persisted != expected {
+        return Err(TasteCycleError::RecoveryArtifactMismatch(label));
+    }
+    Ok(())
 }
 
 fn verify_persisted_predecessor(
@@ -165,6 +222,17 @@ fn verify_persisted_predecessor(
     if previous.sha256() != manifest.previous_manifest_sha256 {
         return Err(TasteCycleError::PreviousManifestDigestMismatch);
     }
+    Ok(())
+}
+
+fn advance_current(root: &Path, generation: u64) -> Result<(), TasteCycleError> {
+    let current_tmp = root.join(".CURRENT.tmp");
+    if current_tmp.exists() {
+        fs::remove_file(&current_tmp)?;
+    }
+    write_synced(&current_tmp, format!("{generation}\n").as_bytes())?;
+    fs::rename(&current_tmp, root.join("CURRENT"))?;
+    sync_directory(root)?;
     Ok(())
 }
 
@@ -236,6 +304,36 @@ mod tests {
         }
     }
 
+    fn write_complete_generation(
+        root: &Path,
+        manifest: &TasteGenerationManifest,
+        artifacts: &TasteCycleArtifacts,
+    ) {
+        let generation_path = root.join(format!("generation-{}", manifest.generation));
+        fs::create_dir_all(&generation_path).expect("generation dir");
+        fs::write(
+            generation_path.join("candidates.json"),
+            &artifacts.candidate_report,
+        )
+        .expect("candidates");
+        fs::write(
+            generation_path.join("taste.validations"),
+            &artifacts.validation_store,
+        )
+        .expect("validations");
+        fs::write(
+            generation_path.join("replay.json"),
+            &artifacts.replay_report,
+        )
+        .expect("replay");
+        fs::write(generation_path.join("taste.profile"), &artifacts.profile).expect("profile");
+        fs::write(
+            generation_path.join("generation.manifest"),
+            manifest.canonical_bytes(),
+        )
+        .expect("manifest");
+    }
+
     #[test]
     fn complete_cycle_is_selected_atomically() {
         let root = root();
@@ -303,6 +401,46 @@ mod tests {
             "1\n"
         );
         assert!(!root.join("generation-2").exists());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn complete_unselected_generation_resumes_current_after_crash() {
+        let root = root();
+        fs::create_dir_all(&root).expect("root");
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+        write_complete_generation(&root, &manifest, &artifacts);
+        fs::write(root.join(".CURRENT.tmp"), b"1\n").expect("stale current temp");
+
+        let committed = commit_taste_cycle(&root, &manifest, &artifacts).expect("resume");
+        assert_eq!(committed.generation, 1);
+        assert_eq!(
+            fs::read_to_string(root.join("CURRENT")).expect("current"),
+            "1\n"
+        );
+        assert!(!root.join(".CURRENT.tmp").exists());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn crash_recovery_refuses_existing_bytes_that_do_not_match_transaction() {
+        let root = root();
+        fs::create_dir_all(&root).expect("root");
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+        write_complete_generation(&root, &manifest, &artifacts);
+        fs::write(
+            root.join("generation-1/taste.profile"),
+            b"different-profile",
+        )
+        .expect("tamper");
+
+        assert!(matches!(
+            commit_taste_cycle(&root, &manifest, &artifacts),
+            Err(TasteCycleError::RecoveryArtifactMismatch("profile"))
+        ));
+        assert!(!root.join("CURRENT").exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 }
