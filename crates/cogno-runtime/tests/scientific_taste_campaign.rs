@@ -2,8 +2,8 @@
 
 use cogno_runtime::{
     run_scientific_taste_campaign, OrchestratedTasteCandidate, ScientificExchangeOrigin,
-    ScientificExchangeRecord, ScientificExchangeVerdict, TasteCampaignGeneration,
-    TasteDriftState, TasteLongitudinalTracker,
+    ScientificExchangeRecord, ScientificExchangeVerdict, TasteCampaignGeneration, TasteDriftState,
+    TasteLongitudinalTracker,
 };
 
 fn exchange(
@@ -34,12 +34,7 @@ fn campaign_is_deterministic_and_model_non_authoritative() {
             ScientificExchangeOrigin::SciRustDeterministicEvaluator,
             7_500,
         ),
-        exchange(
-            3,
-            42,
-            ScientificExchangeOrigin::ExplicitUserAction,
-            7_500,
-        ),
+        exchange(3, 42, ScientificExchangeOrigin::ExplicitUserAction, 7_500),
     ];
     let generation_two = [
         exchange(4, 42, ScientificExchangeOrigin::SciAgentModel, 10_000),
@@ -49,12 +44,7 @@ fn campaign_is_deterministic_and_model_non_authoritative() {
             ScientificExchangeOrigin::SciRustDeterministicEvaluator,
             8_500,
         ),
-        exchange(
-            6,
-            42,
-            ScientificExchangeOrigin::ExplicitUserAction,
-            8_500,
-        ),
+        exchange(6, 42, ScientificExchangeOrigin::ExplicitUserAction, 8_500),
     ];
     let campaign = [
         TasteCampaignGeneration {
@@ -74,14 +64,19 @@ fn campaign_is_deterministic_and_model_non_authoritative() {
     let mut first_tracker = TasteLongitudinalTracker::default();
     let first = run_scientific_taste_campaign(&campaign, &mut first_tracker).expect("first run");
     let mut second_tracker = TasteLongitudinalTracker::default();
-    let second =
-        run_scientific_taste_campaign(&campaign, &mut second_tracker).expect("second run");
+    let second = run_scientific_taste_campaign(&campaign, &mut second_tracker).expect("second run");
 
     assert_eq!(first, second);
     assert_eq!(first_tracker, second_tracker);
     assert_eq!(first.autonomous_reports.len(), 2);
-    assert_eq!(first.autonomous_reports[0].quarantined_model_observations, 1);
-    assert_eq!(first.autonomous_reports[1].quarantined_model_observations, 1);
+    assert_eq!(
+        first.autonomous_reports[0].quarantined_model_observations,
+        1
+    );
+    assert_eq!(
+        first.autonomous_reports[1].quarantined_model_observations,
+        1
+    );
     assert_eq!(first.autonomous_reports[0].accepted_validations, 2);
     assert_eq!(first.autonomous_reports[1].accepted_validations, 2);
     assert_eq!(first.longitudinal_statuses.len(), 1);
