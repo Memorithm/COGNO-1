@@ -2,11 +2,15 @@
 //! replay → profile hand-off.
 //!
 //! Upstream components produce bounded artifacts. This module verifies their
-//! digests against a monotonic generation manifest, writes a complete staging
-//! directory, fsyncs it, atomically renames it into place, then atomically
-//! advances `CURRENT`. Partial generations are never selected.
+//! digests and proves that each new generation extends the currently selected
+//! persisted hash chain before writing a complete staging directory, fsyncing
+//! it, atomically renaming it into place, then atomically advancing `CURRENT`.
+//! Partial, skipped, or forked generations are never selected.
 
-use crate::taste_generation::TasteGenerationManifest;
+use crate::taste_generation::{TasteGenerationManifest, GENESIS_DIGEST};
+use crate::taste_persisted_chain::{
+    load_persisted_taste_generation_selection, PersistedTasteGenerationError,
+};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -36,6 +40,11 @@ pub struct TasteCycleCommit {
 pub enum TasteCycleError {
     InvalidArtifactSize(&'static str),
     DigestMismatch(&'static str),
+    ZeroGeneration,
+    ExistingHistoryForGenesis,
+    NonMonotonicPersistedGeneration,
+    PreviousManifestDigestMismatch,
+    InvalidPersistedPredecessor(PersistedTasteGenerationError),
     GenerationAlreadyExists,
     Io(io::Error),
 }
@@ -71,10 +80,13 @@ pub fn commit_taste_cycle(
 
     let root = root.as_ref();
     fs::create_dir_all(root)?;
+
     let final_path = root.join(format!("generation-{}", manifest.generation));
     if final_path.exists() {
         return Err(TasteCycleError::GenerationAlreadyExists);
     }
+    verify_persisted_predecessor(root, manifest)?;
+
     let staging_path = root.join(format!(".generation-{}.tmp", manifest.generation));
     if staging_path.exists() {
         fs::remove_dir_all(&staging_path)?;
@@ -123,6 +135,39 @@ pub fn commit_taste_cycle(
     })
 }
 
+fn verify_persisted_predecessor(
+    root: &Path,
+    manifest: &TasteGenerationManifest,
+) -> Result<(), TasteCycleError> {
+    if manifest.generation == 0 {
+        return Err(TasteCycleError::ZeroGeneration);
+    }
+
+    if manifest.generation == 1 {
+        if root.join("CURRENT").exists() {
+            return Err(TasteCycleError::ExistingHistoryForGenesis);
+        }
+        if manifest.previous_manifest_sha256 != GENESIS_DIGEST {
+            return Err(TasteCycleError::PreviousManifestDigestMismatch);
+        }
+        return Ok(());
+    }
+
+    let selection = load_persisted_taste_generation_selection(root)
+        .map_err(TasteCycleError::InvalidPersistedPredecessor)?;
+    if selection.selected_generation.checked_add(1) != Some(manifest.generation) {
+        return Err(TasteCycleError::NonMonotonicPersistedGeneration);
+    }
+    let previous = selection
+        .chain
+        .selected()
+        .ok_or(TasteCycleError::NonMonotonicPersistedGeneration)?;
+    if previous.sha256() != manifest.previous_manifest_sha256 {
+        return Err(TasteCycleError::PreviousManifestDigestMismatch);
+    }
+    Ok(())
+}
+
 fn validate_artifact(
     label: &'static str,
     bytes: &[u8],
@@ -153,7 +198,6 @@ fn sync_directory(path: &Path) -> Result<(), TasteCycleError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::taste_generation::GENESIS_DIGEST;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn digest(bytes: &[u8]) -> [u8; 32] {
@@ -168,23 +212,35 @@ mod tests {
         std::env::temp_dir().join(format!("cogno-taste-cycle-{}-{nonce}", std::process::id()))
     }
 
-    #[test]
-    fn complete_cycle_is_selected_atomically() {
-        let root = root();
-        let artifacts = TasteCycleArtifacts {
-            candidate_report: b"candidates".to_vec(),
-            validation_store: b"validations".to_vec(),
-            replay_report: b"replay".to_vec(),
-            profile: b"profile".to_vec(),
-        };
-        let manifest = TasteGenerationManifest {
-            generation: 1,
-            previous_manifest_sha256: GENESIS_DIGEST,
+    fn artifacts(marker: &str) -> TasteCycleArtifacts {
+        TasteCycleArtifacts {
+            candidate_report: format!("candidates-{marker}").into_bytes(),
+            validation_store: format!("validations-{marker}").into_bytes(),
+            replay_report: format!("replay-{marker}").into_bytes(),
+            profile: format!("profile-{marker}").into_bytes(),
+        }
+    }
+
+    fn manifest(
+        generation: u64,
+        previous_manifest_sha256: [u8; 32],
+        artifacts: &TasteCycleArtifacts,
+    ) -> TasteGenerationManifest {
+        TasteGenerationManifest {
+            generation,
+            previous_manifest_sha256,
             profile_sha256: digest(&artifacts.profile),
             replay_sha256: digest(&artifacts.replay_report),
             candidate_report_sha256: digest(&artifacts.candidate_report),
             validation_store_sha256: digest(&artifacts.validation_store),
-        };
+        }
+    }
+
+    #[test]
+    fn complete_cycle_is_selected_atomically() {
+        let root = root();
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
         let committed = commit_taste_cycle(&root, &manifest, &artifacts).expect("commit");
         assert!(committed.generation_path.join("taste.profile").is_file());
         assert_eq!(
@@ -198,24 +254,55 @@ mod tests {
     #[test]
     fn digest_mismatch_fails_before_any_generation_is_visible() {
         let root = root();
-        let artifacts = TasteCycleArtifacts {
-            candidate_report: b"candidates".to_vec(),
-            validation_store: b"validations".to_vec(),
-            replay_report: b"replay".to_vec(),
-            profile: b"profile".to_vec(),
-        };
-        let manifest = TasteGenerationManifest {
-            generation: 1,
-            previous_manifest_sha256: GENESIS_DIGEST,
-            profile_sha256: [9; 32],
-            replay_sha256: digest(&artifacts.replay_report),
-            candidate_report_sha256: digest(&artifacts.candidate_report),
-            validation_store_sha256: digest(&artifacts.validation_store),
-        };
+        let artifacts = artifacts("one");
+        let mut manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+        manifest.profile_sha256 = [9; 32];
         assert!(matches!(
             commit_taste_cycle(&root, &manifest, &artifacts),
             Err(TasteCycleError::DigestMismatch("profile"))
         ));
         assert!(!root.join("CURRENT").exists());
+    }
+
+    #[test]
+    fn skipped_generation_cannot_advance_current() {
+        let root = root();
+        let first_artifacts = artifacts("one");
+        let first = manifest(1, GENESIS_DIGEST, &first_artifacts);
+        commit_taste_cycle(&root, &first, &first_artifacts).expect("first");
+
+        let third_artifacts = artifacts("three");
+        let third = manifest(3, first.sha256(), &third_artifacts);
+        assert!(matches!(
+            commit_taste_cycle(&root, &third, &third_artifacts),
+            Err(TasteCycleError::NonMonotonicPersistedGeneration)
+        ));
+        assert_eq!(
+            fs::read_to_string(root.join("CURRENT")).expect("current"),
+            "1\n"
+        );
+        assert!(!root.join("generation-3").exists());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn forked_previous_digest_cannot_advance_current() {
+        let root = root();
+        let first_artifacts = artifacts("one");
+        let first = manifest(1, GENESIS_DIGEST, &first_artifacts);
+        commit_taste_cycle(&root, &first, &first_artifacts).expect("first");
+
+        let second_artifacts = artifacts("two");
+        let second = manifest(2, [7; 32], &second_artifacts);
+        assert!(matches!(
+            commit_taste_cycle(&root, &second, &second_artifacts),
+            Err(TasteCycleError::PreviousManifestDigestMismatch)
+        ));
+        assert_eq!(
+            fs::read_to_string(root.join("CURRENT")).expect("current"),
+            "1\n"
+        );
+        assert!(!root.join("generation-2").exists());
+        fs::remove_dir_all(root).expect("cleanup");
     }
 }
