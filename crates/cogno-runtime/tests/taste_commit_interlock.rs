@@ -1,4 +1,7 @@
-use cogno_runtime::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleError, TasteGenerationManifest, GENESIS_DIGEST};
+use cogno_runtime::{
+    commit_taste_cycle, TasteCycleArtifacts, TasteCycleError, TasteGenerationManifest,
+    GENESIS_DIGEST,
+};
 use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
@@ -13,7 +16,10 @@ fn root() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("time")
         .as_nanos();
-    std::env::temp_dir().join(format!("cogno-taste-interlock-{}-{nonce}", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "cogno-taste-interlock-{}-{nonce}",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -52,6 +58,9 @@ fn held_commit_interlock_preserves_persisted_state() {
     drop(_lock);
     fs::remove_file(lock_path).expect("remove lock");
     commit_taste_cycle(&root, &manifest, &artifacts).expect("commit");
-    assert_eq!(fs::read_to_string(root.join("CURRENT")).expect("current"), "1\n");
+    assert_eq!(
+        fs::read_to_string(root.join("CURRENT")).expect("current"),
+        "1\n"
+    );
     fs::remove_dir_all(root).expect("cleanup");
 }
