@@ -2,6 +2,7 @@ name: CI
 
 # COGNO-1 V2 §24 — chaîne d'approvisionnement:
 #   - conserver Cargo.lock ;
+#   - épingler Rust à 1.97.1 via rust-toolchain.toml et la CI ;
 #   - exécuter la CI avec --locked ;
 #   - tester les constructions hors réseau avec --frozen lorsque possible ;
 #   - minimiser et documenter les dépendances ;
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
           components: rustfmt
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
@@ -40,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
           components: clippy
       - name: clippy (all targets, locked)
         run: cargo clippy --all-targets --locked -- -D warnings
@@ -52,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
       - name: cargo test (all targets, locked)
         run: cargo test --all-targets --locked
 
@@ -63,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
       - name: prefetch locked dependencies
         run: cargo fetch --locked
       - name: build offline (frozen) — §24 hors réseau
@@ -76,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
       - name: cargo doc (no-deps, locked)
         run: cargo doc --no-deps --locked
 
@@ -87,7 +88,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: 1.97.1
+      - name: verify pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(rustc --version | awk '{print $2}')" = "1.97.1"
+          grep -qx 'channel = "1.97.1"' rust-toolchain.toml
+          grep -qx 'rust-version = "1.97.1"' Cargo.toml
+          grep -qx 'edition = "2024"' Cargo.toml
       - name: verify locked dependency inventory
         shell: bash
         run: |
