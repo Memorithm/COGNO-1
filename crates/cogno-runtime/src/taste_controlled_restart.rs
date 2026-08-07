@@ -6,6 +6,7 @@
 //! installation during runtime initialization after proving exact agreement
 //! between the reviewed manifest and the independently verified profile.
 
+use crate::taste_generation::TasteGenerationManifest;
 use crate::taste_restart_manifest::{
     verify_taste_restart_manifest, TasteRestartManifest, TasteRestartManifestError,
 };
@@ -27,6 +28,79 @@ pub struct ControlledRestartTasteProfile {
     last_generation: u64,
     generations: usize,
     authority: ControlledRestartTasteAuthority,
+}
+
+/// A controlled-restart seal additionally bound to one immutable selected generation.
+#[derive(Debug)]
+pub struct GenerationBoundControlledRestartTasteProfile {
+    sealed: ControlledRestartTasteProfile,
+    generation: u64,
+    generation_manifest_sha256: [u8; 32],
+}
+
+impl GenerationBoundControlledRestartTasteProfile {
+    /// Bind an already verified profile to both the restart review and the selected
+    /// immutable generation manifest. All persisted profile-source digests must
+    /// agree exactly with the generation manifest.
+    pub fn prepare(
+        manifest: &TasteRestartManifest,
+        generation: &TasteGenerationManifest,
+        profile: VerifiedTasteProfile,
+    ) -> Result<Self, GenerationBoundControlledRestartTasteError> {
+        verify_generation_matches_profile(generation, &profile)?;
+        let sealed = ControlledRestartTasteProfile::prepare(manifest, profile)
+            .map_err(GenerationBoundControlledRestartTasteError::ControlledRestart)?;
+        Ok(Self {
+            sealed,
+            generation: generation.generation,
+            generation_manifest_sha256: generation.sha256(),
+        })
+    }
+
+    /// Persisted generation selected for this controlled restart.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// SHA-256 of the immutable generation manifest bound to this restart.
+    #[must_use]
+    pub const fn generation_manifest_sha256(&self) -> [u8; 32] {
+        self.generation_manifest_sha256
+    }
+
+    /// Reviewed restart manifest digest.
+    #[must_use]
+    pub const fn restart_manifest_sha256(&self) -> [u8; 32] {
+        self.sealed.manifest_sha256()
+    }
+
+    /// Read-only active preferences carried by the verified profile.
+    #[must_use]
+    pub fn active_preferences(&self) -> &[VerifiedTastePreference] {
+        self.sealed.active_preferences()
+    }
+
+    /// Consume the generation-bound wrapper and return the controlled-restart seal.
+    #[must_use]
+    pub fn into_controlled_restart_profile(self) -> ControlledRestartTasteProfile {
+        self.sealed
+    }
+}
+
+/// Failure while binding a controlled restart to a selected immutable generation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenerationBoundControlledRestartTasteError {
+    /// The generation manifest references another profile.
+    ProfileDigestMismatch,
+    /// The generation manifest references another replay artifact.
+    ReplayDigestMismatch,
+    /// The generation manifest references another candidate report.
+    CandidateReportDigestMismatch,
+    /// The generation manifest references another validation journal.
+    ValidationStoreDigestMismatch,
+    /// The ordinary controlled-restart checks failed.
+    ControlledRestart(ControlledRestartTasteError),
 }
 
 impl ControlledRestartTasteProfile {
@@ -111,6 +185,25 @@ pub enum ControlledRestartTasteError {
     UnexpectedVerifiedPreference(u64),
     /// Confidence differs between reviewed and verified state.
     ConfidenceMismatch(u64),
+}
+
+fn verify_generation_matches_profile(
+    generation: &TasteGenerationManifest,
+    profile: &VerifiedTasteProfile,
+) -> Result<(), GenerationBoundControlledRestartTasteError> {
+    if generation.profile_sha256 != profile.profile_sha256() {
+        return Err(GenerationBoundControlledRestartTasteError::ProfileDigestMismatch);
+    }
+    if generation.replay_sha256 != profile.replay_sha256() {
+        return Err(GenerationBoundControlledRestartTasteError::ReplayDigestMismatch);
+    }
+    if generation.candidate_report_sha256 != profile.candidate_report_sha256() {
+        return Err(GenerationBoundControlledRestartTasteError::CandidateReportDigestMismatch);
+    }
+    if generation.validation_store_sha256 != profile.validation_store_sha256() {
+        return Err(GenerationBoundControlledRestartTasteError::ValidationStoreDigestMismatch);
+    }
+    Ok(())
 }
 
 fn verify_canonical_manifest_order(
