@@ -44,6 +44,7 @@ pub mod runtime;
 pub mod scientific_exchange;
 pub mod taste_autonomy;
 pub mod taste_benchmark;
+pub mod taste_campaign;
 pub mod taste_cycle;
 pub mod taste_decision;
 pub mod taste_generation;
@@ -78,6 +79,10 @@ pub use taste_autonomy::{
 pub use taste_benchmark::{
     evaluate_taste_benchmark, TasteBenchmarkCase, TasteBenchmarkError, TasteBenchmarkReport,
     MAX_BENCHMARK_CASES,
+};
+pub use taste_campaign::{
+    run_scientific_taste_campaign, TasteCampaignError, TasteCampaignGeneration,
+    TasteCampaignReport, MAX_TASTE_CAMPAIGN_GENERATIONS,
 };
 pub use taste_cycle::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError};
 pub use taste_decision::{
