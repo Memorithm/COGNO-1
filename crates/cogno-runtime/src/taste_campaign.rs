@@ -41,10 +41,7 @@ pub struct TasteCampaignReport {
 pub enum TasteCampaignError {
     EmptyCampaign,
     TooManyGenerations,
-    NonMonotonicGeneration {
-        previous: u64,
-        current: u64,
-    },
+    NonMonotonicGeneration { previous: u64, current: u64 },
     Autonomous(AutonomousTasteError),
 }
 
@@ -145,12 +142,7 @@ mod tests {
                 ScientificExchangeOrigin::SciRustDeterministicEvaluator,
                 8_000,
             ),
-            exchange(
-                2,
-                7,
-                ScientificExchangeOrigin::ExplicitUserAction,
-                8_000,
-            ),
+            exchange(2, 7, ScientificExchangeOrigin::ExplicitUserAction, 8_000),
         ];
         let second_records = [
             exchange(
@@ -159,12 +151,7 @@ mod tests {
                 ScientificExchangeOrigin::SciRustDeterministicEvaluator,
                 9_000,
             ),
-            exchange(
-                4,
-                7,
-                ScientificExchangeOrigin::ExplicitUserAction,
-                9_000,
-            ),
+            exchange(4, 7, ScientificExchangeOrigin::ExplicitUserAction, 9_000),
         ];
         let generations = [
             TasteCampaignGeneration {
@@ -189,7 +176,10 @@ mod tests {
         assert_eq!(report.last_generation, 2);
         assert_eq!(report.autonomous_reports.len(), 2);
         assert_eq!(report.longitudinal_statuses.len(), 1);
-        assert_eq!(report.longitudinal_statuses[0].drift, TasteDriftState::Strengthening);
+        assert_eq!(
+            report.longitudinal_statuses[0].drift,
+            TasteDriftState::Strengthening
+        );
         assert_eq!(tracker.len(), 1);
     }
 
@@ -203,12 +193,7 @@ mod tests {
                 ScientificExchangeOrigin::SciRustDeterministicEvaluator,
                 8_000,
             ),
-            exchange(
-                11,
-                7,
-                ScientificExchangeOrigin::ExplicitUserAction,
-                8_000,
-            ),
+            exchange(11, 7, ScientificExchangeOrigin::ExplicitUserAction, 8_000),
         ];
         let invalid_records = [exchange(
             12,
