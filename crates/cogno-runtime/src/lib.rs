@@ -46,6 +46,7 @@ pub mod taste_autonomy;
 pub mod taste_benchmark;
 pub mod taste_campaign;
 pub mod taste_campaign_review;
+pub mod taste_controlled_restart;
 pub mod taste_cycle;
 pub mod taste_decision;
 pub mod taste_generation;
@@ -91,6 +92,9 @@ pub use taste_campaign_review::{
     TasteCampaignReviewDisposition, TasteCampaignReviewError, TasteCampaignReviewPolicy,
     TasteCampaignReviewReport, TastePreferenceReview, MIN_CAMPAIGN_REVIEW_CONFIDENCE_BPS,
     MIN_CAMPAIGN_REVIEW_GENERATIONS,
+};
+pub use taste_controlled_restart::{
+    ControlledRestartTasteAuthority, ControlledRestartTasteError, ControlledRestartTasteProfile,
 };
 pub use taste_cycle::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError};
 pub use taste_decision::{
