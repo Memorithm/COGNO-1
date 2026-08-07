@@ -55,7 +55,10 @@ fn two_generations_are_deterministic_and_track_strengthening() {
 
     assert_eq!(first.quarantined_model_observations, 1);
     assert_eq!(first.accepted_validations, 2);
-    assert_eq!(first.cycle.outcomes[0].state, OrchestratedTasteState::Active);
+    assert_eq!(
+        first.cycle.outcomes[0].state,
+        OrchestratedTasteState::Active
+    );
     assert!(first.benchmark.non_regressive());
 
     let second = run_autonomous_scientific_taste(

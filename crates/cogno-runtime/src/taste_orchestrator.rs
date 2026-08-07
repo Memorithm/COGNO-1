@@ -122,7 +122,10 @@ pub fn orchestrate_scientific_taste_cycle(
     })
 }
 
-fn derive_outcome(preference_id: u64, records: &[StoredTasteValidation]) -> OrchestratedTasteOutcome {
+fn derive_outcome(
+    preference_id: u64,
+    records: &[StoredTasteValidation],
+) -> OrchestratedTasteOutcome {
     let mut confirmations = 0u16;
     let mut confidence_sum = 0u64;
     let mut contradicted = false;
@@ -170,7 +173,8 @@ fn derive_outcome(preference_id: u64, records: &[StoredTasteValidation]) -> Orch
 pub const fn validation_origin_is_non_model(origin: StoredValidationOrigin) -> bool {
     matches!(
         origin,
-        StoredValidationOrigin::DeterministicEvaluation | StoredValidationOrigin::ExplicitUserAction
+        StoredValidationOrigin::DeterministicEvaluation
+            | StoredValidationOrigin::ExplicitUserAction
     )
 }
 
