@@ -9,7 +9,8 @@
 //! the generation rename but before `CURRENT` advances can be resumed only
 //! when every already-persisted byte exactly matches the requested commit.
 //! Concurrent commit or recovery attempts are serialized by an atomic,
-//! fail-closed inter-process commit interlock.
+//! fail-closed inter-process commit interlock. On Linux only, a residual lock
+//! is reclaimed automatically when `/proc` proves its original owner is gone.
 
 use crate::taste_generation::{TasteGenerationManifest, GENESIS_DIGEST};
 use crate::taste_persisted_chain::{
@@ -22,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 const MAX_CYCLE_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const COMMIT_INTERLOCK_FILE: &str = ".TASTE-COMMIT.lock";
-const COMMIT_INTERLOCK_MARKER: &[u8] = b"cogno-taste-commit-v1\n";
+const COMMIT_INTERLOCK_V2: &str = "cogno-taste-commit-v2";
 
 /// Complete set of artifacts produced by one scientific-taste cycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,6 +56,7 @@ pub enum TasteCycleError {
     RecoveryManifestMismatch,
     RecoveryArtifactMismatch(&'static str),
     CommitInterlockHeld,
+    InvalidCommitInterlockIdentity,
     Io(io::Error),
 }
 
@@ -72,15 +74,31 @@ struct TasteCommitInterlock {
 impl TasteCommitInterlock {
     fn acquire(root: &Path) -> Result<Self, TasteCycleError> {
         let path = root.join(COMMIT_INTERLOCK_FILE);
-        let mut file = match OpenOptions::new().create_new(true).write(true).open(&path) {
+        match Self::create(root, &path) {
+            Ok(interlock) => Ok(interlock),
+            Err(TasteCycleError::CommitInterlockHeld) => {
+                if recover_stale_commit_interlock(&path)? {
+                    Self::create(root, &path)
+                } else {
+                    Err(TasteCycleError::CommitInterlockHeld)
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn create(root: &Path, path: &Path) -> Result<Self, TasteCycleError> {
+        let mut file = match OpenOptions::new().create_new(true).write(true).open(path) {
             Ok(file) => file,
             Err(error) if error.kind() == ErrorKind::AlreadyExists => {
                 return Err(TasteCycleError::CommitInterlockHeld);
             }
             Err(error) => return Err(TasteCycleError::Io(error)),
         };
-        let interlock = Self { path };
-        file.write_all(COMMIT_INTERLOCK_MARKER)?;
+        let interlock = Self {
+            path: path.to_path_buf(),
+        };
+        file.write_all(&commit_interlock_identity()?)?;
         file.sync_all()?;
         sync_directory(root)?;
         Ok(interlock)
@@ -91,6 +109,123 @@ impl Drop for TasteCommitInterlock {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
     }
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinuxCommitInterlockIdentity {
+    boot_id: String,
+    pid: u32,
+    start_ticks: u64,
+}
+
+#[cfg(target_os = "linux")]
+fn commit_interlock_identity() -> Result<Vec<u8>, TasteCycleError> {
+    let identity = LinuxCommitInterlockIdentity {
+        boot_id: linux_boot_id()?,
+        pid: std::process::id(),
+        start_ticks: linux_process_start_ticks(std::process::id())?
+            .ok_or(TasteCycleError::InvalidCommitInterlockIdentity)?,
+    };
+    Ok(format!(
+        "{COMMIT_INTERLOCK_V2}\nboot_id={}\npid={}\nstart_ticks={}\n",
+        identity.boot_id, identity.pid, identity.start_ticks
+    )
+    .into_bytes())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn commit_interlock_identity() -> Result<Vec<u8>, TasteCycleError> {
+    Ok(format!("{COMMIT_INTERLOCK_V2}\nplatform=unverified\n").into_bytes())
+}
+
+#[cfg(target_os = "linux")]
+fn recover_stale_commit_interlock(path: &Path) -> Result<bool, TasteCycleError> {
+    let bytes = fs::read(path)?;
+    let Some(identity) = parse_linux_commit_interlock_identity(&bytes) else {
+        return Ok(false);
+    };
+    if identity.boot_id != linux_boot_id()? {
+        remove_stale_interlock(path)?;
+        return Ok(true);
+    }
+    match linux_process_start_ticks(identity.pid)? {
+        None => {
+            remove_stale_interlock(path)?;
+            Ok(true)
+        }
+        Some(start_ticks) if start_ticks != identity.start_ticks => {
+            remove_stale_interlock(path)?;
+            Ok(true)
+        }
+        Some(_) => Ok(false),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn recover_stale_commit_interlock(_path: &Path) -> Result<bool, TasteCycleError> {
+    Ok(false)
+}
+
+#[cfg(target_os = "linux")]
+fn remove_stale_interlock(path: &Path) -> Result<(), TasteCycleError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(TasteCycleError::Io(error)),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_linux_commit_interlock_identity(bytes: &[u8]) -> Option<LinuxCommitInterlockIdentity> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let mut lines = text.lines();
+    if lines.next()? != COMMIT_INTERLOCK_V2 {
+        return None;
+    }
+    let boot_id = lines.next()?.strip_prefix("boot_id=")?.to_owned();
+    let pid = lines.next()?.strip_prefix("pid=")?.parse().ok()?;
+    let start_ticks = lines.next()?.strip_prefix("start_ticks=")?.parse().ok()?;
+    if boot_id.is_empty() || lines.next().is_some() {
+        return None;
+    }
+    Some(LinuxCommitInterlockIdentity {
+        boot_id,
+        pid,
+        start_ticks,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn linux_boot_id() -> Result<String, TasteCycleError> {
+    let value = fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let value = value.trim();
+    if value.is_empty() || value.contains('\n') || value.contains('\r') {
+        return Err(TasteCycleError::InvalidCommitInterlockIdentity);
+    }
+    Ok(value.to_owned())
+}
+
+#[cfg(target_os = "linux")]
+fn linux_process_start_ticks(pid: u32) -> Result<Option<u64>, TasteCycleError> {
+    let stat = match fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(stat) => stat,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(TasteCycleError::Io(error)),
+    };
+    let close_paren = stat
+        .rfind(')')
+        .ok_or(TasteCycleError::InvalidCommitInterlockIdentity)?;
+    let fields = stat
+        .get(close_paren + 1..)
+        .ok_or(TasteCycleError::InvalidCommitInterlockIdentity)?;
+    let start_ticks = fields
+        .split_whitespace()
+        .nth(19)
+        .ok_or(TasteCycleError::InvalidCommitInterlockIdentity)?
+        .parse()
+        .map_err(|_| TasteCycleError::InvalidCommitInterlockIdentity)?;
+    Ok(Some(start_ticks))
 }
 
 /// Commit one verified cycle atomically under `root`.
@@ -431,6 +566,48 @@ mod tests {
 
         let valid = manifest(1, GENESIS_DIGEST, &artifacts);
         commit_taste_cycle(&root, &valid, &artifacts).expect("retry");
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn stale_linux_interlock_is_reclaimed_when_owner_is_proven_absent() {
+        let root = root();
+        fs::create_dir_all(&root).expect("root");
+        let stale = format!(
+            "{COMMIT_INTERLOCK_V2}\nboot_id={}\npid={}\nstart_ticks=1\n",
+            linux_boot_id().expect("boot id"),
+            u32::MAX
+        );
+        fs::write(root.join(COMMIT_INTERLOCK_FILE), stale).expect("stale lock");
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+
+        commit_taste_cycle(&root, &manifest, &artifacts).expect("recover stale lock");
+        assert_eq!(
+            fs::read_to_string(root.join("CURRENT")).expect("current"),
+            "1\n"
+        );
+        assert!(!root.join(COMMIT_INTERLOCK_FILE).exists());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn malformed_linux_interlock_remains_fail_closed() {
+        let root = root();
+        fs::create_dir_all(&root).expect("root");
+        fs::write(root.join(COMMIT_INTERLOCK_FILE), b"untrusted\n").expect("lock");
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+
+        assert!(matches!(
+            commit_taste_cycle(&root, &manifest, &artifacts),
+            Err(TasteCycleError::CommitInterlockHeld)
+        ));
+        assert!(!root.join("CURRENT").exists());
+        assert!(!root.join("generation-1").exists());
+        assert!(root.join(COMMIT_INTERLOCK_FILE).exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
