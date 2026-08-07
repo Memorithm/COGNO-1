@@ -1,7 +1,11 @@
-//! End-to-end attachment of a verified scientific taste profile to Runtime.
+//! End-to-end attachment of a controlled-restart scientific taste profile to Runtime.
 
 use cogno_core::{KvCachePolicy, MemoryBudget, QueueFullPolicy};
-use cogno_runtime::{Runtime, RuntimeConfig, RuntimeTasteProfileError, VerifiedTasteProfile};
+use cogno_runtime::{
+    build_taste_restart_manifest, ControlledRestartTasteProfile, Runtime, RuntimeConfig,
+    RuntimeTasteProfileError, TasteCampaignReviewAuthority, TasteCampaignReviewDisposition,
+    TasteCampaignReviewReport, TastePreferenceReview, VerifiedTasteProfile,
+};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -105,12 +109,44 @@ fn write_verified_fixture(root: &Path) -> (PathBuf, PathBuf) {
     (replay_path, candidates_path)
 }
 
+fn restart_manifest() -> cogno_runtime::TasteRestartManifest {
+    let review = TasteCampaignReviewReport {
+        first_generation: 20,
+        last_generation: 23,
+        generations: 4,
+        benchmark_cases: 8,
+        baseline_total_regret: 80,
+        taste_total_regret: 20,
+        improved_cases: 6,
+        regressed_cases: 0,
+        quarantined_model_observations: 2,
+        preferences: vec![TastePreferenceReview {
+            preference_id: 42,
+            latest_confidence_bps: 8_200,
+            blockers: Vec::new(),
+            eligible: true,
+        }],
+        disposition: TasteCampaignReviewDisposition::EligibleForControlledRestartReview,
+        authority: TasteCampaignReviewAuthority::ReviewOnly,
+    };
+    build_taste_restart_manifest(&review, [1; 32], [2; 32], [3; 32]).expect("restart manifest")
+}
+
+fn sealed_profile(
+    replay_path: &Path,
+    candidates_path: &Path,
+    root: &Path,
+) -> ControlledRestartTasteProfile {
+    let profile =
+        VerifiedTasteProfile::load(replay_path, candidates_path, root).expect("verified profile");
+    ControlledRestartTasteProfile::prepare(&restart_manifest(), profile).expect("restart seal")
+}
+
 #[test]
-fn runtime_exposes_only_verified_active_preferences() {
+fn runtime_exposes_only_controlled_restart_verified_preferences() {
     let root = temp_root();
     let (replay_path, candidates_path) = write_verified_fixture(&root);
-    let profile = VerifiedTasteProfile::load(&replay_path, &candidates_path, &root)
-        .expect("verified profile");
+    let sealed = sealed_profile(&replay_path, &candidates_path, &root);
 
     let mut runtime = Runtime::try_new(runtime_config()).expect("runtime");
     assert!(runtime.verified_taste_profile().is_none());
@@ -119,7 +155,7 @@ fn runtime_exposes_only_verified_active_preferences() {
     assert_eq!(runtime.report().active_taste_preferences, 0);
 
     runtime
-        .install_verified_taste_profile(profile)
+        .install_controlled_restart_taste_profile(sealed)
         .expect("initial profile installation");
 
     let active = runtime.active_taste_preferences();
@@ -137,10 +173,9 @@ fn runtime_exposes_only_verified_active_preferences() {
     assert!(runtime.report().taste_profile_loaded);
     assert_eq!(runtime.report().active_taste_preferences, 1);
 
-    let replacement = VerifiedTasteProfile::load(&replay_path, &candidates_path, &root)
-        .expect("replacement profile");
+    let replacement = sealed_profile(&replay_path, &candidates_path, &root);
     assert_eq!(
-        runtime.install_verified_taste_profile(replacement),
+        runtime.install_controlled_restart_taste_profile(replacement),
         Err(RuntimeTasteProfileError::AlreadyInstalled)
     );
     assert_eq!(runtime.active_taste_preferences(), &[active_preference]);
