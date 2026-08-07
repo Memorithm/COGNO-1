@@ -64,6 +64,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+      - name: prefetch locked dependencies
+        run: cargo fetch --locked
       - name: build offline (frozen) — §24 hors réseau
         run: cargo build --release --frozen --all-targets
 
