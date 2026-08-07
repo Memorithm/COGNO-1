@@ -59,16 +59,10 @@ fn campaign_review_is_deterministic_and_model_non_authoritative() {
         }],
     };
 
-    let first = review_scientific_taste_campaign(
-        &campaign,
-        TasteCampaignReviewPolicy::default(),
-    )
-    .expect("first review");
-    let second = review_scientific_taste_campaign(
-        &campaign,
-        TasteCampaignReviewPolicy::default(),
-    )
-    .expect("second review");
+    let first = review_scientific_taste_campaign(&campaign, TasteCampaignReviewPolicy::default())
+        .expect("first review");
+    let second = review_scientific_taste_campaign(&campaign, TasteCampaignReviewPolicy::default())
+        .expect("second review");
 
     assert_eq!(first, second);
     assert_eq!(
