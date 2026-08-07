@@ -8,6 +8,8 @@
 //! Partial, skipped, or forked generations are never selected. A crash after
 //! the generation rename but before `CURRENT` advances can be resumed only
 //! when every already-persisted byte exactly matches the requested commit.
+//! Concurrent commit or recovery attempts are serialized by an atomic,
+//! fail-closed inter-process commit interlock.
 
 use crate::taste_generation::{TasteGenerationManifest, GENESIS_DIGEST};
 use crate::taste_persisted_chain::{
@@ -19,6 +21,8 @@ use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 const MAX_CYCLE_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+const COMMIT_INTERLOCK_FILE: &str = ".TASTE-COMMIT.lock";
+const COMMIT_INTERLOCK_MARKER: &[u8] = b"cogno-taste-commit-v1\n";
 
 /// Complete set of artifacts produced by one scientific-taste cycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,12 +54,42 @@ pub enum TasteCycleError {
     GenerationAlreadyExists,
     RecoveryManifestMismatch,
     RecoveryArtifactMismatch(&'static str),
+    CommitInterlockHeld,
     Io(io::Error),
 }
 
 impl From<io::Error> for TasteCycleError {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+#[derive(Debug)]
+struct TasteCommitInterlock {
+    path: PathBuf,
+}
+
+impl TasteCommitInterlock {
+    fn acquire(root: &Path) -> Result<Self, TasteCycleError> {
+        let path = root.join(COMMIT_INTERLOCK_FILE);
+        let mut file = match OpenOptions::new().create_new(true).write(true).open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                return Err(TasteCycleError::CommitInterlockHeld);
+            }
+            Err(error) => return Err(TasteCycleError::Io(error)),
+        };
+        let interlock = Self { path };
+        file.write_all(COMMIT_INTERLOCK_MARKER)?;
+        file.sync_all()?;
+        sync_directory(root)?;
+        Ok(interlock)
+    }
+}
+
+impl Drop for TasteCommitInterlock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
     }
 }
 
@@ -84,6 +118,7 @@ pub fn commit_taste_cycle(
 
     let root = root.as_ref();
     fs::create_dir_all(root)?;
+    let _interlock = TasteCommitInterlock::acquire(root)?;
 
     let final_path = root.join(format!("generation-{}", manifest.generation));
     if final_path.exists() {
@@ -346,6 +381,7 @@ mod tests {
             "1\n"
         );
         assert!(!root.join(".generation-1.tmp").exists());
+        assert!(!root.join(COMMIT_INTERLOCK_FILE).exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -360,6 +396,42 @@ mod tests {
             Err(TasteCycleError::DigestMismatch("profile"))
         ));
         assert!(!root.join("CURRENT").exists());
+    }
+
+    #[test]
+    fn active_interlock_blocks_commit_before_state_mutation() {
+        let root = root();
+        fs::create_dir_all(&root).expect("root");
+        let interlock = TasteCommitInterlock::acquire(&root).expect("interlock");
+        let artifacts = artifacts("one");
+        let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
+
+        assert!(matches!(
+            commit_taste_cycle(&root, &manifest, &artifacts),
+            Err(TasteCycleError::CommitInterlockHeld)
+        ));
+        assert!(!root.join("CURRENT").exists());
+        assert!(!root.join("generation-1").exists());
+
+        drop(interlock);
+        commit_taste_cycle(&root, &manifest, &artifacts).expect("commit after release");
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn interlock_is_released_after_fail_closed_predecessor_error() {
+        let root = root();
+        let artifacts = artifacts("one");
+        let invalid = manifest(1, [7; 32], &artifacts);
+        assert!(matches!(
+            commit_taste_cycle(&root, &invalid, &artifacts),
+            Err(TasteCycleError::PreviousManifestDigestMismatch)
+        ));
+        assert!(!root.join(COMMIT_INTERLOCK_FILE).exists());
+
+        let valid = manifest(1, GENESIS_DIGEST, &artifacts);
+        commit_taste_cycle(&root, &valid, &artifacts).expect("retry");
+        fs::remove_dir_all(root).expect("cleanup");
     }
 
     #[test]
@@ -420,6 +492,7 @@ mod tests {
             "1\n"
         );
         assert!(!root.join(".CURRENT.tmp").exists());
+        assert!(!root.join(COMMIT_INTERLOCK_FILE).exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -441,6 +514,7 @@ mod tests {
             Err(TasteCycleError::RecoveryArtifactMismatch("profile"))
         ));
         assert!(!root.join("CURRENT").exists());
+        assert!(!root.join(COMMIT_INTERLOCK_FILE).exists());
         fs::remove_dir_all(root).expect("cleanup");
     }
 }
