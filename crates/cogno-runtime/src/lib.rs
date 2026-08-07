@@ -52,6 +52,7 @@ pub mod taste_decision;
 pub mod taste_generation;
 pub mod taste_longitudinal;
 pub mod taste_orchestrator;
+pub mod taste_persisted_chain;
 pub mod taste_restart_manifest;
 pub mod taste_validation_store;
 pub mod verified_taste_profile;
@@ -114,6 +115,10 @@ pub use taste_orchestrator::{
     OrchestratedTasteOutcome, OrchestratedTasteState, ScientificTasteCycleReport,
     ScientificTasteOrchestratorError, MAX_ORCHESTRATED_CANDIDATES, MAX_ORCHESTRATED_VALIDATIONS,
     MIN_PROMOTION_CONFIRMATIONS, PROMOTION_THRESHOLD_BPS,
+};
+pub use taste_persisted_chain::{
+    load_persisted_taste_generation_selection, PersistedTasteGenerationError,
+    PersistedTasteGenerationSelection,
 };
 pub use taste_restart_manifest::{
     build_taste_restart_manifest, verify_taste_restart_manifest, TasteRestartManifest,
