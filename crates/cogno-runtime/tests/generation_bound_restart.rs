@@ -162,12 +162,8 @@ fn no_selected_generation_fails_closed() {
     let chain = TasteGenerationChain::default();
 
     assert_eq!(
-        GenerationBoundControlledRestartTasteProfile::prepare(
-            &restart_manifest(),
-            &chain,
-            profile
-        )
-        .unwrap_err(),
+        GenerationBoundControlledRestartTasteProfile::prepare(&restart_manifest(), &chain, profile)
+            .unwrap_err(),
         GenerationBoundControlledRestartTasteError::NoSelectedGeneration
     );
     fs::remove_dir_all(root).expect("cleanup");
@@ -183,12 +179,8 @@ fn stale_profile_digest_is_rejected_before_restart_sealing() {
     let chain = chain_with(selected);
 
     assert_eq!(
-        GenerationBoundControlledRestartTasteProfile::prepare(
-            &restart_manifest(),
-            &chain,
-            profile
-        )
-        .unwrap_err(),
+        GenerationBoundControlledRestartTasteProfile::prepare(&restart_manifest(), &chain, profile)
+            .unwrap_err(),
         GenerationBoundControlledRestartTasteError::ProfileDigestMismatch
     );
     fs::remove_dir_all(root).expect("cleanup");
@@ -204,12 +196,8 @@ fn cross_generation_replay_digest_is_rejected() {
     let chain = chain_with(selected);
 
     assert_eq!(
-        GenerationBoundControlledRestartTasteProfile::prepare(
-            &restart_manifest(),
-            &chain,
-            profile
-        )
-        .unwrap_err(),
+        GenerationBoundControlledRestartTasteProfile::prepare(&restart_manifest(), &chain, profile)
+            .unwrap_err(),
         GenerationBoundControlledRestartTasteError::ReplayDigestMismatch
     );
     fs::remove_dir_all(root).expect("cleanup");
@@ -225,12 +213,8 @@ fn cross_generation_validation_digest_is_rejected() {
     let chain = chain_with(selected);
 
     assert_eq!(
-        GenerationBoundControlledRestartTasteProfile::prepare(
-            &restart_manifest(),
-            &chain,
-            profile
-        )
-        .unwrap_err(),
+        GenerationBoundControlledRestartTasteProfile::prepare(&restart_manifest(), &chain, profile)
+            .unwrap_err(),
         GenerationBoundControlledRestartTasteError::ValidationStoreDigestMismatch
     );
     fs::remove_dir_all(root).expect("cleanup");
