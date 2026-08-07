@@ -95,6 +95,7 @@ pub use taste_campaign_review::{
 };
 pub use taste_controlled_restart::{
     ControlledRestartTasteAuthority, ControlledRestartTasteError, ControlledRestartTasteProfile,
+    GenerationBoundControlledRestartTasteError, GenerationBoundControlledRestartTasteProfile,
 };
 pub use taste_cycle::{commit_taste_cycle, TasteCycleArtifacts, TasteCycleCommit, TasteCycleError};
 pub use taste_decision::{
