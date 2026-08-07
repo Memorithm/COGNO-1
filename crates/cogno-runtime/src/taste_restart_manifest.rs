@@ -71,8 +71,14 @@ pub fn build_taste_restart_manifest(
     longitudinal_sha256: [u8; 32],
 ) -> Result<TasteRestartManifest, TasteRestartManifestError> {
     validate_review(review)?;
-    validate_nonzero_digest(campaign_sha256, TasteRestartManifestError::ZeroCampaignDigest)?;
-    validate_nonzero_digest(benchmark_sha256, TasteRestartManifestError::ZeroBenchmarkDigest)?;
+    validate_nonzero_digest(
+        campaign_sha256,
+        TasteRestartManifestError::ZeroCampaignDigest,
+    )?;
+    validate_nonzero_digest(
+        benchmark_sha256,
+        TasteRestartManifestError::ZeroBenchmarkDigest,
+    )?;
     validate_nonzero_digest(
         longitudinal_sha256,
         TasteRestartManifestError::ZeroLongitudinalDigest,
@@ -275,9 +281,7 @@ fn hash_manifest_fields(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::taste_campaign_review::{
-        TasteCampaignReviewBlocker, TastePreferenceReview,
-    };
+    use crate::taste_campaign_review::{TasteCampaignReviewBlocker, TastePreferenceReview};
 
     fn eligible_review() -> TasteCampaignReviewReport {
         TasteCampaignReviewReport {
@@ -318,7 +322,10 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.preferences[0].preference_id, 3);
         assert_eq!(first.preferences[1].preference_id, 9);
-        assert_eq!(first.authority, TasteRestartManifestAuthority::ReviewArtifactOnly);
+        assert_eq!(
+            first.authority,
+            TasteRestartManifestAuthority::ReviewArtifactOnly
+        );
         assert_eq!(verify_taste_restart_manifest(&first), Ok(()));
     }
 
