@@ -6,7 +6,9 @@
 //! through the selected generation, verifies the hash chain, and re-hashes all
 //! four persisted artifacts before returning a selected chain.
 
-use crate::taste_generation::{TasteGenerationChain, TasteGenerationError, TasteGenerationManifest};
+use crate::taste_generation::{
+    TasteGenerationChain, TasteGenerationError, TasteGenerationManifest,
+};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,9 +33,18 @@ pub enum PersistedTasteGenerationError {
     TooManyGenerations,
     MissingGeneration(u64),
     InvalidManifestSize(u64),
-    InvalidArtifactSize { generation: u64, artifact: &'static str },
-    CannotReadArtifact { generation: u64, artifact: &'static str },
-    ArtifactDigestMismatch { generation: u64, artifact: &'static str },
+    InvalidArtifactSize {
+        generation: u64,
+        artifact: &'static str,
+    },
+    CannotReadArtifact {
+        generation: u64,
+        artifact: &'static str,
+    },
+    ArtifactDigestMismatch {
+        generation: u64,
+        artifact: &'static str,
+    },
     InvalidGenerationChain(TasteGenerationError),
 }
 
@@ -175,12 +186,11 @@ fn verify_artifact(
     expected: [u8; 32],
 ) -> Result<(), PersistedTasteGenerationError> {
     let path = generation_path.join(file_name);
-    let metadata = fs::metadata(&path).map_err(|_| {
-        PersistedTasteGenerationError::CannotReadArtifact {
+    let metadata =
+        fs::metadata(&path).map_err(|_| PersistedTasteGenerationError::CannotReadArtifact {
             generation,
             artifact,
-        }
-    })?;
+        })?;
     let length = usize::try_from(metadata.len()).map_err(|_| {
         PersistedTasteGenerationError::InvalidArtifactSize {
             generation,
