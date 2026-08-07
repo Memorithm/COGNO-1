@@ -3,8 +3,8 @@
 use cogno_runtime::{
     build_taste_restart_manifest, GenerationBoundControlledRestartTasteError,
     GenerationBoundControlledRestartTasteProfile, TasteCampaignReviewAuthority,
-    TasteCampaignReviewDisposition, TasteCampaignReviewReport, TasteGenerationManifest,
-    TastePreferenceReview, VerifiedTasteProfile, GENESIS_DIGEST,
+    TasteCampaignReviewDisposition, TasteCampaignReviewReport, TasteGenerationChain,
+    TasteGenerationManifest, TastePreferenceReview, VerifiedTasteProfile, GENESIS_DIGEST,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -125,6 +125,12 @@ fn generation(profile: &VerifiedTasteProfile) -> TasteGenerationManifest {
     }
 }
 
+fn chain_with(manifest: TasteGenerationManifest) -> TasteGenerationChain {
+    let mut chain = TasteGenerationChain::default();
+    chain.append(manifest).expect("generation");
+    chain
+}
+
 #[test]
 fn exact_selected_generation_binds_restart_provenance() {
     let root = temp_root();
@@ -132,11 +138,11 @@ fn exact_selected_generation_binds_restart_provenance() {
     let profile = load_profile(&root, &replay, &candidates);
     let generation = generation(&profile);
     let expected_generation_sha256 = generation.sha256();
+    let chain = chain_with(generation);
     let manifest = restart_manifest();
 
-    let bound =
-        GenerationBoundControlledRestartTasteProfile::prepare(&manifest, &generation, profile)
-            .expect("generation-bound restart");
+    let bound = GenerationBoundControlledRestartTasteProfile::prepare(&manifest, &chain, profile)
+        .expect("generation-bound restart");
 
     assert_eq!(bound.generation(), 1);
     assert_eq!(
@@ -149,17 +155,37 @@ fn exact_selected_generation_binds_restart_provenance() {
 }
 
 #[test]
+fn no_selected_generation_fails_closed() {
+    let root = temp_root();
+    let (replay, candidates) = write_verified_fixture(&root);
+    let profile = load_profile(&root, &replay, &candidates);
+    let chain = TasteGenerationChain::default();
+
+    assert_eq!(
+        GenerationBoundControlledRestartTasteProfile::prepare(
+            &restart_manifest(),
+            &chain,
+            profile
+        )
+        .unwrap_err(),
+        GenerationBoundControlledRestartTasteError::NoSelectedGeneration
+    );
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
 fn stale_profile_digest_is_rejected_before_restart_sealing() {
     let root = temp_root();
     let (replay, candidates) = write_verified_fixture(&root);
     let profile = load_profile(&root, &replay, &candidates);
     let mut selected = generation(&profile);
     selected.profile_sha256 = [9; 32];
+    let chain = chain_with(selected);
 
     assert_eq!(
         GenerationBoundControlledRestartTasteProfile::prepare(
             &restart_manifest(),
-            &selected,
+            &chain,
             profile
         )
         .unwrap_err(),
@@ -175,11 +201,12 @@ fn cross_generation_replay_digest_is_rejected() {
     let profile = load_profile(&root, &replay, &candidates);
     let mut selected = generation(&profile);
     selected.replay_sha256 = [7; 32];
+    let chain = chain_with(selected);
 
     assert_eq!(
         GenerationBoundControlledRestartTasteProfile::prepare(
             &restart_manifest(),
-            &selected,
+            &chain,
             profile
         )
         .unwrap_err(),
@@ -195,11 +222,12 @@ fn cross_generation_validation_digest_is_rejected() {
     let profile = load_profile(&root, &replay, &candidates);
     let mut selected = generation(&profile);
     selected.validation_store_sha256 = [5; 32];
+    let chain = chain_with(selected);
 
     assert_eq!(
         GenerationBoundControlledRestartTasteProfile::prepare(
             &restart_manifest(),
-            &selected,
+            &chain,
             profile
         )
         .unwrap_err(),
