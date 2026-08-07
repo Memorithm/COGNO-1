@@ -111,8 +111,8 @@ pub fn review_scientific_taste_campaign(
 
     for autonomous in &campaign.autonomous_reports {
         benchmark_cases = benchmark_cases.saturating_add(autonomous.benchmark.cases);
-        baseline_total_regret = baseline_total_regret
-            .saturating_add(autonomous.benchmark.baseline_total_regret);
+        baseline_total_regret =
+            baseline_total_regret.saturating_add(autonomous.benchmark.baseline_total_regret);
         taste_total_regret =
             taste_total_regret.saturating_add(autonomous.benchmark.taste_total_regret);
         improved_cases = improved_cases.saturating_add(autonomous.benchmark.improved_cases);
@@ -170,17 +170,15 @@ pub fn review_scientific_taste_campaign(
     let benchmark_is_non_regressive = taste_total_regret <= baseline_total_regret
         && regressed_cases <= policy.maximum_regressed_cases;
     let enough_generations = campaign.generations >= policy.minimum_generations;
-    let preferences_are_eligible = !preferences.is_empty()
-        && preferences.iter().all(|preference| preference.eligible);
+    let preferences_are_eligible =
+        !preferences.is_empty() && preferences.iter().all(|preference| preference.eligible);
 
-    let disposition = if benchmark_is_non_regressive
-        && enough_generations
-        && preferences_are_eligible
-    {
-        TasteCampaignReviewDisposition::EligibleForControlledRestartReview
-    } else {
-        TasteCampaignReviewDisposition::Hold
-    };
+    let disposition =
+        if benchmark_is_non_regressive && enough_generations && preferences_are_eligible {
+            TasteCampaignReviewDisposition::EligibleForControlledRestartReview
+        } else {
+            TasteCampaignReviewDisposition::Hold
+        };
 
     Ok(TasteCampaignReviewReport {
         first_generation: campaign.first_generation,
@@ -214,9 +212,15 @@ fn validate_campaign_shape(campaign: &TasteCampaignReport) -> Result<(), TasteCa
     }
     if campaign.first_generation == 0
         || campaign.last_generation < campaign.first_generation
-        || campaign.autonomous_reports.first().map(|report| report.generation)
+        || campaign
+            .autonomous_reports
+            .first()
+            .map(|report| report.generation)
             != Some(campaign.first_generation)
-        || campaign.autonomous_reports.last().map(|report| report.generation)
+        || campaign
+            .autonomous_reports
+            .last()
+            .map(|report| report.generation)
             != Some(campaign.last_generation)
     {
         return Err(TasteCampaignReviewError::InvalidGenerationRange);
@@ -325,11 +329,8 @@ mod tests {
     fn benchmark_regression_forces_hold() {
         let mut input = campaign(TasteDriftState::Stable);
         input.autonomous_reports[1] = autonomous(2, 20, 1);
-        let report = review_scientific_taste_campaign(
-            &input,
-            TasteCampaignReviewPolicy::default(),
-        )
-        .expect("review");
+        let report = review_scientific_taste_campaign(&input, TasteCampaignReviewPolicy::default())
+            .expect("review");
         assert_eq!(report.disposition, TasteCampaignReviewDisposition::Hold);
         assert_eq!(report.regressed_cases, 1);
     }
