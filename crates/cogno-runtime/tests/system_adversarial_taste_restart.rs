@@ -191,13 +191,9 @@ fn full_restart_chain_exposes_only_reviewed_active_preferences() {
     let root = temp_root();
     let (replay, candidates) = write_profile_fixture(&root);
     let profile = load_profile(&root, &replay, &candidates);
-    let manifest = build_taste_restart_manifest(
-        &eligible_review(8_200, 7_900),
-        [1; 32],
-        [2; 32],
-        [3; 32],
-    )
-    .expect("manifest");
+    let manifest =
+        build_taste_restart_manifest(&eligible_review(8_200, 7_900), [1; 32], [2; 32], [3; 32])
+            .expect("manifest");
     let sealed = ControlledRestartTasteProfile::prepare(&manifest, profile).expect("seal");
     let mut runtime = Runtime::try_new(runtime_config()).expect("runtime");
 
@@ -226,13 +222,9 @@ fn reviewed_confidence_mismatch_is_rejected_before_runtime_install() {
     let root = temp_root();
     let (replay, candidates) = write_profile_fixture(&root);
     let profile = load_profile(&root, &replay, &candidates);
-    let manifest = build_taste_restart_manifest(
-        &eligible_review(8_201, 7_900),
-        [1; 32],
-        [2; 32],
-        [3; 32],
-    )
-    .expect("manifest");
+    let manifest =
+        build_taste_restart_manifest(&eligible_review(8_201, 7_900), [1; 32], [2; 32], [3; 32])
+            .expect("manifest");
 
     assert_eq!(
         ControlledRestartTasteProfile::prepare(&manifest, profile).unwrap_err(),
@@ -247,13 +239,9 @@ fn noncanonical_but_rehashed_manifest_is_rejected_at_restart_boundary() {
     let root = temp_root();
     let (replay, candidates) = write_profile_fixture(&root);
     let profile = load_profile(&root, &replay, &candidates);
-    let mut manifest = build_taste_restart_manifest(
-        &eligible_review(8_200, 7_900),
-        [1; 32],
-        [2; 32],
-        [3; 32],
-    )
-    .expect("manifest");
+    let mut manifest =
+        build_taste_restart_manifest(&eligible_review(8_200, 7_900), [1; 32], [2; 32], [3; 32])
+            .expect("manifest");
 
     manifest.preferences.reverse();
     rehash_manifest(&mut manifest);
