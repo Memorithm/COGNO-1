@@ -12,7 +12,7 @@ use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
-use crate::taste_controlled_restart::ControlledRestartTasteProfile;
+use crate::taste_controlled_restart::GenerationBoundControlledRestartTasteProfile;
 use crate::taste_decision::{
     decide_with_verified_taste, TasteDecision, TasteDecisionCandidate, TastePreferenceApplication,
 };
@@ -106,16 +106,20 @@ impl Runtime {
 
     /// Install scientific taste state during a controlled runtime restart.
     ///
-    /// The caller must provide a consuming seal produced by
-    /// [`ControlledRestartTasteProfile::prepare`]. This prevents a merely
-    /// verified cache from bypassing campaign review and controlled-restart
-    /// authorization. Installation remains one-shot and replacement is
-    /// rejected after initialization.
+    /// The caller must provide a consuming seal that is bound both to the
+    /// reviewed restart manifest and to the immutable selected generation
+    /// manifest. This prevents a stale but internally valid profile from being
+    /// installed under a different selected generation. Installation remains
+    /// one-shot and replacement is rejected after initialization.
     pub fn install_controlled_restart_taste_profile(
         &mut self,
-        profile: ControlledRestartTasteProfile,
+        profile: GenerationBoundControlledRestartTasteProfile,
     ) -> Result<(), RuntimeTasteProfileError> {
-        self.install_verified_taste_profile(profile.into_verified_profile())
+        self.install_verified_taste_profile(
+            profile
+                .into_controlled_restart_profile()
+                .into_verified_profile(),
+        )
     }
 
     fn install_verified_taste_profile(
