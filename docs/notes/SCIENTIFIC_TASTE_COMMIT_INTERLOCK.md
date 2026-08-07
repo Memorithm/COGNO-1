@@ -4,6 +4,8 @@
 
 The interlock is acquired only after all in-memory artifact digests have been validated and before reading or mutating `CURRENT`, generation directories, staging directories, or crash-recovery state.
 
-If the interlock already exists, the operation fails closed with `TasteCycleError::CommitInterlockHeld`; it does not wait, steal, truncate, or reinterpret the lock. Normal returns release the interlock through RAII. A process crash can intentionally leave a stale lock: automatic stale-lock stealing is not permitted because process liveness and lock ownership cannot be proven portably with the Rust standard library alone. Recovery of a stale interlock therefore remains an explicit administrative operation and must be preceded by persisted-chain verification.
+If the interlock already exists, the operation never waits and never blindly steals it. On Linux, version-2 lock records contain the kernel boot ID, owner PID, and `/proc/<pid>/stat` start ticks. A residual lock is removed and acquisition is retried only when `/proc` proves that the recorded owner cannot still be the same process: the boot ID changed, the PID no longer exists, or the PID now has different start ticks. Malformed, legacy, inaccessible, or otherwise unverifiable locks remain fail-closed as `TasteCycleError::CommitInterlockHeld`.
 
-This design prevents concurrent writers from both validating the same predecessor and racing to publish different successor generations or to rewrite `.CURRENT.tmp` concurrently.
+On non-Linux targets, automatic stale-lock recovery is disabled because the Rust 1.75 standard library cannot provide a portable owner-liveness proof. Normal returns release the interlock through RAII on every supported target.
+
+This design prevents concurrent writers from both validating the same predecessor and racing to publish different successor generations or to rewrite `.CURRENT.tmp` concurrently, while allowing provably stale Linux locks to recover without weakening the repository MSRV.
