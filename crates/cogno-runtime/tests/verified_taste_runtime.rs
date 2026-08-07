@@ -1,10 +1,11 @@
-//! End-to-end attachment of a controlled-restart scientific taste profile to Runtime.
+//! End-to-end attachment of a generation-bound controlled-restart taste profile.
 
 use cogno_core::{KvCachePolicy, MemoryBudget, QueueFullPolicy};
 use cogno_runtime::{
-    build_taste_restart_manifest, ControlledRestartTasteProfile, Runtime, RuntimeConfig,
-    RuntimeTasteProfileError, TasteCampaignReviewAuthority, TasteCampaignReviewDisposition,
-    TasteCampaignReviewReport, TastePreferenceReview, VerifiedTasteProfile,
+    build_taste_restart_manifest, GenerationBoundControlledRestartTasteProfile, Runtime,
+    RuntimeConfig, RuntimeTasteProfileError, TasteCampaignReviewAuthority,
+    TasteCampaignReviewDisposition, TasteCampaignReviewReport, TasteGenerationChain,
+    TasteGenerationManifest, TastePreferenceReview, VerifiedTasteProfile, GENESIS_DIGEST,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -132,18 +133,35 @@ fn restart_manifest() -> cogno_runtime::TasteRestartManifest {
     build_taste_restart_manifest(&review, [1; 32], [2; 32], [3; 32]).expect("restart manifest")
 }
 
+fn selected_chain(profile: &VerifiedTasteProfile) -> TasteGenerationChain {
+    let mut chain = TasteGenerationChain::default();
+    chain
+        .append(TasteGenerationManifest {
+            generation: 1,
+            previous_manifest_sha256: GENESIS_DIGEST,
+            profile_sha256: profile.profile_sha256(),
+            replay_sha256: profile.replay_sha256(),
+            candidate_report_sha256: profile.candidate_report_sha256(),
+            validation_store_sha256: profile.validation_store_sha256(),
+        })
+        .expect("selected generation");
+    chain
+}
+
 fn sealed_profile(
     replay_path: &Path,
     candidates_path: &Path,
     root: &Path,
-) -> ControlledRestartTasteProfile {
+) -> GenerationBoundControlledRestartTasteProfile {
     let profile =
         VerifiedTasteProfile::load(replay_path, candidates_path, root).expect("verified profile");
-    ControlledRestartTasteProfile::prepare(&restart_manifest(), profile).expect("restart seal")
+    let chain = selected_chain(&profile);
+    GenerationBoundControlledRestartTasteProfile::prepare(&restart_manifest(), &chain, profile)
+        .expect("generation-bound restart seal")
 }
 
 #[test]
-fn runtime_exposes_only_controlled_restart_verified_preferences() {
+fn runtime_exposes_only_generation_bound_verified_preferences() {
     let root = temp_root();
     let (replay_path, candidates_path) = write_verified_fixture(&root);
     let sealed = sealed_profile(&replay_path, &candidates_path, &root);
