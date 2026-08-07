@@ -86,18 +86,18 @@ pub fn classify_scientific_exchange(
         ScientificExchangeOrigin::RuntimeObservation => {
             Ok(ScientificExchangeDisposition::RuntimeObservationOnly)
         }
-        ScientificExchangeOrigin::SciRustDeterministicEvaluator => Ok(
-            ScientificExchangeDisposition::Validation(to_validation(
+        ScientificExchangeOrigin::SciRustDeterministicEvaluator => {
+            Ok(ScientificExchangeDisposition::Validation(to_validation(
                 record,
                 StoredValidationOrigin::DeterministicEvaluation,
-            )),
-        ),
-        ScientificExchangeOrigin::ExplicitUserAction => Ok(
-            ScientificExchangeDisposition::Validation(to_validation(
+            )))
+        }
+        ScientificExchangeOrigin::ExplicitUserAction => {
+            Ok(ScientificExchangeDisposition::Validation(to_validation(
                 record,
                 StoredValidationOrigin::ExplicitUserAction,
-            )),
-        ),
+            )))
+        }
     }
 }
 
