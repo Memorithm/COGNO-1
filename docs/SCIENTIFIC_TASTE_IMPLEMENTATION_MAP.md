@@ -6,6 +6,7 @@
 - `taste_longitudinal.rs`: bounded multi-generation drift history.
 - `taste_autonomy.rs`: high-level coordination of exchange, orchestration, benchmark, and history.
 - `taste_campaign.rs`: bounded transactional coordination of multiple autonomous generations with campaign-level rollback.
+- `taste_campaign_review.rs`: deterministic post-campaign review gate for controlled-restart eligibility without runtime authority.
 - `tests/autonomous_taste_cycle.rs`: multi-generation end-to-end autonomous pass.
 - `tests/scientific_taste_campaign.rs`: public campaign determinism and model non-authority coverage.
 - `tests/scientific_taste_system_adversarial.rs`: system-level fail-closed coverage.
