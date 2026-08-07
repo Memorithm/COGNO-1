@@ -80,12 +80,13 @@ pub fn commit_taste_cycle(
 
     let root = root.as_ref();
     fs::create_dir_all(root)?;
-    verify_persisted_predecessor(root, manifest)?;
 
     let final_path = root.join(format!("generation-{}", manifest.generation));
     if final_path.exists() {
         return Err(TasteCycleError::GenerationAlreadyExists);
     }
+    verify_persisted_predecessor(root, manifest)?;
+
     let staging_path = root.join(format!(".generation-{}.tmp", manifest.generation));
     if staging_path.exists() {
         fs::remove_dir_all(&staging_path)?;
