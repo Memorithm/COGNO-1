@@ -53,6 +53,7 @@ pub mod taste_generation;
 pub mod taste_longitudinal;
 pub mod taste_orchestrator;
 pub mod taste_persisted_chain;
+pub mod taste_persisted_restart;
 pub mod taste_restart_manifest;
 pub mod taste_validation_store;
 pub mod verified_taste_profile;
@@ -119,6 +120,9 @@ pub use taste_orchestrator::{
 pub use taste_persisted_chain::{
     load_persisted_taste_generation_selection, PersistedTasteGenerationError,
     PersistedTasteGenerationSelection,
+};
+pub use taste_persisted_restart::{
+    prepare_persisted_controlled_restart_taste_profile, PersistedControlledRestartTasteError,
 };
 pub use taste_restart_manifest::{
     build_taste_restart_manifest, verify_taste_restart_manifest, TasteRestartManifest,
