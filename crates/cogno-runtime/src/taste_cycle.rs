@@ -311,14 +311,21 @@ mod tests {
     ) {
         let generation_path = root.join(format!("generation-{}", manifest.generation));
         fs::create_dir_all(&generation_path).expect("generation dir");
-        fs::write(generation_path.join("candidates.json"), &artifacts.candidate_report)
-            .expect("candidates");
+        fs::write(
+            generation_path.join("candidates.json"),
+            &artifacts.candidate_report,
+        )
+        .expect("candidates");
         fs::write(
             generation_path.join("taste.validations"),
             &artifacts.validation_store,
         )
         .expect("validations");
-        fs::write(generation_path.join("replay.json"), &artifacts.replay_report).expect("replay");
+        fs::write(
+            generation_path.join("replay.json"),
+            &artifacts.replay_report,
+        )
+        .expect("replay");
         fs::write(generation_path.join("taste.profile"), &artifacts.profile).expect("profile");
         fs::write(
             generation_path.join("generation.manifest"),
@@ -423,8 +430,11 @@ mod tests {
         let artifacts = artifacts("one");
         let manifest = manifest(1, GENESIS_DIGEST, &artifacts);
         write_complete_generation(&root, &manifest, &artifacts);
-        fs::write(root.join("generation-1/taste.profile"), b"different-profile")
-            .expect("tamper");
+        fs::write(
+            root.join("generation-1/taste.profile"),
+            b"different-profile",
+        )
+        .expect("tamper");
 
         assert!(matches!(
             commit_taste_cycle(&root, &manifest, &artifacts),
