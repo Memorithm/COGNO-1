@@ -6,7 +6,7 @@
 //! installation during runtime initialization after proving exact agreement
 //! between the reviewed manifest and the independently verified profile.
 
-use crate::taste_generation::TasteGenerationManifest;
+use crate::taste_generation::{TasteGenerationChain, TasteGenerationManifest};
 use crate::taste_restart_manifest::{
     verify_taste_restart_manifest, TasteRestartManifest, TasteRestartManifestError,
 };
@@ -30,7 +30,8 @@ pub struct ControlledRestartTasteProfile {
     authority: ControlledRestartTasteAuthority,
 }
 
-/// A controlled-restart seal additionally bound to one immutable selected generation.
+/// A controlled-restart seal additionally bound to the generation selected by
+/// a verified immutable generation chain.
 #[derive(Debug)]
 pub struct GenerationBoundControlledRestartTasteProfile {
     sealed: ControlledRestartTasteProfile,
@@ -39,14 +40,19 @@ pub struct GenerationBoundControlledRestartTasteProfile {
 }
 
 impl GenerationBoundControlledRestartTasteProfile {
-    /// Bind an already verified profile to both the restart review and the selected
-    /// immutable generation manifest. All persisted profile-source digests must
-    /// agree exactly with the generation manifest.
+    /// Bind an already verified profile to the restart review and to the exact
+    /// generation selected by `chain`.
+    ///
+    /// The chain must contain a selected generation. All persisted profile-source
+    /// digests must agree exactly with that selected immutable manifest.
     pub fn prepare(
         manifest: &TasteRestartManifest,
-        generation: &TasteGenerationManifest,
+        chain: &TasteGenerationChain,
         profile: VerifiedTasteProfile,
     ) -> Result<Self, GenerationBoundControlledRestartTasteError> {
+        let generation = chain
+            .selected()
+            .ok_or(GenerationBoundControlledRestartTasteError::NoSelectedGeneration)?;
         verify_generation_matches_profile(generation, &profile)?;
         let sealed = ControlledRestartTasteProfile::prepare(manifest, profile)
             .map_err(GenerationBoundControlledRestartTasteError::ControlledRestart)?;
@@ -91,6 +97,8 @@ impl GenerationBoundControlledRestartTasteProfile {
 /// Failure while binding a controlled restart to a selected immutable generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GenerationBoundControlledRestartTasteError {
+    /// The generation chain has no selected generation for restart.
+    NoSelectedGeneration,
     /// The generation manifest references another profile.
     ProfileDigestMismatch,
     /// The generation manifest references another replay artifact.
