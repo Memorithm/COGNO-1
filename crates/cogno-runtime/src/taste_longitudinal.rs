@@ -75,7 +75,10 @@ impl TasteLongitudinalTracker {
                 observation.confidence_bps,
             ));
         }
-        let history = self.observations.entry(observation.preference_id).or_default();
+        let history = self
+            .observations
+            .entry(observation.preference_id)
+            .or_default();
         if history.len() >= MAX_HISTORY_PER_PREFERENCE {
             return Err(TasteLongitudinalError::HistoryFull(
                 observation.preference_id,
@@ -194,7 +197,9 @@ mod tests {
             })
             .expect("append");
         assert_eq!(
-            tracker.status(7, 1 + STALE_GENERATION_GAP).map(|status| status.drift),
+            tracker
+                .status(7, 1 + STALE_GENERATION_GAP)
+                .map(|status| status.drift),
             Some(TasteDriftState::Stale)
         );
     }
