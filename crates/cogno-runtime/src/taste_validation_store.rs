@@ -220,12 +220,12 @@ fn replay(path: &Path) -> Result<BTreeMap<u64, StoredTasteValidation>, TasteVali
         if fingerprint(validation).as_slice() != &bytes[offset + 36..offset + RECORD_BYTES] {
             return Err(TasteValidationStoreError::DigestMismatch);
         }
-        if let Some(existing) = records.insert(validation.validation_id, validation) {
-            if existing != validation {
-                return Err(TasteValidationStoreError::DuplicateValidationConflict(
-                    validation.validation_id,
-                ));
-            }
+        if let Some(existing) = records.insert(validation.validation_id, validation)
+            && existing != validation
+        {
+            return Err(TasteValidationStoreError::DuplicateValidationConflict(
+                validation.validation_id,
+            ));
         }
         offset += RECORD_BYTES;
     }
