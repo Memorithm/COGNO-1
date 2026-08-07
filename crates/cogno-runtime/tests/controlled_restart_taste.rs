@@ -110,7 +110,8 @@ fn eligible_review(confidence_bps: u16) -> TasteCampaignReviewReport {
 fn exact_review_and_verified_profile_are_sealed_for_restart() {
     let root = temp_root();
     let (replay_path, candidate_path) = write_verified_profile(&root, 8_000);
-    let profile = VerifiedTasteProfile::load(&replay_path, &candidate_path, &root).expect("profile");
+    let profile =
+        VerifiedTasteProfile::load(&replay_path, &candidate_path, &root).expect("profile");
     let manifest = build_taste_restart_manifest(&eligible_review(8_000), [1; 32], [2; 32], [3; 32])
         .expect("manifest");
 
@@ -133,7 +134,8 @@ fn exact_review_and_verified_profile_are_sealed_for_restart() {
 fn confidence_disagreement_fails_closed() {
     let root = temp_root();
     let (replay_path, candidate_path) = write_verified_profile(&root, 8_000);
-    let profile = VerifiedTasteProfile::load(&replay_path, &candidate_path, &root).expect("profile");
+    let profile =
+        VerifiedTasteProfile::load(&replay_path, &candidate_path, &root).expect("profile");
     let manifest = build_taste_restart_manifest(&eligible_review(8_100), [1; 32], [2; 32], [3; 32])
         .expect("manifest");
 
