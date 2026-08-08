@@ -155,8 +155,8 @@ fn verify_exact_file(
     message: &'static str,
 ) -> Result<(), ModelPersistenceError> {
     let metadata = std::fs::metadata(path)?;
-    let expected_len = u64::try_from(expected.len())
-        .map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
+    let expected_len =
+        u64::try_from(expected.len()).map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
     if metadata.len() != expected_len {
         return Err(recovery_mismatch(message));
     }
@@ -210,14 +210,22 @@ fn encode_model_manifest(
 
     let mut bytes = [0u8; MODEL_MANIFEST_BYTES];
     let mut offset = 0usize;
-    put(&mut bytes, &mut offset, &manifest.schema_version.to_le_bytes());
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.schema_version.to_le_bytes(),
+    );
     put(&mut bytes, &mut offset, &[0]);
     put(
         &mut bytes,
         &mut offset,
         &manifest.architecture_id.0.to_le_bytes(),
     );
-    put(&mut bytes, &mut offset, &manifest.tensor_count.to_le_bytes());
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.tensor_count.to_le_bytes(),
+    );
     put(
         &mut bytes,
         &mut offset,
