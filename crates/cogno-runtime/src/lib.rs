@@ -39,7 +39,8 @@ pub mod executor;
 pub mod kv_controller;
 pub mod meta_activation;
 pub mod model_generation;
-pub mod model_persistence;
+mod model_persistence;
+pub mod model_persistence_interlock;
 pub mod path;
 pub mod pipeline;
 pub mod queue;
@@ -80,10 +81,10 @@ pub use model_generation::{
     MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
 };
 pub use model_persistence::{
-    commit_reviewed_model_generation, load_persisted_model_generation_selection,
-    HostModelPromotionAttestation, ModelGenerationCommit, ModelPersistenceError,
-    PersistedModelGenerationSelection,
+    load_persisted_model_generation_selection, HostModelPromotionAttestation,
+    ModelGenerationCommit, ModelPersistenceError, PersistedModelGenerationSelection,
 };
+pub use model_persistence_interlock::commit_reviewed_model_generation;
 pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
