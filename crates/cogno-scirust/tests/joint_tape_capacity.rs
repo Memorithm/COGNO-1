@@ -62,5 +62,8 @@ fn joint_objective_accepts_byte_scale_sequence_lengths() {
         SequenceCognitiveLossWeights::default(),
     );
 
-    assert!(result.is_ok(), "joint tape rejected bounded byte-scale views: {result:?}");
+    assert!(
+        result.is_ok(),
+        "joint tape rejected bounded byte-scale views: {result:?}"
+    );
 }
