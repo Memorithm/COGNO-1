@@ -24,9 +24,9 @@ pub const MAX_SEQUENCE_PARAMETERS: usize = 262_144;
 /// Maximum elements in any one activation/constant tensor built by the encoder.
 pub const MAX_SEQUENCE_ACTIVATION_ELEMENTS: usize = 262_144;
 /// Tape nodes required by the encoder graph itself.
-pub const SEQUENCE_ENCODER_TAPE_NODES: usize = 10;
+pub const SEQUENCE_ENCODER_TAPE_NODES: usize = 12;
 /// Tape bound used by the built-in squared-error training helper.
-pub const SEQUENCE_TRAINING_TAPE_NODES: usize = 16;
+pub const SEQUENCE_TRAINING_TAPE_NODES: usize = 20;
 
 /// Architecture of the bounded token/position sequence encoder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
