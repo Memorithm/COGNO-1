@@ -105,10 +105,17 @@ fn sequence_v3_review_persists_and_replays_as_sequence_v3() {
 
     let selection = load_persisted_model_generation_selection(&root).expect("sequence replay");
     assert_eq!(selection.selected_generation, 1);
-    assert_eq!(selection.selected_artifact.manifest.weights_hash, expected_digest);
+    assert_eq!(
+        selection.selected_artifact.manifest.weights_hash,
+        expected_digest
+    );
     match selection.selected_model {
         LoadedNeuralModel::SequenceV3(model) => {
-            assert_eq!(model.parameter_count(), review.artifact().manifest.parameter_count as usize);
+            assert_eq!(
+                model.parameter_count(),
+                usize::try_from(review.artifact().manifest.parameter_count)
+                    .expect("bounded parameter count")
+            );
         }
         _ => panic!("expected SequenceV3 persisted selection"),
     }
@@ -136,7 +143,10 @@ fn exact_published_sequence_v3_generation_resumes_after_crash_window() {
     );
     assert!(!target_root.join(".MODEL_CURRENT.tmp").exists());
     let selection = load_persisted_model_generation_selection(&target_root).expect("replay");
-    assert!(matches!(selection.selected_model, LoadedNeuralModel::SequenceV3(_)));
+    assert!(matches!(
+        selection.selected_model,
+        LoadedNeuralModel::SequenceV3(_)
+    ));
 
     fs::remove_dir_all(source_root).expect("source cleanup");
     fs::remove_dir_all(target_root).expect("target cleanup");
