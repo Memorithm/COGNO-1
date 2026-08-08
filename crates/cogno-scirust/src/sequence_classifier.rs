@@ -114,8 +114,7 @@ impl SequenceClassifier {
             ^ 0xA076_1D64_78BD_642F
             ^ (config.encoder.hidden_dim as u64).rotate_left(17)
             ^ (config.num_classes as u64).rotate_left(41);
-        let head_weights =
-            deterministic_weights(head_len, config.encoder.hidden_dim, &mut state)?;
+        let head_weights = deterministic_weights(head_len, config.encoder.hidden_dim, &mut state)?;
         Self::from_parts(config, encoder, head_weights, vec![0.0; config.num_classes])
     }
 
@@ -370,11 +369,7 @@ fn stable_softmax(logits: &[f32]) -> SciRustResult<Vec<f32>> {
     Ok(values)
 }
 
-fn deterministic_weights(
-    len: usize,
-    fan_in: usize,
-    state: &mut u64,
-) -> SciRustResult<Vec<f32>> {
+fn deterministic_weights(len: usize, fan_in: usize, state: &mut u64) -> SciRustResult<Vec<f32>> {
     if fan_in == 0 {
         return Err(SciRustError::Empty);
     }
@@ -470,10 +465,7 @@ mod tests {
         let initial_encoder = left.encoder().token_embeddings().to_vec();
         let initial_head = left.head_weights().to_vec();
         let tokens = [1, 2];
-        let initial_loss = left
-            .loss_and_gradients(&tokens, 1)
-            .expect("initial loss")
-            .0;
+        let initial_loss = left.loss_and_gradients(&tokens, 1).expect("initial loss").0;
         let mut left_optimizer =
             SequenceClassifierAdamW::try_new(0.02, &left).expect("left optimizer");
         let mut right_optimizer =
@@ -485,10 +477,7 @@ mod tests {
                 .train_step(&mut right_optimizer, &tokens, 1)
                 .expect("right step");
         }
-        let final_loss = left
-            .loss_and_gradients(&tokens, 1)
-            .expect("final loss")
-            .0;
+        let final_loss = left.loss_and_gradients(&tokens, 1).expect("final loss").0;
         assert!(final_loss < initial_loss);
         assert_ne!(left.encoder().token_embeddings(), initial_encoder);
         assert_ne!(left.head_weights(), initial_head);

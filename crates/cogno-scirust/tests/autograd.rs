@@ -5,7 +5,7 @@
 
 use cogno_scirust::{
     engine::{Tape, Var},
-    error::SciRustResult,
+    error::{SciRustError, SciRustResult},
     tensor::{Shape, Tensor},
 };
 
@@ -141,5 +141,46 @@ fn grad_log_softmax() -> SciRustResult<()> {
     tape.backward(loss)?;
     // Just verify it runs without error
     assert!(!tape.grad_of(Var { idx: 0 }).is_empty());
+    Ok(())
+}
+
+#[test]
+fn single_row_log_softmax_preserves_shape_and_backpropagates() -> SciRustResult<()> {
+    let mut tape = Tape::new(64, 1024);
+    let logits = tape.variable(Tensor::try_new(
+        Shape::try_new(&[1, 3])?,
+        vec![1.0, 2.0, 3.0],
+        1024,
+    )?)?;
+    let log_probs = tape.log_softmax(logits)?;
+    assert_eq!(tape.value_of(log_probs).shape.as_slice(), &[1, 3]);
+    let target = tape.variable(Tensor::try_new(
+        Shape::try_new(&[1, 3])?,
+        vec![0.0, 0.0, 1.0],
+        1024,
+    )?)?;
+    let selected = tape.mul(log_probs, target)?;
+    let selected = tape.sum(selected)?;
+    let loss = tape.neg(selected)?;
+    tape.backward(loss)?;
+    assert!(tape
+        .grad_of(logits)
+        .iter()
+        .any(|gradient| gradient.abs() > 1e-6));
+    Ok(())
+}
+
+#[test]
+fn softmax_rejects_multirow_matrix() -> SciRustResult<()> {
+    let mut tape = Tape::new(64, 1024);
+    let logits = tape.variable(Tensor::try_new(
+        Shape::try_new(&[2, 2])?,
+        vec![1.0, 2.0, 3.0, 4.0],
+        1024,
+    )?)?;
+    assert!(matches!(
+        tape.softmax(logits),
+        Err(SciRustError::Shape { .. })
+    ));
     Ok(())
 }
