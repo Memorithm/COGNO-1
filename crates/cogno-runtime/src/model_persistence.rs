@@ -37,7 +37,11 @@ const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize = max_artifact_bytes(
 );
 
 const fn max_artifact_bytes(left: usize, right: usize) -> usize {
-    if left > right { left } else { right }
+    if left > right {
+        left
+    } else {
+        right
+    }
 }
 
 /// Explicit host authorization to persist one already-reviewed candidate.
