@@ -49,6 +49,10 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_review;
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the crate-private verified MLP reconstruction boundary names canonical shape metadata and all four persisted tensors explicitly"
+)]
 pub mod mlp;
 pub mod mlp_artifact;
 pub mod neural;
