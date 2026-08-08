@@ -28,6 +28,7 @@ pub enum Op {
     Mul, // elementwise
     MatMul,
     Sum,
+    Stack,
     Scale(f32),
     Neg,
     Relu,
@@ -56,7 +57,7 @@ pub struct Tape {
 
 impl Tape {
     /// Construct a tape with explicit bounds. `max_nodes` caps the tape
-    /// length; `max_elements` caps the per-tensor element count.
+    /// length; `max_elements` caps the per-node tensor element count.
     #[must_use]
     pub fn new(max_nodes: usize, max_elements: usize) -> Self {
         Self {
@@ -320,6 +321,48 @@ impl Tape {
         })
     }
 
+    /// Stack scalar Vars into one connected rank-1 vector.
+    ///
+    /// This is intentionally narrow: every input must be a scalar tensor and
+    /// the output length is bounded by `max_elements`. The backward rule sends
+    /// each output gradient element directly to the corresponding scalar input.
+    pub fn stack_scalars(&mut self, values: &[Var]) -> SciRustResult<Var> {
+        if values.is_empty() {
+            return Err(SciRustError::Empty);
+        }
+        if values.len() > self.max_elements {
+            return Err(SciRustError::CapacityExceeded {
+                requested: values.len(),
+                maximum: self.max_elements,
+            });
+        }
+        let mut data = Vec::with_capacity(values.len());
+        let mut inputs = Vec::with_capacity(values.len());
+        for value in values {
+            let tensor = &self.nodes[value.idx].value;
+            if !tensor.shape.is_scalar() {
+                return Err(SciRustError::Shape {
+                    lhs: tensor.shape.as_slice().to_vec(),
+                    rhs: vec![1],
+                });
+            }
+            let scalar = tensor.data[0];
+            ensure_finite(scalar)?;
+            data.push(scalar);
+            inputs.push(value.idx);
+        }
+        let n = data.len();
+        self.push(Node {
+            op: Op::Stack,
+            inputs,
+            value: Tensor {
+                shape: Shape::try_new(&[n])?,
+                data,
+            },
+            grad: vec![0.0; n],
+        })
+    }
+
     /// Softmax over a vector represented as `[N]` or a single row `[1, N]`.
     /// Numerically stable via max-subtraction. General matrices remain
     /// unsupported so normalization semantics cannot silently widen.
@@ -498,6 +541,11 @@ impl Tape {
                         *g += g0;
                     }
                 }
+                Op::Stack => {
+                    for (index, input) in inputs.iter().copied().enumerate() {
+                        self.nodes[input].grad[0] += out_grad[index];
+                    }
+                }
                 Op::Softmax => {
                     let a = inputs[0];
                     let sv = out_val.clone();
@@ -564,4 +612,41 @@ fn unreachable_binop() -> ! {
     // Internal invariant: binop is only called with Add/Sub/Mul. Reachable
     // only via a programming error, not via hostile input.
     unreachable!("binop called with non-elementwise op")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stack_scalars_preserves_exact_backward_connections() {
+        let mut tape = Tape::new(8, 8);
+        let left = tape.variable(Tensor::try_scalar(2.0).expect("left")).expect("left var");
+        let right = tape
+            .variable(Tensor::try_scalar(-3.0).expect("right"))
+            .expect("right var");
+        let stacked = tape.stack_scalars(&[left, right]).expect("stack");
+        assert_eq!(tape.value_of(stacked).as_slice(), &[2.0, -3.0]);
+        let scaled = tape.scale(stacked, 2.0).expect("scale");
+        let loss = tape.sum(scaled).expect("sum");
+        tape.backward(loss).expect("backward");
+        assert_eq!(tape.grad_of(left), &[2.0]);
+        assert_eq!(tape.grad_of(right), &[2.0]);
+    }
+
+    #[test]
+    fn stack_scalars_rejects_empty_and_non_scalar_inputs() {
+        let mut tape = Tape::new(8, 8);
+        assert!(matches!(tape.stack_scalars(&[]), Err(SciRustError::Empty)));
+        let vector = tape
+            .variable(
+                Tensor::try_new(Shape::try_new(&[2]).expect("shape"), vec![1.0, 2.0], 8)
+                    .expect("vector"),
+            )
+            .expect("vector var");
+        assert!(matches!(
+            tape.stack_scalars(&[vector]),
+            Err(SciRustError::Shape { .. })
+        ));
+    }
 }
