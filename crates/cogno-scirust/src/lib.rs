@@ -83,6 +83,13 @@ pub mod optim;
 pub mod sequence;
 pub mod sequence_classifier;
 pub mod sequence_cognitive;
+#[cfg_attr(
+    test,
+    allow(
+        clippy::too_many_arguments,
+        reason = "the private joint-objective test fixture names all five cognitive views explicitly"
+    )
+)]
 pub mod sequence_cognitive_objective;
 pub mod sequence_retriever;
 pub mod sequence_scorer;
