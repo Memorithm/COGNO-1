@@ -29,16 +29,18 @@
 //!   differentiable classifier, while [`mlp`] adds a genuinely nonlinear
 //!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
 //!   read-only model surfaces. [`sequence_preference`] adds the byte-tokenized
-//!   pairwise ranking bridge to the shared sequence substrate, while
+//!   pairwise ranking bridge to the shared sequence substrate,
 //!   [`sequence_retrieval`] adds the byte-tokenized InfoNCE bridge for soft
-//!   memory/rule relevance. [`artifact`] keeps the canonical v1 hostile format,
-//!   [`mlp_artifact`] defines the separate v2 four-tensor format, and
-//!   [`sequence_artifact`] defines the v3 five-tensor sequence-classifier format
-//!   bound to the deterministic byte tokenizer. [`versioned_artifact`] dispatches
-//!   without reinterpreting versions. [`meta_review`] retains the historical v1
-//!   held-out proof while [`sequence_meta_review`] provides the equivalent sealed
-//!   v3 review. [`meta_candidate`] exposes both proofs through one
-//!   architecture-neutral but externally non-implementable surface.
+//!   memory/rule relevance, and [`sequence_symbolic`] exposes host-labelled
+//!   per-rule soft satisfaction training without granting rule authority.
+//!   [`artifact`] keeps the canonical v1 hostile format, [`mlp_artifact`] defines
+//!   the separate v2 four-tensor format, and [`sequence_artifact`] defines the
+//!   v3 five-tensor sequence-classifier format bound to the deterministic byte
+//!   tokenizer. [`versioned_artifact`] dispatches without reinterpreting
+//!   versions. [`meta_review`] retains the historical v1 held-out proof while
+//!   [`sequence_meta_review`] provides the equivalent sealed v3 review.
+//!   [`meta_candidate`] exposes both proofs through one architecture-neutral
+//!   but externally non-implementable surface.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -67,6 +69,7 @@ pub mod sequence_artifact;
 pub mod sequence_meta_review;
 pub mod sequence_preference;
 pub mod sequence_retrieval;
+pub mod sequence_symbolic;
 pub mod simulator;
 pub mod tokenizer;
 pub mod training;
@@ -122,6 +125,11 @@ pub use sequence_retrieval::{
     SciRustSequenceRetrievalReadOnlyModel, SequenceRetrievalConfig, SequenceRetrievalError,
     SequenceRetrievalExample, SequenceRetrievalModel, SequenceRetrievalTrainer,
     SequenceRetrievalTrainingReport, MAX_SEQUENCE_RETRIEVAL_EXAMPLES,
+};
+pub use sequence_symbolic::{
+    SciRustSequenceSymbolicReadOnlyModel, SequenceSymbolicExample, SequenceSymbolicModel,
+    SequenceSymbolicModelConfig, SequenceSymbolicModelError, SequenceSymbolicTrainer,
+    SequenceSymbolicTrainingReport, MAX_SEQUENCE_SYMBOLIC_EXAMPLES,
 };
 pub use simulator::SimBackend;
 pub use tokenizer::{
