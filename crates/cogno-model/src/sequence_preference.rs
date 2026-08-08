@@ -140,11 +140,7 @@ impl SequencePreferenceModel {
 
     /// Compare two payloads by learned preference score. Equal scores remain
     /// equal; callers that need a total ranking use stable input-index ties.
-    pub fn compare(
-        &self,
-        left: &[u8],
-        right: &[u8],
-    ) -> Result<Ordering, SequencePreferenceError> {
+    pub fn compare(&self, left: &[u8], right: &[u8]) -> Result<Ordering, SequencePreferenceError> {
         let left = self.score(left)?;
         let right = self.score(right)?;
         Ok(left.total_cmp(&right))
@@ -316,7 +312,9 @@ fn validate_config(config: SequencePreferenceConfig) -> Result<(), SequencePrefe
 
 fn map_backend_error(error: SequencePreferenceError) -> BackendError {
     match error {
-        SequencePreferenceError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded { .. })
+        SequencePreferenceError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded {
+            ..
+        })
         | SequencePreferenceError::TooManyRankCandidates { .. }
         | SequencePreferenceError::TooManyPairs { .. } => BackendError::InputTooLarge,
         SequencePreferenceError::Tokenizer(_)
@@ -381,10 +379,7 @@ mod tests {
         let trainer = SequencePreferenceTrainer::try_new(config()).expect("trainer");
         let oversized = vec![b'x'; 31];
         let error = trainer
-            .train(&[SequencePreferencePair::new(
-                oversized,
-                b"small".to_vec(),
-            )])
+            .train(&[SequencePreferencePair::new(oversized, b"small".to_vec())])
             .expect_err("framing exceeds max tokens");
         assert!(matches!(
             error,
@@ -402,7 +397,10 @@ mod tests {
             readonly.rank(&[b"rejected omega", b"accepted alpha"]),
             Ok(vec![1, 0])
         );
-        assert_eq!(readonly.next_proposal(), Err(BackendError::ReadOnlyViolation));
+        assert_eq!(
+            readonly.next_proposal(),
+            Err(BackendError::ReadOnlyViolation)
+        );
         let info = readonly.info();
         assert!(info.read_only);
         assert!(info.differentiable);
@@ -413,9 +411,9 @@ mod tests {
     fn invalid_byte_vocab_is_rejected_before_training() {
         let mut invalid = config();
         invalid.scorer.encoder.vocab_size = BYTE_TOKENIZER_VOCAB_SIZE - 1;
-        assert_eq!(
+        assert!(matches!(
             SequencePreferenceTrainer::try_new(invalid),
             Err(SequencePreferenceError::InvalidConfig)
-        );
+        ));
     }
 }
