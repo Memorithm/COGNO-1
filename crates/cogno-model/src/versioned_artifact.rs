@@ -1,8 +1,9 @@
 //! Versioned neural artifact dispatch without reinterpretation.
 //!
 //! The external manifest's architecture id selects one exact hostile decoder.
-//! V1 linear, v2 MLP and v3 sequence artifacts are never reinterpreted as one
-//! another. This keeps restart/replay compatibility explicit.
+//! V1 linear, v2 MLP, v3 sequence-classifier and V4 shared-cognitive artifacts
+//! are never reinterpreted as one another. This keeps restart/replay
+//! compatibility explicit.
 
 use crate::artifact::{load_neural_artifact, NeuralArtifactError, NEURAL_ARCHITECTURE_ID};
 use crate::mlp::MlpNeuralModel;
@@ -13,6 +14,10 @@ use crate::neural::NeuralModel;
 use crate::sequence_artifact::{
     load_sequence_neural_artifact, SequenceNeuralArtifactError, SEQUENCE_NEURAL_ARCHITECTURE_ID,
 };
+use crate::sequence_cognitive_artifact::{
+    load_sequence_cognitive_artifact, SequenceCognitiveArtifactError,
+    SequenceCognitiveArtifactState, SEQUENCE_COGNITIVE_ARCHITECTURE_ID,
+};
 use cogno_core::ModelManifest;
 use cogno_scirust::SequenceClassifier;
 
@@ -22,6 +27,7 @@ pub enum LoadedNeuralModel {
     LinearV1(NeuralModel),
     MlpV2(MlpNeuralModel),
     SequenceV3(SequenceClassifier),
+    SequenceCognitiveV4(SequenceCognitiveArtifactState),
 }
 
 impl LoadedNeuralModel {
@@ -31,6 +37,7 @@ impl LoadedNeuralModel {
             Self::LinearV1(_) => NEURAL_ARCHITECTURE_ID,
             Self::MlpV2(_) => MLP_NEURAL_ARCHITECTURE_ID,
             Self::SequenceV3(_) => SEQUENCE_NEURAL_ARCHITECTURE_ID,
+            Self::SequenceCognitiveV4(_) => SEQUENCE_COGNITIVE_ARCHITECTURE_ID,
         }
     }
 
@@ -40,6 +47,7 @@ impl LoadedNeuralModel {
             Self::LinearV1(model) => model.parameter_count(),
             Self::MlpV2(model) => model.parameter_count(),
             Self::SequenceV3(model) => model.parameter_count(),
+            Self::SequenceCognitiveV4(model) => model.parameter_count(),
         }
     }
 }
@@ -51,6 +59,7 @@ pub enum VersionedNeuralArtifactError {
     LinearV1(NeuralArtifactError),
     MlpV2(MlpNeuralArtifactError),
     SequenceV3(SequenceNeuralArtifactError),
+    SequenceCognitiveV4(SequenceCognitiveArtifactError),
 }
 
 /// Decode only the architecture explicitly named by the external manifest.
@@ -73,6 +82,11 @@ pub fn load_versioned_neural_artifact(
             .map(LoadedNeuralModel::SequenceV3)
             .map_err(VersionedNeuralArtifactError::SequenceV3);
     }
+    if manifest.architecture_id == SEQUENCE_COGNITIVE_ARCHITECTURE_ID {
+        return load_sequence_cognitive_artifact(manifest, bytes)
+            .map(LoadedNeuralModel::SequenceCognitiveV4)
+            .map_err(VersionedNeuralArtifactError::SequenceCognitiveV4);
+    }
     Err(VersionedNeuralArtifactError::UnsupportedArchitecture)
 }
 
@@ -80,12 +94,16 @@ pub fn load_versioned_neural_artifact(
 mod tests {
     use super::*;
     use crate::{
-        encode_mlp_neural_artifact, encode_neural_artifact, encode_sequence_neural_artifact,
-        Corpus, CorpusSplit, Label, LabeledExample, MlpNeuralConfig, MlpNeuralTrainer,
-        NeuralConfig, NeuralTrainer, SplitKind, BYTE_TOKENIZER_VOCAB_SIZE,
+        encode_mlp_neural_artifact, encode_neural_artifact, encode_sequence_cognitive_artifact,
+        encode_sequence_neural_artifact, Corpus, CorpusSplit, Label, LabeledExample,
+        MlpNeuralConfig, MlpNeuralTrainer, NeuralConfig, NeuralTrainer, SplitKind,
+        BYTE_TOKENIZER_VOCAB_SIZE,
     };
     use cogno_core::{ArchitectureId, EvidenceOrigin, InputOrigin};
-    use cogno_scirust::{SequenceClassifierConfig, SequenceEncoderConfig};
+    use cogno_scirust::{
+        SequenceClassifierConfig, SequenceCognitiveConfig, SequenceCognitiveHeads,
+        SequenceEncoderConfig,
+    };
 
     fn corpus() -> (Corpus, CorpusSplit) {
         let mut corpus = Corpus::with_seed(37);
@@ -169,6 +187,35 @@ mod tests {
         assert!(matches!(loaded, LoadedNeuralModel::SequenceV3(_)));
         assert_eq!(loaded.architecture_id(), SEQUENCE_NEURAL_ARCHITECTURE_ID);
         assert_eq!(loaded.parameter_count(), model.parameter_count());
+    }
+
+    #[test]
+    fn dispatch_selects_v4_shared_cognitive_state() {
+        let heads = SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: BYTE_TOKENIZER_VOCAB_SIZE,
+                max_tokens: 32,
+                embedding_dim: 8,
+                hidden_dim: 12,
+                seed: 1811,
+            },
+            num_classes: 3,
+            num_rules: 4,
+            classification_seed: 1823,
+            preference_seed: 1831,
+            symbolic_seed: 1847,
+            contradiction_seed: 1861,
+        })
+        .expect("cognitive heads");
+        let artifact = encode_sequence_cognitive_artifact(&heads, 8).expect("artifact");
+        let loaded = load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes)
+            .expect("versioned v4 load");
+        assert!(matches!(
+            loaded,
+            LoadedNeuralModel::SequenceCognitiveV4(_)
+        ));
+        assert_eq!(loaded.architecture_id(), SEQUENCE_COGNITIVE_ARCHITECTURE_ID);
+        assert_eq!(loaded.parameter_count(), heads.parameter_count());
     }
 
     #[test]
