@@ -27,8 +27,9 @@
 //!   perceptron baseline retained for regression/oracle comparisons.
 //! - **Phase 4 foundation**: [`neural`] — bounded differentiable supervised
 //!   classifier trained through `cogno-scirust` autograd and AdamW, then frozen
-//!   behind a read-only model surface. This does not activate the
-//!   Meta-NeuroSymbolic objective by itself.
+//!   behind a read-only model surface. [`artifact`] provides the canonical
+//!   non-executable, manifest-bound hostile artifact loader for that model.
+//!   This does not activate the Meta-NeuroSymbolic objective by itself.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -41,12 +42,19 @@
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
+pub mod artifact;
 pub mod backend;
 pub mod neural;
 pub mod readonly;
 pub mod simulator;
 pub mod training;
 
+pub use artifact::{
+    EncodedNeuralArtifact, MAX_NEURAL_CONTEXT_TOKENS, NEURAL_ARCHITECTURE_ID,
+    NEURAL_ARTIFACT_HEADER_BYTES, NEURAL_ARTIFACT_MAGIC, NEURAL_ARTIFACT_VERSION,
+    NEURAL_TENSOR_COUNT, NEURAL_TOKENIZER_DESCRIPTOR, NeuralArtifactError, encode_neural_artifact,
+    load_neural_artifact, neural_tokenizer_hash,
+};
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 pub use neural::{
     NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
