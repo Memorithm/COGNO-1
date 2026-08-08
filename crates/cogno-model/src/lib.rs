@@ -42,9 +42,11 @@
 //!   defines the V4 eleven-tensor shared-cognitive state. All byte-sequence
 //!   formats bind to the deterministic byte tokenizer. [`versioned_artifact`]
 //!   dispatches without reinterpreting versions. [`meta_review`] retains the
-//!   historical v1 held-out proof while [`sequence_meta_review`] provides the
-//!   equivalent sealed v3 review. [`meta_candidate`] exposes both proofs through
-//!   one architecture-neutral but externally non-implementable surface.
+//!   historical v1 held-out proof, [`sequence_meta_review`] provides the sealed
+//!   v3 review, and [`sequence_cognitive_meta_review`] gates V4 by the weakest
+//!   held-out accuracy across all five cognitive signals. [`meta_candidate`]
+//!   exposes all COGNO-minted proofs through one architecture-neutral but
+//!   externally non-implementable surface.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -72,6 +74,7 @@ pub mod readonly;
 pub mod sequence_artifact;
 pub mod sequence_cognitive;
 pub mod sequence_cognitive_artifact;
+pub mod sequence_cognitive_meta_review;
 pub mod sequence_contradiction;
 pub mod sequence_meta_review;
 pub mod sequence_preference;
@@ -129,6 +132,13 @@ pub use sequence_cognitive_artifact::{
     MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES, SEQUENCE_COGNITIVE_ARCHITECTURE_ID,
     SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES, SEQUENCE_COGNITIVE_ARTIFACT_MAGIC,
     SEQUENCE_COGNITIVE_ARTIFACT_VERSION, SEQUENCE_COGNITIVE_TENSOR_COUNT,
+};
+pub use sequence_cognitive_meta_review::{
+    review_sequence_cognitive_model_for_meta, EligibleSequenceCognitiveMetaModelReview,
+    SequenceCognitiveHeldOutMetrics, SequenceCognitiveMetaEligibilityError,
+    SequenceCognitiveMetaReviewConfig, SequenceCognitiveMetaReviewError,
+    SequenceCognitiveMetaReviewPolicy, SequenceCognitiveMetaReviewReport,
+    SequenceCognitiveReviewCorpus, SequenceCognitiveReviewExample,
 };
 pub use sequence_contradiction::{
     SciRustSequenceContradictionReadOnlyModel, SequenceContradictionConfig,
