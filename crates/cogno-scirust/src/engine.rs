@@ -320,10 +320,12 @@ impl Tape {
         })
     }
 
-    /// Softmax over a rank-1 vector. Numerically stable (max-subtraction).
+    /// Softmax over a vector represented as `[N]` or a single row `[1, N]`.
+    /// Numerically stable via max-subtraction. General matrices remain
+    /// unsupported so normalization semantics cannot silently widen.
     pub fn softmax(&mut self, a: Var) -> SciRustResult<Var> {
         let na = &self.nodes[a.idx].value;
-        if na.shape.rank() != 1 {
+        if !is_vector_or_single_row(&na.shape) {
             return Err(SciRustError::Shape {
                 lhs: na.shape.as_slice().to_vec(),
                 rhs: vec![1],
@@ -352,7 +354,7 @@ impl Tape {
         })
     }
 
-    /// Log-softmax over a rank-1 vector. Numerically stable.
+    /// Log-softmax over a vector represented as `[N]` or `[1, N]`.
     pub fn log_softmax(&mut self, a: Var) -> SciRustResult<Var> {
         let sm = self.softmax(a)?;
         let sm_val = self.nodes[sm.idx].value.clone();
@@ -550,6 +552,11 @@ impl Tape {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Var {
     pub idx: usize,
+}
+
+fn is_vector_or_single_row(shape: &Shape) -> bool {
+    let dims = shape.as_slice();
+    dims.len() == 1 || (dims.len() == 2 && dims[0] == 1)
 }
 
 #[inline(always)]
