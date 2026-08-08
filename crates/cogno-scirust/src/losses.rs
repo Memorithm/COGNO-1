@@ -45,15 +45,51 @@ impl PairwiseLoss {
         })
     }
 
-    /// Reduce a per-candidate scalar score tensor to a single number via
-    /// sum (deterministic, no weighting).
-    fn score(&self, tape: &mut Tape, v: Var) -> SciRustResult<Var> {
-        tape.sum(v)
+    /// Compute the contrastive margin loss from already-connected score Vars.
+    ///
+    /// Unlike [`Self::loss`], this path does not create new leaf score tensors.
+    /// Gradients therefore continue through the caller's scoring head and into
+    /// any upstream encoder parameters.
+    pub fn loss_vars(
+        &self,
+        tape: &mut Tape,
+        preferred: Var,
+        dispreferred: Var,
+    ) -> SciRustResult<Var> {
+        let preferred_len = tape.value_of(preferred).len();
+        let dispreferred_len = tape.value_of(dispreferred).len();
+        if preferred_len != dispreferred_len {
+            return Err(crate::error::SciRustError::Shape {
+                lhs: tape.value_of(preferred).shape.as_slice().to_vec(),
+                rhs: tape.value_of(dispreferred).shape.as_slice().to_vec(),
+            });
+        }
+        if preferred_len > self.max_pairs {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: preferred_len,
+                maximum: self.max_pairs,
+            });
+        }
+        if preferred_len > self.max_elements {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: preferred_len,
+                maximum: self.max_elements,
+            });
+        }
+
+        let diff = tape.sub(preferred, dispreferred)?;
+        let shape = tape.value_of(diff).shape.clone();
+        let margin = Tensor::try_new(shape, vec![self.margin; preferred_len], self.max_elements)?;
+        let margin = tape.variable(margin)?;
+        let margin_minus = tape.sub(margin, diff)?;
+        let relu = tape.relu(margin_minus)?;
+        tape.sum(relu)
     }
 
-    /// Compute the contrastive margin loss for a batch of pairs.
-    /// `preferred_scores` and `dispreferred_scores` are 1-D tensors of equal
-    /// length (one scalar per candidate per side). Bounded by `max_pairs`.
+    /// Compute the contrastive margin loss for a batch of detached score data.
+    ///
+    /// This compatibility path preserves the original API. New model code that
+    /// needs gradients to reach a scoring head should use [`Self::loss_vars`].
     pub fn loss(
         &self,
         tape: &mut Tape,
@@ -72,26 +108,10 @@ impl PairwiseLoss {
                 maximum: self.max_pairs,
             });
         }
-        let p = tape.variable(preferred)?;
-        let d = tape.variable(dispreferred)?;
-        // s_pref - s_disp, elementwise.
-        let diff = tape.sub(p, d)?;
-        // margin - diff, elementwise.
-        let m_tensor = Tensor {
-            shape: diff_shape_like(tape, diff),
-            data: vec![self.margin; tape.value_of(diff).len()],
-        };
-        let m_var = tape.variable(m_tensor)?;
-        let margin_minus = tape.sub(m_var, diff)?;
-        // relu(margin - diff)
-        let relu = tape.relu(margin_minus)?;
-        // sum -> scalar loss
-        self.score(tape, relu)
+        let preferred = tape.variable(preferred)?;
+        let dispreferred = tape.variable(dispreferred)?;
+        self.loss_vars(tape, preferred, dispreferred)
     }
-}
-
-fn diff_shape_like(tape: &Tape, v: Var) -> Shape {
-    tape.value_of(v).shape.clone()
 }
 
 /// Differentiable symbolic satisfaction loss.
@@ -189,9 +209,57 @@ impl InfoNCE {
         })
     }
 
-    /// Compute the InfoNCE loss.
-    /// `query`: shape `\[d\]`; `keys`: shape `\[n, d\]`; `positive_idx`: index in `0..n`.
-    /// Returns a scalar `Var`.
+    /// Compute InfoNCE from a caller-owned similarity tensor already connected
+    /// to the tape.
+    ///
+    /// This is the path trainable query/key heads should use: the temperature,
+    /// log-softmax and NLL remain on the same autograd graph, so gradients can
+    /// reach the similarity producer and its upstream encoder.
+    pub fn loss_similarities(
+        &self,
+        tape: &mut Tape,
+        similarities: Var,
+        positive_idx: usize,
+    ) -> SciRustResult<Var> {
+        let n = tape.value_of(similarities).len();
+        if n < 2 {
+            return Err(crate::error::SciRustError::Empty);
+        }
+        if n > self.max_candidates {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: n,
+                maximum: self.max_candidates,
+            });
+        }
+        if n > self.max_elements {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: n,
+                maximum: self.max_elements,
+            });
+        }
+        if positive_idx >= n {
+            return Err(crate::error::SciRustError::Index {
+                idx: positive_idx,
+                len: n,
+            });
+        }
+
+        let scaled = tape.scale(similarities, self.temperature.recip())?;
+        let logsm = tape.log_softmax(scaled)?;
+        let mut mask = vec![0.0f32; n];
+        mask[positive_idx] = 1.0;
+        let mask = Tensor::try_new(tape.value_of(logsm).shape.clone(), mask, self.max_elements)?;
+        let mask = tape.variable(mask)?;
+        let picked = tape.mul(mask, logsm)?;
+        let picked_sum = tape.sum(picked)?;
+        tape.neg(picked_sum)
+    }
+
+    /// Compute the original detached query/key compatibility objective.
+    ///
+    /// This API is retained for callers that already own concrete tensors. New
+    /// trainable model paths should construct similarities on the tape and call
+    /// [`Self::loss_similarities`].
     pub fn loss(
         &self,
         tape: &mut Tape,
@@ -225,36 +293,18 @@ impl InfoNCE {
                 len: n,
             });
         }
-        // Sim scores via dot products, scaled by 1/temperature. Compute as a
-        // leaf tensor and let the tape backprop through log-softmax + NLL.
-        let mut sims: Vec<f32> = Vec::with_capacity(n);
+
+        let mut sims = Vec::with_capacity(n);
         for i in 0..n {
             let row = &keys.data[i * d..(i + 1) * d];
             let mut acc = 0.0f32;
             for (j, &row_j) in row.iter().enumerate().take(d) {
                 acc += query.data[j] * row_j;
             }
-            sims.push(acc / self.temperature);
+            sims.push(acc);
         }
-        let sim_tensor = Tensor {
-            shape: Shape::try_new(&[n])?,
-            data: sims,
-        };
+        let sim_tensor = Tensor::try_new(Shape::try_new(&[n])?, sims, self.max_elements)?;
         let sim_var = tape.variable(sim_tensor)?;
-        let logsm = tape.log_softmax(sim_var)?;
-        // loss = -logsm[positive_idx] ; represent as sub: zero - logsm[pos]
-        // For a 1-D scalar pick, build a one-hot mask of length n, dot with
-        // logsm, negate.
-        let mut mask = vec![0.0f32; n];
-        mask[positive_idx] = 1.0;
-        let mask_tensor = Tensor {
-            shape: Shape::try_new(&[n])?,
-            data: mask,
-        };
-        let mask_var = tape.variable(mask_tensor)?;
-        let picked = tape.mul(mask_var, logsm)?;
-        let picked_sum = tape.sum(picked)?;
-        // loss = -picked_sum
-        tape.neg(picked_sum)
+        self.loss_similarities(tape, sim_var, positive_idx)
     }
 }
