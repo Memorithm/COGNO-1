@@ -148,9 +148,9 @@ mod tests {
         let model = trainer.train(&corpus, &split).expect("train").0;
         let mut artifact = encode_neural_artifact(&model, 2_048).expect("artifact");
         artifact.manifest.architecture_id = ArchitectureId(u32::MAX);
-        assert_eq!(
+        assert!(matches!(
             load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(VersionedNeuralArtifactError::UnsupportedArchitecture)
-        );
+        ));
     }
 }
