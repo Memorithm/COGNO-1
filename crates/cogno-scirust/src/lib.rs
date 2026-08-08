@@ -86,8 +86,9 @@ pub mod sequence_cognitive;
 #[cfg_attr(
     test,
     allow(
+        clippy::field_reassign_with_default,
         clippy::too_many_arguments,
-        reason = "the private joint-objective test fixture names all five cognitive views explicitly"
+        reason = "private joint-objective fixtures explicitly enumerate cognitive views and mutate one hostile default weight"
     )
 )]
 pub mod sequence_cognitive_objective;
