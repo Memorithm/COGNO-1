@@ -112,9 +112,7 @@ pub struct SequenceContradictionModel {
 }
 
 impl SequenceContradictionModel {
-    fn from_classifier(
-        classifier: SequenceClassifier,
-    ) -> Result<Self, SequenceContradictionError> {
+    fn from_classifier(classifier: SequenceClassifier) -> Result<Self, SequenceContradictionError> {
         if classifier.config().encoder.vocab_size != BYTE_TOKENIZER_VOCAB_SIZE
             || classifier.config().num_classes != SEQUENCE_CONTRADICTION_CLASSES
         {
@@ -184,7 +182,9 @@ pub struct SequenceContradictionTrainer {
 }
 
 impl SequenceContradictionTrainer {
-    pub fn try_new(config: SequenceContradictionConfig) -> Result<Self, SequenceContradictionError> {
+    pub fn try_new(
+        config: SequenceContradictionConfig,
+    ) -> Result<Self, SequenceContradictionError> {
         validate_config(config)?;
         Ok(Self { config })
     }
@@ -193,7 +193,10 @@ impl SequenceContradictionTrainer {
         &self,
         examples: &[SequenceContradictionExample],
     ) -> Result<
-        (SequenceContradictionModel, SequenceContradictionTrainingReport),
+        (
+            SequenceContradictionModel,
+            SequenceContradictionTrainingReport,
+        ),
         SequenceContradictionError,
     > {
         validate_examples(examples)?;
@@ -340,7 +343,9 @@ fn validate_examples(
 
 fn map_backend_error(error: SequenceContradictionError) -> BackendError {
     match error {
-        SequenceContradictionError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded { .. })
+        SequenceContradictionError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded {
+            ..
+        })
         | SequenceContradictionError::TooManyExamples { .. } => BackendError::InputTooLarge,
         SequenceContradictionError::InvalidConfig
         | SequenceContradictionError::EmptyTrainingSet
@@ -425,9 +430,7 @@ mod tests {
             .expect_err("pair exceeds framing capacity");
         assert!(matches!(
             error,
-            SequenceContradictionError::Tokenizer(
-                ByteTokenizerError::TokenCapacityExceeded { .. }
-            )
+            SequenceContradictionError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded { .. })
         ));
     }
 
