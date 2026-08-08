@@ -12,9 +12,9 @@
 
 use crate::error::{ensure_finite, SciRustError, SciRustResult};
 use crate::{
-    AdamW, InfoNCE, Optimizer, PairwiseLoss, SequenceCognitiveHeads, SequenceEncoder,
-    SequenceEncoderGraph, Shape, Tape, Tensor, Var, COGNITIVE_CONTRADICTION_CLASSES,
-    MAX_SEQUENCE_RETRIEVAL_CANDIDATES, SEQUENCE_ENCODER_TAPE_NODES,
+    AdamW, InfoNCE, Optimizer, PairwiseLoss, SequenceCognitiveHeads, SequenceEncoder, Shape, Tape,
+    Tensor, Var, COGNITIVE_CONTRADICTION_CLASSES, MAX_SEQUENCE_RETRIEVAL_CANDIDATES,
+    SEQUENCE_ENCODER_TAPE_NODES,
 };
 
 /// Worst-case tape nodes for all five cognitive tasks in one joint batch.
@@ -262,7 +262,8 @@ impl SequenceCognitiveHeads {
         let classification_graph = self
             .encoder()
             .append_to_tape(&mut tape, batch.classification.token_ids)?;
-        let classification_logits = tape.matmul(classification_graph.pooled(), classification_weights)?;
+        let classification_logits =
+            tape.matmul(classification_graph.pooled(), classification_weights)?;
         let classification_logits = tape.add(classification_logits, classification_bias)?;
         let classification_loss = nll_loss(
             &mut tape,
@@ -316,9 +317,14 @@ impl SequenceCognitiveHeads {
         let contradiction_graph = self
             .encoder()
             .append_to_tape(&mut tape, batch.contradiction.pair_token_ids)?;
-        let contradiction_logits = tape.matmul(contradiction_graph.pooled(), contradiction_weights)?;
+        let contradiction_logits =
+            tape.matmul(contradiction_graph.pooled(), contradiction_weights)?;
         let contradiction_logits = tape.add(contradiction_logits, contradiction_bias)?;
-        let contradiction_target = if batch.contradiction.contradicts { 1 } else { 0 };
+        let contradiction_target = if batch.contradiction.contradicts {
+            1
+        } else {
+            0
+        };
         let contradiction_loss = nll_loss(
             &mut tape,
             contradiction_logits,
@@ -460,15 +466,18 @@ impl SequenceCognitiveHeads {
         Ok(())
     }
 
-    fn required_joint_max_elements(&self, batch: SequenceCognitiveBatch<'_>) -> SciRustResult<usize> {
+    fn required_joint_max_elements(
+        &self,
+        batch: SequenceCognitiveBatch<'_>,
+    ) -> SciRustResult<usize> {
         let encoder = self.encoder();
         let mut required = encoder.required_max_elements(batch.classification.token_ids.len())?;
         required = required.max(encoder.required_max_elements(batch.preference.preferred.len())?);
-        required = required.max(encoder.required_max_elements(batch.preference.dispreferred.len())?);
+        required =
+            required.max(encoder.required_max_elements(batch.preference.dispreferred.len())?);
         required = required.max(encoder.required_max_elements(batch.symbolic.token_ids.len())?);
-        required = required.max(
-            encoder.required_max_elements(batch.contradiction.pair_token_ids.len())?,
-        );
+        required =
+            required.max(encoder.required_max_elements(batch.contradiction.pair_token_ids.len())?);
         required = required.max(encoder.required_max_elements(batch.retrieval.query.len())?);
         for candidate in batch.retrieval.candidates {
             required = required.max(encoder.required_max_elements(candidate.len())?);
@@ -550,7 +559,10 @@ pub struct SequenceCognitiveAdamW {
 impl SequenceCognitiveAdamW {
     pub fn try_new(learning_rate: f32, model: &SequenceCognitiveHeads) -> SciRustResult<Self> {
         Ok(Self {
-            token_embeddings: AdamW::try_new(learning_rate, model.encoder().token_embeddings().len())?,
+            token_embeddings: AdamW::try_new(
+                learning_rate,
+                model.encoder().token_embeddings().len(),
+            )?,
             position_embeddings: AdamW::try_new(
                 learning_rate,
                 model.encoder().position_embeddings().len(),
@@ -597,8 +609,10 @@ impl SequenceCognitiveAdamW {
             .step(&mut position_embeddings, &gradients.position_embeddings)?;
         self.mixing_weights
             .step(&mut mixing_weights, &gradients.mixing_weights)?;
-        self.classification_weights
-            .step(&mut classification_weights, &gradients.classification_weights)?;
+        self.classification_weights.step(
+            &mut classification_weights,
+            &gradients.classification_weights,
+        )?;
         self.classification_bias
             .step(&mut classification_bias, &gradients.classification_bias)?;
         self.preference_weights
@@ -784,7 +798,10 @@ mod tests {
         ] {
             assert!(loss.is_finite());
         }
-        assert!(gradients.token_embeddings().iter().any(|value| *value != 0.0));
+        assert!(gradients
+            .token_embeddings()
+            .iter()
+            .any(|value| *value != 0.0));
         assert!(gradients
             .classification_weights()
             .iter()
@@ -852,32 +869,14 @@ mod tests {
         weights.retrieval = f32::NAN;
         assert_eq!(
             model.joint_loss_and_gradients(
-                batch(
-                    &[1],
-                    &[2],
-                    &[3],
-                    &[4],
-                    &[1.0, 0.0],
-                    &[5],
-                    &[6],
-                    &candidates,
-                ),
+                batch(&[1], &[2], &[3], &[4], &[1.0, 0.0], &[5], &[6], &candidates,),
                 weights,
             ),
             Err(SciRustError::NonFinite)
         );
         assert!(matches!(
             model.joint_loss_and_gradients(
-                batch(
-                    &[1],
-                    &[2],
-                    &[3],
-                    &[4],
-                    &[1.0],
-                    &[5],
-                    &[6],
-                    &candidates,
-                ),
+                batch(&[1], &[2], &[3], &[4], &[1.0], &[5], &[6], &candidates,),
                 SequenceCognitiveLossWeights::default(),
             ),
             Err(SciRustError::Shape { .. })
