@@ -621,7 +621,9 @@ mod tests {
     #[test]
     fn stack_scalars_preserves_exact_backward_connections() {
         let mut tape = Tape::new(8, 8);
-        let left = tape.variable(Tensor::try_scalar(2.0).expect("left")).expect("left var");
+        let left = tape
+            .variable(Tensor::try_scalar(2.0).expect("left"))
+            .expect("left var");
         let right = tape
             .variable(Tensor::try_scalar(-3.0).expect("right"))
             .expect("right var");
