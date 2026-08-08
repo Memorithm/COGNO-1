@@ -14,5 +14,6 @@ path = "src/lib.rs"
 
 [dependencies]
 cogno-core = { workspace = true }
+cogno-scirust = { workspace = true }
 
 # Lint policy is declared at the top of src/lib.rs.
