@@ -14,6 +14,9 @@ use crate::meta_activation::{
     prepare_controlled_meta_activation, ControlledMetaActivationError, HostMetaAttestation,
     MetaActivationReceipt,
 };
+use crate::meta_activation_versioned::{
+    prepare_controlled_versioned_meta_activation, ControlledVersionedMetaActivationError,
+};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
 use crate::taste_controlled_restart::GenerationBoundControlledRestartTasteProfile;
@@ -24,7 +27,7 @@ use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfil
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
-use cogno_model::EligibleMetaModelReview;
+use cogno_model::{EligibleMetaModelReview, EligibleVersionedMetaModelReview};
 
 /// Runtime configuration (validated by the construction).
 #[derive(Clone, Debug)]
@@ -253,11 +256,9 @@ impl Runtime {
     }
 
     /// Activate the §4 meta-objective only from a sealed, held-out eligible
-    /// model review plus the two explicit host attestations.
+    /// historical linear-v1 model review plus the two explicit host attestations.
     ///
-    /// The candidate artifact is re-verified immediately before activation.
-    /// The runtime stores only its digest; this method does not install model
-    /// weights, persist state, enable tools, or grant any additional authority.
+    /// This compatibility method remains unchanged for existing callers.
     pub fn activate_meta_from_review(
         &mut self,
         review: &EligibleMetaModelReview,
@@ -270,6 +271,27 @@ impl Runtime {
         self.meta
             .activate(preconditions)
             .map_err(ControlledMetaActivationError::Precondition)?;
+        self.meta_candidate_digest = Some(receipt.candidate_artifact_sha256);
+        Ok(receipt)
+    }
+
+    /// Activate Meta from an explicitly versioned sealed review.
+    ///
+    /// The exact v1/v2 hostile decoder is selected from the sealed artifact
+    /// manifest immediately before activation. The runtime stores only the
+    /// reviewed digest and never installs weights through this path.
+    pub fn activate_meta_from_versioned_review(
+        &mut self,
+        review: &EligibleVersionedMetaModelReview,
+        host: HostMetaAttestation,
+    ) -> Result<MetaActivationReceipt, ControlledVersionedMetaActivationError> {
+        if self.meta.is_active() {
+            return Err(ControlledVersionedMetaActivationError::AlreadyActive);
+        }
+        let (preconditions, receipt) = prepare_controlled_versioned_meta_activation(review, host)?;
+        self.meta
+            .activate(preconditions)
+            .map_err(ControlledVersionedMetaActivationError::Precondition)?;
         self.meta_candidate_digest = Some(receipt.candidate_artifact_sha256);
         Ok(receipt)
     }
