@@ -81,8 +81,8 @@ mod tests {
     use super::*;
     use crate::{
         encode_mlp_neural_artifact, encode_neural_artifact, encode_sequence_neural_artifact,
-        Corpus, CorpusSplit, Label, LabeledExample, MlpNeuralConfig, MlpNeuralTrainer, NeuralConfig,
-        NeuralTrainer, SplitKind, BYTE_TOKENIZER_VOCAB_SIZE,
+        Corpus, CorpusSplit, Label, LabeledExample, MlpNeuralConfig, MlpNeuralTrainer,
+        NeuralConfig, NeuralTrainer, SplitKind, BYTE_TOKENIZER_VOCAB_SIZE,
     };
     use cogno_core::{ArchitectureId, EvidenceOrigin, InputOrigin};
     use cogno_scirust::{SequenceClassifierConfig, SequenceEncoderConfig};
