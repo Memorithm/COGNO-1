@@ -222,12 +222,8 @@ impl SequenceRetrievalTrainer {
                     candidates.push(tokenizer.encode(candidate)?);
                 }
                 let refs: Vec<&[u16]> = candidates.iter().map(Vec::as_slice).collect();
-                let loss = retriever.train_step(
-                    &mut optimizer,
-                    &query,
-                    &refs,
-                    example.positive_idx,
-                )?;
+                let loss =
+                    retriever.train_step(&mut optimizer, &query, &refs, example.positive_idx)?;
                 if last_epoch {
                     final_loss_sum += loss;
                     if !final_loss_sum.is_finite() {
@@ -287,11 +283,7 @@ impl SciRustSequenceRetrievalReadOnlyModel {
             .map_err(map_backend_error)
     }
 
-    pub fn select_best(
-        &self,
-        query: &[u8],
-        candidates: &[&[u8]],
-    ) -> Result<usize, BackendError> {
+    pub fn select_best(&self, query: &[u8], candidates: &[&[u8]]) -> Result<usize, BackendError> {
         self.model
             .select_best(query, candidates)
             .map_err(map_backend_error)
@@ -355,10 +347,7 @@ fn validate_examples(
     Ok(())
 }
 
-fn validate_candidate_count(
-    actual: usize,
-    maximum: usize,
-) -> Result<(), SequenceRetrievalError> {
+fn validate_candidate_count(actual: usize, maximum: usize) -> Result<(), SequenceRetrievalError> {
     if actual < 2 {
         return Err(SequenceRetrievalError::TooFewCandidates { actual });
     }
@@ -479,7 +468,10 @@ mod tests {
             readonly.select_best(b"alpha query", &[b"alpha memory", b"omega memory"]),
             Ok(0)
         );
-        assert_eq!(readonly.next_proposal(), Err(BackendError::ReadOnlyViolation));
+        assert_eq!(
+            readonly.next_proposal(),
+            Err(BackendError::ReadOnlyViolation)
+        );
         let info = readonly.info();
         assert!(info.read_only);
         assert!(info.differentiable);
