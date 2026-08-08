@@ -11,8 +11,9 @@ use crate::model_generation::{
 };
 use cogno_core::{ArchitectureId, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
 use cogno_model::{
-    load_neural_artifact, EligibleMetaModelReview, EncodedNeuralArtifact, NeuralArtifactError,
-    NeuralModel, MAX_NEURAL_ARTIFACT_BYTES,
+    load_versioned_neural_artifact, EligibleMetaModelReview, EncodedNeuralArtifact,
+    LoadedNeuralModel, VersionedNeuralArtifactError, MAX_MLP_NEURAL_ARTIFACT_BYTES,
+    MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
 };
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -26,6 +27,19 @@ const MODEL_MANIFEST_FILE: &str = "model.manifest";
 const GENERATION_MANIFEST_FILE: &str = "generation.manifest";
 const MODEL_MANIFEST_BYTES: usize = 95;
 const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
+const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize = if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
+    > MAX_MLP_NEURAL_ARTIFACT_BYTES
+{
+    if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
+        MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
+    } else {
+        MAX_NEURAL_ARTIFACT_BYTES
+    }
+} else if MAX_MLP_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
+    MAX_MLP_NEURAL_ARTIFACT_BYTES
+} else {
+    MAX_NEURAL_ARTIFACT_BYTES
+};
 
 /// Explicit host authorization to persist one already-reviewed candidate.
 ///
@@ -59,7 +73,7 @@ pub struct PersistedModelGenerationSelection {
     pub selected_generation: u64,
     pub selected_path: PathBuf,
     pub selected_artifact: EncodedNeuralArtifact,
-    pub selected_model: NeuralModel,
+    pub selected_model: LoadedNeuralModel,
 }
 
 /// Fail-closed persistence/replay errors.
@@ -78,7 +92,7 @@ pub enum ModelPersistenceError {
     InvalidGenerationManifestLength,
     InvalidModelManifestLength,
     GenerationChain(ModelGenerationError),
-    ModelArtifact(NeuralArtifactError),
+    ModelArtifact(VersionedNeuralArtifactError),
     ArtifactDigestMismatch,
     ModelManifestDigestMismatch,
     ManifestArtifactDigestMismatch,
@@ -100,8 +114,8 @@ impl From<ModelGenerationError> for ModelPersistenceError {
     }
 }
 
-impl From<NeuralArtifactError> for ModelPersistenceError {
-    fn from(error: NeuralArtifactError) -> Self {
+impl From<VersionedNeuralArtifactError> for ModelPersistenceError {
+    fn from(error: VersionedNeuralArtifactError) -> Self {
         Self::ModelArtifact(error)
     }
 }
@@ -134,7 +148,7 @@ pub fn commit_reviewed_model_generation(
 
     let previous_manifest_sha256 = predecessor_digest_for_commit(root, generation)?;
     let artifact = review.artifact();
-    let verified_model = load_neural_artifact(&artifact.manifest, &artifact.bytes)?;
+    let verified_model = load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes)?;
     let model_manifest_bytes = encode_model_manifest(&artifact.manifest)?;
     let model_manifest_sha256 = sha256(&model_manifest_bytes);
     let generation_manifest = ModelGenerationManifest {
@@ -224,7 +238,7 @@ pub fn load_persisted_model_generation_selection(
         if sha256(&artifact_bytes) != generation_manifest.artifact_sha256 {
             return Err(ModelPersistenceError::ArtifactDigestMismatch);
         }
-        let model = load_neural_artifact(&model_manifest, &artifact_bytes)?;
+        let model = load_versioned_neural_artifact(&model_manifest, &artifact_bytes)?;
         chain.append(generation_manifest)?;
         if generation == selected_generation {
             selected_artifact = Some(EncodedNeuralArtifact {
@@ -418,7 +432,7 @@ fn decode_model_manifest(bytes: &[u8]) -> Result<ModelManifest, ModelPersistence
 
 fn read_bounded_artifact(path: &Path) -> Result<Vec<u8>, ModelPersistenceError> {
     let metadata = fs::metadata(path)?;
-    let maximum = u64::try_from(MAX_NEURAL_ARTIFACT_BYTES)
+    let maximum = u64::try_from(MAX_PERSISTED_MODEL_ARTIFACT_BYTES)
         .map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
     if metadata.len() > maximum {
         return Err(ModelPersistenceError::ArtifactTooLarge {
@@ -435,7 +449,7 @@ fn read_bounded_artifact(path: &Path) -> Result<Vec<u8>, ModelPersistenceError> 
     File::open(path)?
         .take(maximum.saturating_add(1))
         .read_to_end(&mut bytes)?;
-    if bytes.len() > MAX_NEURAL_ARTIFACT_BYTES {
+    if bytes.len() > MAX_PERSISTED_MODEL_ARTIFACT_BYTES {
         return Err(ModelPersistenceError::ArtifactTooLarge {
             actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
             maximum,
@@ -621,12 +635,17 @@ mod tests {
             selection.selected_artifact.manifest.weights_hash,
             review.artifact().manifest.weights_hash
         );
-        assert_eq!(
-            selection.selected_model.weights(),
-            load_neural_artifact(&review.artifact().manifest, &review.artifact().bytes)
-                .expect("review model")
-                .weights()
-        );
+        let expected = load_versioned_neural_artifact(
+            &review.artifact().manifest,
+            &review.artifact().bytes,
+        )
+        .expect("review model");
+        match (&selection.selected_model, expected) {
+            (LoadedNeuralModel::LinearV1(actual), LoadedNeuralModel::LinearV1(expected)) => {
+                assert_eq!(actual.weights(), expected.weights());
+            }
+            _ => panic!("expected persisted v1 model"),
+        }
         fs::remove_dir_all(root).expect("cleanup");
     }
 
