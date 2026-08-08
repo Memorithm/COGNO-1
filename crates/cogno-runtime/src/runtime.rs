@@ -24,7 +24,7 @@ use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfil
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
-use cogno_model::EligibleMetaModelReview;
+use cogno_model::MetaReviewedCandidate;
 
 /// Runtime configuration (validated by the construction).
 #[derive(Clone, Debug)]
@@ -260,7 +260,7 @@ impl Runtime {
     /// weights, persist state, enable tools, or grant any additional authority.
     pub fn activate_meta_from_review(
         &mut self,
-        review: &EligibleMetaModelReview,
+        review: &impl MetaReviewedCandidate,
         host: HostMetaAttestation,
     ) -> Result<MetaActivationReceipt, ControlledMetaActivationError> {
         if self.meta.is_active() {

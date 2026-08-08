@@ -1,15 +1,14 @@
 //! Controlled runtime activation of the Phase-4 Meta-NeuroSymbolic objective.
 //!
-//! Model-owned evidence arrives only as an `EligibleMetaModelReview`, whose
-//! private digest seal was minted by the held-out review gate in `cogno-model`.
-//! The host contributes the two facts only it can attest: scalar-engine
-//! validation and a frozen reference policy. The candidate artifact is
-//! re-verified through the architecture-selected hostile loader before the six
-//! preconditions are combined.
+//! Model-owned evidence arrives only through a sealed [`MetaReviewedCandidate`]
+//! proof minted by a held-out review gate in `cogno-model`. The host contributes
+//! the two facts only it can attest: scalar-engine validation and a frozen
+//! reference policy. The candidate artifact is re-verified through the
+//! architecture-selected hostile loader before the six preconditions combine.
 
 use cogno_core::{MetaObjectiveError, MetaPreconditions};
 use cogno_model::{
-    load_versioned_neural_artifact, EligibleMetaModelReview, MetaModelEvidence,
+    load_versioned_neural_artifact, MetaModelEvidence, MetaReviewedCandidate,
     VersionedNeuralArtifactError,
 };
 
@@ -57,7 +56,7 @@ pub enum ControlledMetaActivationError {
 }
 
 pub(crate) fn prepare_controlled_meta_activation(
-    review: &EligibleMetaModelReview,
+    review: &impl MetaReviewedCandidate,
     _host: HostMetaAttestation,
 ) -> Result<(MetaPreconditions, MetaActivationReceipt), ControlledMetaActivationError> {
     let artifact = review.artifact();
