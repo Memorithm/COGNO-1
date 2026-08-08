@@ -38,6 +38,7 @@ name = "cogno-model"
 version = "0.0.1"
 dependencies = [
  "cogno-core",
+ "cogno-scirust",
 ]
 
 [[package]]

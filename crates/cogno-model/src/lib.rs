@@ -20,14 +20,15 @@
 //!
 //! ## Phases
 //!
-//! - **Phase 1 (current)**: [`simulator::SimBackend`] — a deterministic backend
-//!   returning scripted proposals. No real model is loaded.
-//! - **Phase 2**: [`readonly`] — a read-only model backend able to classify,
-//!   extract, rank and explain; no direct state mutation.
-//! - **Phase 3**: [`training`] — a toy trainer with provenance, splits and
-//!   adversarial/negative samples. Honest placeholder for a real differentiable
-//!   backend (Phase 4 requires one and a true tensor engine, intentionally
-//!   absent here).
+//! - **Phase 1**: [`simulator::SimBackend`] — deterministic scripted proposals.
+//! - **Phase 2**: [`readonly`] — frozen read-only inference over the historical
+//!   integer baseline.
+//! - **Phase 3**: [`training`] — provenance-aware corpus/splits plus the integer
+//!   perceptron baseline retained for regression/oracle comparisons.
+//! - **Phase 4 foundation**: [`neural`] — bounded differentiable supervised
+//!   classifier trained through `cogno-scirust` autograd and AdamW, then frozen
+//!   behind a read-only model surface. This does not activate the
+//!   Meta-NeuroSymbolic objective by itself.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -41,11 +42,18 @@
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
 pub mod backend;
+pub mod neural;
 pub mod readonly;
 pub mod simulator;
 pub mod training;
 
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
+pub use neural::{
+    NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
+    SciRustReadOnlyModel, MAX_NEURAL_EPOCHS, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS,
+    MAX_NEURAL_PARAMETERS, MAX_NEURAL_PAYLOAD_BYTES, MAX_NEURAL_RANK_CANDIDATES,
+    MIN_NEURAL_FEATURES,
+};
 pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
 pub use simulator::SimBackend;
 pub use training::{
