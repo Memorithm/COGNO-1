@@ -118,8 +118,8 @@ pub use sequence_contradiction::{
     SciRustSequenceContradictionReadOnlyModel, SequenceContradictionConfig,
     SequenceContradictionError, SequenceContradictionExample, SequenceContradictionModel,
     SequenceContradictionTrainer, SequenceContradictionTrainingReport,
-    MAX_SEQUENCE_CONTRADICTION_EXAMPLES, SEQUENCE_CONTRADICTION_CLASSES,
-    SEQUENCE_CONTRADICTION_CLASS, SEQUENCE_CONTRADICTION_CLEAR_CLASS,
+    MAX_SEQUENCE_CONTRADICTION_EXAMPLES, SEQUENCE_CONTRADICTION_CLASS,
+    SEQUENCE_CONTRADICTION_CLASSES, SEQUENCE_CONTRADICTION_CLEAR_CLASS,
 };
 pub use sequence_meta_review::{
     review_sequence_model_for_meta, EligibleSequenceMetaModelReview, SequenceMetaEligibilityError,
