@@ -159,7 +159,9 @@ pub struct SequenceSymbolicTrainer {
 }
 
 impl SequenceSymbolicTrainer {
-    pub fn try_new(config: SequenceSymbolicModelConfig) -> Result<Self, SequenceSymbolicModelError> {
+    pub fn try_new(
+        config: SequenceSymbolicModelConfig,
+    ) -> Result<Self, SequenceSymbolicModelError> {
         validate_config(config)?;
         Ok(Self { config })
     }
@@ -246,9 +248,7 @@ impl SciRustSequenceSymbolicReadOnlyModel {
     }
 
     pub fn satisfactions(&self, payload: &[u8]) -> Result<Vec<f32>, BackendError> {
-        self.model
-            .satisfactions(payload)
-            .map_err(map_backend_error)
+        self.model.satisfactions(payload).map_err(map_backend_error)
     }
 
     pub fn soft_conjunction(&self, payload: &[u8]) -> Result<f32, BackendError> {
@@ -317,7 +317,9 @@ fn validate_examples(
 
 fn map_backend_error(error: SequenceSymbolicModelError) -> BackendError {
     match error {
-        SequenceSymbolicModelError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded { .. })
+        SequenceSymbolicModelError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded {
+            ..
+        })
         | SequenceSymbolicModelError::TooManyExamples { .. } => BackendError::InputTooLarge,
         SequenceSymbolicModelError::InvalidConfig
         | SequenceSymbolicModelError::EmptyTrainingSet
@@ -396,9 +398,7 @@ mod tests {
             .expect_err("framing exceeds max tokens");
         assert!(matches!(
             error,
-            SequenceSymbolicModelError::Tokenizer(
-                ByteTokenizerError::TokenCapacityExceeded { .. }
-            )
+            SequenceSymbolicModelError::Tokenizer(ByteTokenizerError::TokenCapacityExceeded { .. })
         ));
     }
 
@@ -409,7 +409,10 @@ mod tests {
         let mut readonly = SciRustSequenceSymbolicReadOnlyModel::from_trained(model);
         assert_eq!(readonly.capabilities, &[ReadOnlyCapability::Classify]);
         assert_eq!(
-            readonly.satisfactions(b"safe evidence").expect("soft output").len(),
+            readonly
+                .satisfactions(b"safe evidence")
+                .expect("soft output")
+                .len(),
             2
         );
         assert_eq!(
