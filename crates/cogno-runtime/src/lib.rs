@@ -39,6 +39,9 @@ pub mod executor;
 pub mod kv_controller;
 pub mod meta_activation;
 pub mod model_generation;
+// Legacy items in this internal module retain `pub` so sibling modules can use
+// them, but the module itself is intentionally not reachable outside the crate.
+#[allow(unreachable_pub)]
 mod model_persistence;
 pub mod model_persistence_interlock;
 pub mod path;
