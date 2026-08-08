@@ -210,10 +210,7 @@ mod tests {
         let artifact = encode_sequence_cognitive_artifact(&heads, 8).expect("artifact");
         let loaded = load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes)
             .expect("versioned v4 load");
-        assert!(matches!(
-            loaded,
-            LoadedNeuralModel::SequenceCognitiveV4(_)
-        ));
+        assert!(matches!(loaded, LoadedNeuralModel::SequenceCognitiveV4(_)));
         assert_eq!(loaded.architecture_id(), SEQUENCE_COGNITIVE_ARCHITECTURE_ID);
         assert_eq!(loaded.parameter_count(), heads.parameter_count());
     }
