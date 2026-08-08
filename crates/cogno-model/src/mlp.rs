@@ -56,37 +56,6 @@ pub struct MlpNeuralModel {
 }
 
 impl MlpNeuralModel {
-    pub(crate) fn from_verified_parts(
-        input_dim: usize,
-        hidden_dim: usize,
-        num_labels: u16,
-        max_payload_bytes: usize,
-        initialization_seed: u64,
-        input_hidden: Vec<f32>,
-        hidden_bias: Vec<f32>,
-        hidden_output: Vec<f32>,
-        output_bias: Vec<f32>,
-    ) -> Result<Self, NeuralModelError> {
-        validate_model_shape(input_dim, hidden_dim, num_labels, max_payload_bytes)?;
-        let network = Mlp::from_parts(
-            MlpConfig {
-                input_dim,
-                hidden_dim,
-                output_dim: usize::from(num_labels),
-                seed: initialization_seed,
-            },
-            input_hidden,
-            hidden_bias,
-            hidden_output,
-            output_bias,
-        )?;
-        Ok(Self {
-            network,
-            num_labels,
-            max_payload_bytes,
-        })
-    }
-
     #[must_use]
     pub const fn input_dim(&self) -> usize {
         self.network.config().input_dim
@@ -187,9 +156,8 @@ impl MlpNeuralModel {
         let mut best_logit = f32::NEG_INFINITY;
         for (index, logit) in logits.into_iter().enumerate() {
             if logit > best_logit {
-                best = Label(
-                    u16::try_from(index).map_err(|_| NeuralModelError::ArithmeticOverflow)?,
-                );
+                best =
+                    Label(u16::try_from(index).map_err(|_| NeuralModelError::ArithmeticOverflow)?);
                 best_logit = logit;
             }
         }
@@ -248,13 +216,14 @@ impl MlpNeuralTrainer {
 
         let mut max_label = 0u16;
         for &index in &split.indices {
-            let example = corpus
-                .examples
-                .get(index)
-                .ok_or(NeuralModelError::InvalidSplitIndex {
-                    index,
-                    corpus_len: corpus.examples.len(),
-                })?;
+            let example =
+                corpus
+                    .examples
+                    .get(index)
+                    .ok_or(NeuralModelError::InvalidSplitIndex {
+                        index,
+                        corpus_len: corpus.examples.len(),
+                    })?;
             max_label = max_label.max(example.label.0);
             if example.payload.len() > self.config.max_payload_bytes {
                 return Err(NeuralModelError::PayloadTooLarge {
@@ -286,13 +255,14 @@ impl MlpNeuralTrainer {
 
         for _ in 0..self.config.epochs {
             for &index in &split.indices {
-                let example = corpus
-                    .examples
-                    .get(index)
-                    .ok_or(NeuralModelError::InvalidSplitIndex {
-                        index,
-                        corpus_len: corpus.examples.len(),
-                    })?;
+                let example =
+                    corpus
+                        .examples
+                        .get(index)
+                        .ok_or(NeuralModelError::InvalidSplitIndex {
+                            index,
+                            corpus_len: corpus.examples.len(),
+                        })?;
                 let features = encode_payload(
                     self.config.input_dim,
                     self.config.max_payload_bytes,
@@ -300,12 +270,13 @@ impl MlpNeuralTrainer {
                 )?;
                 target.fill(0.0);
                 let target_index = usize::from(example.label.0);
-                let slot = target
-                    .get_mut(target_index)
-                    .ok_or(NeuralModelError::LabelOutOfRange {
-                        label: example.label.0,
-                        maximum: num_labels,
-                    })?;
+                let slot =
+                    target
+                        .get_mut(target_index)
+                        .ok_or(NeuralModelError::LabelOutOfRange {
+                            label: example.label.0,
+                            maximum: num_labels,
+                        })?;
                 *slot = 1.0;
                 network.train_step_squared(&mut optimizer, &features, &target)?;
             }
@@ -628,7 +599,10 @@ mod tests {
         assert_eq!(left_report.final_accuracy_bps, 10_000);
         assert_eq!(left.classify(b"aaaa-alpha").expect("classify"), Label(0));
         assert_eq!(left.classify(b"zzzz-beta").expect("classify"), Label(1));
-        assert!(left.log_probability(0, b"aaaa-alpha").expect("log p").is_finite());
+        assert!(left
+            .log_probability(0, b"aaaa-alpha")
+            .expect("log p")
+            .is_finite());
     }
 
     #[test]
