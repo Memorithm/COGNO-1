@@ -255,6 +255,20 @@ impl InfoNCE {
         tape.neg(picked_sum)
     }
 
+    /// Compute InfoNCE from separate connected scalar similarity Vars.
+    ///
+    /// The scalars are stacked by the tape itself, so no concrete tensor is
+    /// recreated and gradients remain connected to every similarity producer.
+    pub fn loss_similarity_vars(
+        &self,
+        tape: &mut Tape,
+        similarities: &[Var],
+        positive_idx: usize,
+    ) -> SciRustResult<Var> {
+        let similarities = tape.stack_scalars(similarities)?;
+        self.loss_similarities(tape, similarities, positive_idx)
+    }
+
     /// Compute the original detached query/key compatibility objective.
     ///
     /// This API is retained for callers that already own concrete tensors. New
@@ -306,5 +320,37 @@ impl InfoNCE {
         let sim_tensor = Tensor::try_new(Shape::try_new(&[n])?, sims, self.max_elements)?;
         let sim_var = tape.variable(sim_tensor)?;
         self.loss_similarities(tape, sim_var, positive_idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connected_infonce_scalar_vars_reach_positive_and_negative_producers() {
+        let mut tape = Tape::new(24, 8);
+        let positive = tape
+            .variable(Tensor::try_scalar(0.2).expect("positive"))
+            .expect("positive var");
+        let negative_a = tape
+            .variable(Tensor::try_scalar(-0.1).expect("negative a"))
+            .expect("negative a var");
+        let negative_b = tape
+            .variable(Tensor::try_scalar(0.0).expect("negative b"))
+            .expect("negative b var");
+        let loss = InfoNCE::try_new(0.5, 3, 8)
+            .expect("InfoNCE")
+            .loss_similarity_vars(
+                &mut tape,
+                &[positive, negative_a, negative_b],
+                0,
+            )
+            .expect("connected loss");
+        tape.backward(loss).expect("backward");
+
+        assert!(tape.grad_of(positive)[0] < 0.0);
+        assert!(tape.grad_of(negative_a)[0] > 0.0);
+        assert!(tape.grad_of(negative_b)[0] > 0.0);
     }
 }
