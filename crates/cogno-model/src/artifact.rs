@@ -22,6 +22,9 @@ pub const NEURAL_ARTIFACT_MAGIC: [u8; 8] = *b"COGNNA01";
 pub const NEURAL_ARTIFACT_VERSION: u16 = 1;
 /// Number of bytes before the first weight.
 pub const NEURAL_ARTIFACT_HEADER_BYTES: usize = 32;
+/// Maximum canonical artifact size accepted before hashing or parsing.
+pub const MAX_NEURAL_ARTIFACT_BYTES: usize =
+    NEURAL_ARTIFACT_HEADER_BYTES + MAX_NEURAL_PARAMETERS * size_of::<f32>();
 /// COGNO-1 architecture id for the bounded hashed-feature linear classifier.
 pub const NEURAL_ARCHITECTURE_ID: ArchitectureId = ArchitectureId(0x434f_474e);
 /// This format contains exactly one logical dense weight matrix.
@@ -54,6 +57,7 @@ pub enum NeuralArtifactError {
     UnsupportedArtifactVersion,
     HeaderMismatch,
     ArtifactSizeOverflow,
+    ArtifactTooLarge { actual: u64, maximum: u64 },
     WeightHashMismatch,
     NonFiniteWeight { index: usize },
     AllocationFailed,
@@ -98,6 +102,9 @@ pub fn encode_neural_artifact(
     let artifact_bytes = NEURAL_ARTIFACT_HEADER_BYTES
         .checked_add(weight_bytes)
         .ok_or(NeuralArtifactError::ArtifactSizeOverflow)?;
+    if artifact_bytes > MAX_NEURAL_ARTIFACT_BYTES {
+        return Err(NeuralArtifactError::ArtifactSizeOverflow);
+    }
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(artifact_bytes)
@@ -137,7 +144,9 @@ pub fn encode_neural_artifact(
             .map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?,
         max_context_tokens,
         tokenizer_hash: neural_tokenizer_hash(),
-        weights_hash: sha256(&bytes[NEURAL_ARTIFACT_HEADER_BYTES..]),
+        // `weights_hash` fingerprints the complete canonical weights artifact,
+        // including its shape/header metadata, not only the f32 payload.
+        weights_hash: sha256(&bytes),
         expected_file_bytes: u64::try_from(bytes.len())
             .map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?,
     };
@@ -156,6 +165,9 @@ pub fn load_neural_artifact(
         u64::try_from(bytes.len()).map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
     manifest.validate(file_bytes)?;
     validate_manifest(manifest)?;
+    if sha256(bytes) != manifest.weights_hash {
+        return Err(NeuralArtifactError::WeightHashMismatch);
+    }
     if bytes.len() < NEURAL_ARTIFACT_HEADER_BYTES {
         return Err(NeuralArtifactError::TruncatedHeader);
     }
@@ -196,9 +208,6 @@ pub fn load_neural_artifact(
         return Err(NeuralArtifactError::HeaderMismatch);
     }
     let encoded_weights = &bytes[NEURAL_ARTIFACT_HEADER_BYTES..];
-    if sha256(encoded_weights) != manifest.weights_hash {
-        return Err(NeuralArtifactError::WeightHashMismatch);
-    }
 
     let mut weights = Vec::new();
     weights
@@ -237,6 +246,14 @@ fn validate_manifest(manifest: &ModelManifest) -> Result<(), NeuralArtifactError
         .map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
     if manifest.parameter_count == 0 || manifest.parameter_count > max_parameters {
         return Err(NeuralArtifactError::InvalidParameterCount);
+    }
+    let maximum_bytes = u64::try_from(MAX_NEURAL_ARTIFACT_BYTES)
+        .map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
+    if manifest.expected_file_bytes > maximum_bytes {
+        return Err(NeuralArtifactError::ArtifactTooLarge {
+            actual: manifest.expected_file_bytes,
+            maximum: maximum_bytes,
+        });
     }
     if manifest.tokenizer_hash != neural_tokenizer_hash() {
         return Err(NeuralArtifactError::InvalidTokenizerHash);
@@ -372,7 +389,7 @@ mod tests {
         let mut artifact = encode_neural_artifact(&model, 2_048).expect("encode");
         artifact.bytes[NEURAL_ARTIFACT_HEADER_BYTES..NEURAL_ARTIFACT_HEADER_BYTES + 4]
             .copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
-        artifact.manifest.weights_hash = sha256(&artifact.bytes[NEURAL_ARTIFACT_HEADER_BYTES..]);
+        artifact.manifest.weights_hash = sha256(&artifact.bytes);
         assert!(matches!(
             load_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(NeuralArtifactError::NonFiniteWeight { index: 0 })
@@ -380,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn hostile_parameter_bomb_is_rejected_before_weight_allocation() {
+    fn hostile_parameter_bomb_is_rejected_before_hash_or_weight_allocation() {
         let model = trained_model();
         let mut artifact = encode_neural_artifact(&model, 2_048).expect("encode");
         artifact.bytes[24..32].copy_from_slice(&u64::MAX.to_le_bytes());
@@ -388,6 +405,17 @@ mod tests {
         assert!(matches!(
             load_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(NeuralArtifactError::InvalidParameterCount)
+        ));
+    }
+
+    #[test]
+    fn header_is_cryptographically_bound_to_manifest_hash() {
+        let model = trained_model();
+        let mut artifact = encode_neural_artifact(&model, 2_048).expect("encode");
+        artifact.bytes[14] ^= 1;
+        assert!(matches!(
+            load_neural_artifact(&artifact.manifest, &artifact.bytes),
+            Err(NeuralArtifactError::WeightHashMismatch)
         ));
     }
 
