@@ -50,10 +50,10 @@ pub mod simulator;
 pub mod training;
 
 pub use artifact::{
-    EncodedNeuralArtifact, MAX_NEURAL_ARTIFACT_BYTES, MAX_NEURAL_CONTEXT_TOKENS,
+    encode_neural_artifact, load_neural_artifact, neural_tokenizer_hash, EncodedNeuralArtifact,
+    NeuralArtifactError, MAX_NEURAL_ARTIFACT_BYTES, MAX_NEURAL_CONTEXT_TOKENS,
     NEURAL_ARCHITECTURE_ID, NEURAL_ARTIFACT_HEADER_BYTES, NEURAL_ARTIFACT_MAGIC,
-    NEURAL_ARTIFACT_VERSION, NEURAL_TENSOR_COUNT, NEURAL_TOKENIZER_DESCRIPTOR, NeuralArtifactError,
-    encode_neural_artifact, load_neural_artifact, neural_tokenizer_hash,
+    NEURAL_ARTIFACT_VERSION, NEURAL_TENSOR_COUNT, NEURAL_TOKENIZER_DESCRIPTOR,
 };
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 pub use neural::{
