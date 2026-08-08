@@ -28,8 +28,9 @@
 //! - **Phase 4 foundation**: [`neural`] — bounded differentiable supervised
 //!   classifier trained through `cogno-scirust` autograd and AdamW, then frozen
 //!   behind a read-only model surface. [`artifact`] provides the canonical
-//!   non-executable, manifest-bound hostile artifact loader for that model.
-//!   This does not activate the Meta-NeuroSymbolic objective by itself.
+//!   non-executable, manifest-bound hostile artifact loader. [`meta_review`]
+//!   adds held-out regression review and model-side Phase-4 evidence without
+//!   granting promotion authority.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -44,6 +45,7 @@
 
 pub mod artifact;
 pub mod backend;
+pub mod meta_review;
 pub mod neural;
 pub mod readonly;
 pub mod simulator;
@@ -56,6 +58,12 @@ pub use artifact::{
     NEURAL_ARTIFACT_VERSION, NEURAL_TENSOR_COUNT, NEURAL_TOKENIZER_DESCRIPTOR,
 };
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
+pub use meta_review::{
+    review_neural_model_for_meta, HeldOutMetrics, MetaModelEvidence, MetaNeuralReviewError,
+    MetaNeuralReviewPolicy, MetaNeuralReviewReport, MetaPromotionAuthority, MetaPromotionBlocker,
+    MetaPromotionDisposition, DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS,
+    MAX_META_REVIEW_EXAMPLES,
+};
 pub use neural::{
     NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
     SciRustReadOnlyModel, MAX_NEURAL_EPOCHS, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS,
