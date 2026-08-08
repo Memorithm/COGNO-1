@@ -5,23 +5,15 @@ fn pairwise_var_loss_backpropagates_through_upstream_scoring_op() {
     let mut tape = Tape::new(16, 16);
     let base = tape
         .variable(
-            Tensor::try_new(
-                Shape::try_new(&[2]).expect("shape"),
-                vec![0.0, 0.0],
-                16,
-            )
-            .expect("base tensor"),
+            Tensor::try_new(Shape::try_new(&[2]).expect("shape"), vec![0.0, 0.0], 16)
+                .expect("base tensor"),
         )
         .expect("base var");
     let preferred = tape.scale(base, 2.0).expect("upstream scoring op");
     let dispreferred = tape
         .variable(
-            Tensor::try_new(
-                Shape::try_new(&[2]).expect("shape"),
-                vec![0.0, 0.0],
-                16,
-            )
-            .expect("dispreferred tensor"),
+            Tensor::try_new(Shape::try_new(&[2]).expect("shape"), vec![0.0, 0.0], 16)
+                .expect("dispreferred tensor"),
         )
         .expect("dispreferred var");
     let loss = PairwiseLoss::try_new(1.0, 4, 16)
