@@ -5,10 +5,9 @@
 //! sequence encoder. It remains a numerical substrate only: class predictions
 //! acquire no policy or tool authority here.
 
-use crate::engine::Node;
 use crate::error::{ensure_finite, SciRustError, SciRustResult};
 use crate::{
-    AdamW, Op, Optimizer, SequenceEncoder, SequenceEncoderAdamW, SequenceEncoderConfig,
+    AdamW, Optimizer, SequenceEncoder, SequenceEncoderAdamW, SequenceEncoderConfig,
     SequenceEncoderGradients, SequenceEncoderGraph, Shape, Tape, Tensor, Var,
     MAX_SEQUENCE_PARAMETERS,
 };
@@ -214,7 +213,7 @@ impl SequenceClassifier {
         let max_elements = self.required_max_elements(token_ids.len())?;
         let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES, max_elements);
         let graph = self.append_to_tape(&mut tape, token_ids)?;
-        let log_probabilities = log_softmax_single_row(&mut tape, graph.logits)?;
+        let log_probabilities = tape.log_softmax(graph.logits)?;
         let mut target = vec![0.0f32; self.config.num_classes];
         target[target_class] = 1.0;
         let target = tape.variable(Tensor::try_new(
@@ -368,73 +367,6 @@ fn stable_softmax(logits: &[f32]) -> SciRustResult<Vec<f32>> {
         ensure_finite(*value)?;
     }
     Ok(values)
-}
-
-/// Connected log-softmax for the classifier's singleton row logits `[1, C]`.
-///
-/// The generic tape log-softmax currently accepts rank-1 tensors only. The
-/// classifier head is naturally rank-2 because it is produced by matrix
-/// multiplication. A single-row matrix is still one softmax domain, so this
-/// helper records the same `Op::LogSoftmax` directly while preserving the
-/// upstream graph and all tape bounds. `Tape::backward` already differentiates
-/// `Op::LogSoftmax` over the flattened domain, which is exact for `[1, C]`.
-fn log_softmax_single_row(tape: &mut Tape, input: Var) -> SciRustResult<Var> {
-    let input_value = tape.value_of(input).clone();
-    let shape = input_value.shape.as_slice();
-    if shape.len() != 2 || shape[0] != 1 || shape[1] == 0 {
-        return Err(SciRustError::Shape {
-            lhs: shape.to_vec(),
-            rhs: vec![1],
-        });
-    }
-
-    let maximum = input_value
-        .data
-        .iter()
-        .copied()
-        .fold(f32::NEG_INFINITY, f32::max);
-    ensure_finite(maximum)?;
-    let mut exp_sum = 0.0f32;
-    for &value in &input_value.data {
-        exp_sum += (value - maximum).exp();
-        ensure_finite(exp_sum)?;
-    }
-    if exp_sum <= 0.0 {
-        return Err(SciRustError::NonFinite);
-    }
-    let log_sum = exp_sum.ln();
-    ensure_finite(log_sum)?;
-    let mut data = Vec::with_capacity(input_value.data.len());
-    for &value in &input_value.data {
-        let log_probability = value - maximum - log_sum;
-        ensure_finite(log_probability)?;
-        data.push(log_probability);
-    }
-
-    if tape.nodes.len() >= tape.max_nodes {
-        return Err(SciRustError::CapacityExceeded {
-            requested: tape.nodes.len().saturating_add(1),
-            maximum: tape.max_nodes,
-        });
-    }
-    if data.len() > tape.max_elements {
-        return Err(SciRustError::CapacityExceeded {
-            requested: data.len(),
-            maximum: tape.max_elements,
-        });
-    }
-    let index = tape.nodes.len();
-    let length = data.len();
-    tape.nodes.push(Node {
-        op: Op::LogSoftmax,
-        inputs: vec![input.idx],
-        value: Tensor {
-            shape: input_value.shape,
-            data,
-        },
-        grad: vec![0.0; length],
-    });
-    Ok(Var { idx: index })
 }
 
 fn deterministic_weights(len: usize, fan_in: usize, state: &mut u64) -> SciRustResult<Vec<f32>> {
