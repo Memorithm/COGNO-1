@@ -1,0 +1,44 @@
+name: register-model-persistence-once
+
+on:
+  push:
+    branches:
+      - feat/controlled-model-generation-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/controlled-model-generation-persistence
+          fetch-depth: 0
+      - name: register model persistence modules and exports
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/cogno-runtime/src/lib.rs')
+          text = path.read_text()
+          if 'pub mod model_generation;' not in text:
+              text = text.replace(
+                  'pub mod kv_controller;\n',
+                  'pub mod kv_controller;\npub mod model_generation;\npub mod model_persistence;\n',
+                  1,
+              )
+          marker = 'pub use kv_controller::{KvController, KvError};\n'
+          exports = '''pub use model_generation::{\n    ModelGenerationChain, ModelGenerationError, ModelGenerationManifest,\n    MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,\n};\npub use model_persistence::{\n    commit_reviewed_model_generation, load_persisted_model_generation_selection,\n    HostModelPromotionAttestation, ModelGenerationCommit, ModelPersistenceError,\n    PersistedModelGenerationSelection,\n};\n'''
+          if 'pub use model_generation::{' not in text:
+              text = text.replace(marker, marker + exports, 1)
+          path.write_text(text)
+          PY
+          rm .github/workflows/register-model-persistence-once.yml
+      - name: commit patch and self-delete helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "feat(runtime): register model persistence API"
+          git push origin HEAD:feat/controlled-model-generation-persistence
