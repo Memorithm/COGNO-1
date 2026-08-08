@@ -16,7 +16,8 @@
 //! 10. a bounded trainable positional sequence encoder ([`sequence`]);
 //! 11. an end-to-end trainable sequence classifier ([`sequence_classifier`]);
 //! 12. a connected sequence preference scorer ([`sequence_scorer`]);
-//! 13. a connected sequence InfoNCE retriever ([`sequence_retriever`]).
+//! 13. a connected sequence InfoNCE retriever ([`sequence_retriever`]);
+//! 14. a connected sequence symbolic-satisfaction head ([`sequence_symbolic`]).
 //!
 //! ## Authority boundary (COGNO-1 V2 §3, §4, §8, §23)
 //!
@@ -79,6 +80,7 @@ pub mod sequence;
 pub mod sequence_classifier;
 pub mod sequence_retriever;
 pub mod sequence_scorer;
+pub mod sequence_symbolic;
 pub mod tensor;
 
 pub use backend::{BackendReport, Config, SciRustBackend};
@@ -111,5 +113,9 @@ pub use sequence_retriever::{
 pub use sequence_scorer::{
     SequenceScorer, SequenceScorerAdamW, SequenceScorerConfig, SequenceScorerGradients,
     MAX_SEQUENCE_SCORER_PARAMETERS, SEQUENCE_PAIRWISE_TAPE_NODES, SEQUENCE_SCORER_TAPE_NODES,
+};
+pub use sequence_symbolic::{
+    SequenceSymbolicAdamW, SequenceSymbolicConfig, SequenceSymbolicGradients, SequenceSymbolicHead,
+    MAX_SEQUENCE_SYMBOLIC_PARAMETERS, MAX_SEQUENCE_SYMBOLIC_RULES, SEQUENCE_SYMBOLIC_TAPE_NODES,
 };
 pub use tensor::{Shape, Tensor};
