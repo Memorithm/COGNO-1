@@ -1,7 +1,7 @@
 use cogno_core::{EvidenceOrigin, InputOrigin};
 use cogno_model::{
-    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample, MetaNeuralReviewPolicy,
-    NeuralConfig, SplitKind,
+    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
+    MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
 };
 use cogno_runtime::{
     commit_reviewed_model_generation, HostModelPromotionAttestation, ModelPersistenceError,
