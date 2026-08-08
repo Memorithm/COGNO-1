@@ -37,6 +37,8 @@ pub mod dialogue_snapshot;
 pub mod dialogue_store;
 pub mod executor;
 pub mod kv_controller;
+pub mod model_generation;
+pub mod model_persistence;
 pub mod meta_activation;
 pub mod path;
 pub mod pipeline;
@@ -69,6 +71,15 @@ pub use dialogue_snapshot::{DialogueSnapshot, DialogueSnapshotError};
 pub use dialogue_store::{DialogueStoreError, PersistentDialogueStore};
 pub use executor::{ToolExecutor, ToolOutcome};
 pub use kv_controller::{KvController, KvError};
+pub use model_generation::{
+    ModelGenerationChain, ModelGenerationError, ModelGenerationManifest,
+    MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
+};
+pub use model_persistence::{
+    commit_reviewed_model_generation, load_persisted_model_generation_selection,
+    HostModelPromotionAttestation, ModelGenerationCommit, ModelPersistenceError,
+    PersistedModelGenerationSelection,
+};
 pub use meta_activation::{
     ControlledMetaActivationError, HostMetaAttestation, MetaActivationAuthority,
     MetaActivationReceipt,
