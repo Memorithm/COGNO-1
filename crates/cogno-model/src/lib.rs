@@ -32,10 +32,10 @@
 //!   format, [`mlp_artifact`] defines the separate v2 four-tensor format, and
 //!   [`sequence_artifact`] defines the v3 five-tensor sequence-classifier
 //!   format bound to the deterministic byte tokenizer. [`versioned_artifact`]
-//!   dispatches without reinterpreting versions. Runtime persistence remains a
-//!   separate explicit migration. [`meta_review`] adds held-out regression
-//!   review, model-side Phase-4 evidence and a private digest-bound eligibility
-//!   seal without granting promotion authority.
+//!   dispatches without reinterpreting versions. [`meta_review`] retains the
+//!   historical v1 held-out proof while [`sequence_meta_review`] provides the
+//!   equivalent sealed v3 review. [`meta_candidate`] exposes both proofs through
+//!   one architecture-neutral but externally non-implementable surface.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -50,6 +50,7 @@
 
 pub mod artifact;
 pub mod backend;
+pub mod meta_candidate;
 pub mod meta_review;
 #[allow(
     clippy::too_many_arguments,
@@ -60,6 +61,7 @@ pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
 pub mod sequence_artifact;
+pub mod sequence_meta_review;
 pub mod simulator;
 pub mod tokenizer;
 pub mod training;
@@ -72,6 +74,7 @@ pub use artifact::{
     NEURAL_ARTIFACT_VERSION, NEURAL_TENSOR_COUNT, NEURAL_TOKENIZER_DESCRIPTOR,
 };
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
+pub use meta_candidate::MetaReviewedCandidate;
 pub use meta_review::{
     review_neural_model_for_meta, EligibleMetaModelReview, HeldOutMetrics, MetaEligibilityError,
     MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy, MetaNeuralReviewReport,
@@ -99,6 +102,11 @@ pub use sequence_artifact::{
     MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES, SEQUENCE_NEURAL_ARCHITECTURE_ID,
     SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES, SEQUENCE_NEURAL_ARTIFACT_MAGIC,
     SEQUENCE_NEURAL_ARTIFACT_VERSION, SEQUENCE_NEURAL_TENSOR_COUNT,
+};
+pub use sequence_meta_review::{
+    review_sequence_model_for_meta, EligibleSequenceMetaModelReview, SequenceMetaEligibilityError,
+    SequenceMetaReviewConfig, SequenceMetaReviewError, SequenceMetaReviewPolicy,
+    SequenceMetaReviewReport,
 };
 pub use simulator::SimBackend;
 pub use tokenizer::{
