@@ -2,7 +2,7 @@
 
 use cogno_core::{EvidenceOrigin, InputOrigin};
 use cogno_model::{
-    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
+    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample, LoadedNeuralModel,
     MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
 };
 use cogno_runtime::{
@@ -98,10 +98,12 @@ fn public_commit_and_restart_replay_are_deterministic() {
     assert_eq!(left.selected_generation, 2);
     assert_eq!(left.chain, right.chain);
     assert_eq!(left.selected_artifact, right.selected_artifact);
-    assert_eq!(
-        left.selected_model.weights(),
-        right.selected_model.weights()
-    );
+    match (&left.selected_model, &right.selected_model) {
+        (LoadedNeuralModel::LinearV1(left), LoadedNeuralModel::LinearV1(right)) => {
+            assert_eq!(left.weights(), right.weights());
+        }
+        _ => panic!("expected persisted v1 model"),
+    }
     fs::remove_dir_all(root).expect("cleanup");
 }
 
