@@ -14,6 +14,10 @@ use crate::model_generation::{
     ModelGenerationManifest, MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
 };
 use crate::model_persistence::{self, ModelGenerationCommit, ModelPersistenceError};
+use crate::model_persistence_fs::{
+    prepare_model_persistence_root, validate_model_commit_lock_path,
+    validate_model_persistence_tree,
+};
 use cogno_core::{ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
 use cogno_model::{load_neural_artifact, EligibleMetaModelReview};
 use sha2::{Digest, Sha256};
@@ -34,9 +38,9 @@ const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
 /// root-scoped native inter-process mutation lock.
 ///
 /// Contention never waits: it fails closed with `io::ErrorKind::WouldBlock`.
-/// The lock remains held across predecessor replay, staging, publication,
-/// crash recovery, and the atomic `MODEL_CURRENT` update because the file
-/// handle stays in scope for the complete transaction.
+/// The lock remains held across filesystem preflight, predecessor replay,
+/// staging, publication, crash recovery, and the atomic `MODEL_CURRENT`
+/// update because the file handle stays in scope for the complete transaction.
 pub fn commit_reviewed_model_generation(
     root: impl AsRef<Path>,
     generation: u64,
@@ -44,7 +48,8 @@ pub fn commit_reviewed_model_generation(
     host: model_persistence::HostModelPromotionAttestation,
 ) -> Result<ModelGenerationCommit, ModelPersistenceError> {
     let root = root.as_ref();
-    std::fs::create_dir_all(root)?;
+    prepare_model_persistence_root(root)?;
+    validate_model_commit_lock_path(root)?;
     let lock = open_lock(root)?;
     match lock.try_lock() {
         Ok(()) => {}
@@ -56,6 +61,7 @@ pub fn commit_reviewed_model_generation(
         }
         Err(TryLockError::Error(error)) => return Err(ModelPersistenceError::Io(error)),
     }
+    validate_model_persistence_tree(root)?;
 
     if generation == 0 || generation > MAX_PERSISTED_MODEL_GENERATIONS {
         return model_persistence::commit_reviewed_model_generation(root, generation, review, host);
