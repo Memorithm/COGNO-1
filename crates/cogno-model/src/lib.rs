@@ -31,8 +31,11 @@
 //!   read-only model surfaces. [`artifact`] keeps the canonical v1 hostile
 //!   format, [`mlp_artifact`] defines the separate v2 four-tensor format, and
 //!   [`versioned_artifact`] dispatches without reinterpreting either version.
-//!   Runtime persistence remains a separate explicit migration. [`meta_review`]
-//!   adds held-out regression review, model-side Phase-4 evidence and a private
+//!   [`tokenizer`] defines a deterministic byte-token contract and
+//!   [`sequence_model`] connects it to the bounded trainable SciRust sequence
+//!   classifier without changing the model authority boundary. Runtime
+//!   persistence remains a separate explicit migration. [`meta_review`] adds
+//!   held-out regression review, model-side Phase-4 evidence and a private
 //!   digest-bound eligibility seal without granting promotion authority.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
@@ -57,7 +60,9 @@ pub mod mlp;
 pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
+pub mod sequence_model;
 pub mod simulator;
+pub mod tokenizer;
 pub mod training;
 pub mod versioned_artifact;
 
@@ -90,7 +95,15 @@ pub use neural::{
     MIN_NEURAL_FEATURES,
 };
 pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
+pub use sequence_model::{
+    SciRustSequenceReadOnlyModel, SequenceNeuralConfig, SequenceNeuralError, SequenceNeuralModel,
+    SequenceNeuralTrainer, MIN_SEQUENCE_EMBEDDING_DIM, MIN_SEQUENCE_HIDDEN_DIM,
+};
 pub use simulator::SimBackend;
+pub use tokenizer::{
+    byte_tokenizer_hash, ByteTokenizer, ByteTokenizerError, BOS_TOKEN, BYTE_TOKENIZER_DESCRIPTOR,
+    BYTE_TOKENIZER_VOCAB_SIZE, BYTE_TOKEN_COUNT, EOS_TOKEN, MAX_BYTE_TOKENIZER_TOKENS, SEP_TOKEN,
+};
 pub use training::{
     Corpus, CorpusSplit, Label, LabeledExample, Provenance, SplitKind, ToyTrainer, TrainedModel,
 };
