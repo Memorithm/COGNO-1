@@ -28,7 +28,8 @@
 //! - **Phase 4 foundation**: [`neural`] retains the canonical v1 bounded linear
 //!   differentiable classifier, while [`mlp`] adds a genuinely nonlinear
 //!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
-//!   read-only model surfaces. [`artifact`] provides the canonical v1
+//!   read-only model surfaces. The MLP remains pre-artifact until an explicit
+//!   versioned migration lands. [`artifact`] provides the canonical v1
 //!   non-executable, manifest-bound hostile artifact loader. [`meta_review`]
 //!   adds held-out regression review, model-side Phase-4 evidence and a private
 //!   digest-bound eligibility seal without granting promotion authority.
