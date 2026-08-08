@@ -140,24 +140,24 @@ fn malformed_reserved_generation_name_is_rejected() {
 fn symlink_commit_lock_is_rejected_before_opening() {
     use std::os::unix::fs::symlink;
 
-    let root = root("lock-symlink");
+    let persistence_root = root("lock-symlink");
     let outside = root("lock-target");
-    fs::create_dir_all(&root).expect("root");
+    fs::create_dir_all(&persistence_root).expect("root");
     fs::write(&outside, b"external lock target").expect("outside file");
-    symlink(&outside, root.join(".MODEL-COMMIT.lock")).expect("lock symlink");
+    symlink(&outside, persistence_root.join(".MODEL-COMMIT.lock")).expect("lock symlink");
 
     let review = eligible_review();
-    let error = commit_reviewed_model_generation(&root, 1, &review, host())
+    let error = commit_reviewed_model_generation(&persistence_root, 1, &review, host())
         .expect_err("symlink lock must fail closed");
     assert_invalid_data(error);
     assert_eq!(
         fs::read(&outside).expect("outside remains readable"),
         b"external lock target"
     );
-    assert!(!root.join("MODEL_CURRENT").exists());
-    assert!(!root.join("model-generation-1").exists());
+    assert!(!persistence_root.join("MODEL_CURRENT").exists());
+    assert!(!persistence_root.join("model-generation-1").exists());
 
-    fs::remove_dir_all(root).expect("cleanup");
+    fs::remove_dir_all(persistence_root).expect("cleanup");
     fs::remove_file(outside).expect("outside cleanup");
 }
 
