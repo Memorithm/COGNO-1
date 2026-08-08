@@ -1,0 +1,32 @@
+name: rustfmt-once-pr25
+
+on:
+  push:
+    branches:
+      - feat/controlled-model-generation-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/controlled-model-generation-persistence
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: apply exact Rust 1.97.1 formatting
+        run: cargo fmt --all
+      - name: commit formatting and self-delete
+        run: |
+          rm .github/workflows/rustfmt-once-pr25.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "style: apply rustfmt 1.97.1 to model persistence"
+          git push origin HEAD:feat/controlled-model-generation-persistence
