@@ -300,8 +300,10 @@ fn validate_splits(
             return Err(MetaNeuralReviewError::SplitOverlap(index));
         }
         let example = &corpus.examples[index];
-        if !trusted_review_provenance(example.provenance.origin, example.provenance.evidence_origin)
-        {
+        if !trusted_review_provenance(
+            example.provenance.origin,
+            example.provenance.evidence_origin,
+        ) {
             return Err(MetaNeuralReviewError::UntrustedHeldOutProvenance {
                 index,
                 input_origin: example.provenance.origin,
@@ -515,7 +517,8 @@ mod tests {
         ));
 
         let (mut corpus, train, validation, test) = corpus_and_splits();
-        corpus.examples[train.indices[0]].provenance.evidence_origin = EvidenceOrigin::ModelInference;
+        corpus.examples[train.indices[0]].provenance.evidence_origin =
+            EvidenceOrigin::ModelInference;
         assert!(matches!(
             review_neural_model_for_meta(
                 &corpus,
@@ -556,7 +559,9 @@ mod tests {
                 config(),
                 MetaNeuralReviewPolicy::default(),
             ),
-            Err(MetaNeuralReviewError::HeldOutLabelAbsentFromTraining(Label(7)))
+            Err(MetaNeuralReviewError::HeldOutLabelAbsentFromTraining(
+                Label(7)
+            ))
         );
     }
 
