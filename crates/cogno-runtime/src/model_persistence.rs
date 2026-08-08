@@ -12,8 +12,8 @@ use crate::model_generation::{
 use cogno_core::{ArchitectureId, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
 use cogno_model::{
     load_versioned_neural_artifact, EligibleMetaModelReview, EncodedNeuralArtifact,
-    LoadedNeuralModel, VersionedNeuralArtifactError, MAX_MLP_NEURAL_ARTIFACT_BYTES,
-    MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
+    LoadedNeuralModel, NeuralArtifactError, VersionedNeuralArtifactError,
+    MAX_MLP_NEURAL_ARTIFACT_BYTES, MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
 };
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -27,19 +27,18 @@ const MODEL_MANIFEST_FILE: &str = "model.manifest";
 const GENERATION_MANIFEST_FILE: &str = "generation.manifest";
 const MODEL_MANIFEST_BYTES: usize = 95;
 const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
-const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize = if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
-    > MAX_MLP_NEURAL_ARTIFACT_BYTES
-{
-    if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
-        MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
+const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize =
+    if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_MLP_NEURAL_ARTIFACT_BYTES {
+        if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
+            MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
+        } else {
+            MAX_NEURAL_ARTIFACT_BYTES
+        }
+    } else if MAX_MLP_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
+        MAX_MLP_NEURAL_ARTIFACT_BYTES
     } else {
         MAX_NEURAL_ARTIFACT_BYTES
-    }
-} else if MAX_MLP_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
-    MAX_MLP_NEURAL_ARTIFACT_BYTES
-} else {
-    MAX_NEURAL_ARTIFACT_BYTES
-};
+    };
 
 /// Explicit host authorization to persist one already-reviewed candidate.
 ///
@@ -117,6 +116,12 @@ impl From<ModelGenerationError> for ModelPersistenceError {
 impl From<VersionedNeuralArtifactError> for ModelPersistenceError {
     fn from(error: VersionedNeuralArtifactError) -> Self {
         Self::ModelArtifact(error)
+    }
+}
+
+impl From<NeuralArtifactError> for ModelPersistenceError {
+    fn from(error: NeuralArtifactError) -> Self {
+        Self::ModelArtifact(VersionedNeuralArtifactError::LinearV1(error))
     }
 }
 
@@ -635,11 +640,9 @@ mod tests {
             selection.selected_artifact.manifest.weights_hash,
             review.artifact().manifest.weights_hash
         );
-        let expected = load_versioned_neural_artifact(
-            &review.artifact().manifest,
-            &review.artifact().bytes,
-        )
-        .expect("review model");
+        let expected =
+            load_versioned_neural_artifact(&review.artifact().manifest, &review.artifact().bytes)
+                .expect("review model");
         match (&selection.selected_model, expected) {
             (LoadedNeuralModel::LinearV1(actual), LoadedNeuralModel::LinearV1(expected)) => {
                 assert_eq!(actual.weights(), expected.weights());
