@@ -341,11 +341,7 @@ mod tests {
             .expect("negative b var");
         let loss = InfoNCE::try_new(0.5, 3, 8)
             .expect("InfoNCE")
-            .loss_similarity_vars(
-                &mut tape,
-                &[positive, negative_a, negative_b],
-                0,
-            )
+            .loss_similarity_vars(&mut tape, &[positive, negative_a, negative_b], 0)
             .expect("connected loss");
         tape.backward(loss).expect("backward");
 
