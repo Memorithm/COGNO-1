@@ -1,7 +1,7 @@
 //! Bounded deterministic neural-network primitives for COGNO-1.
 //!
 //! This module deliberately implements a very small neural substrate rather
-//! than a general deep-learning framework. It provides one hidden-layer MLPs
+//! than a general deep-learning framework. It provides one-hidden-layer MLPs
 //! with deterministic initialization, bounded tensor sizes, differentiable
 //! forward passes through [`crate::Tape`], and AdamW updates without granting
 //! model outputs any authority over `cogno-core`.
@@ -382,11 +382,7 @@ struct ForwardGraph {
     output: Var,
 }
 
-fn deterministic_weights(
-    len: usize,
-    fan_in: usize,
-    state: &mut u64,
-) -> SciRustResult<Vec<f32>> {
+fn deterministic_weights(len: usize, fan_in: usize, state: &mut u64) -> SciRustResult<Vec<f32>> {
     if fan_in == 0 {
         return Err(SciRustError::Empty);
     }
