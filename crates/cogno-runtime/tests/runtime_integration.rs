@@ -386,9 +386,9 @@ fn runtime_run_pipeline_rejects_secret_and_audits() {
 }
 
 #[test]
-fn runtime_meta_objective_starts_quarantined_without_review() {
+fn runtime_meta_objective_starts_disabled_without_review() {
     let rt = Runtime::try_new(cfg()).unwrap();
-    assert!(rt.meta_is_quarantined());
+    assert!(!rt.meta_is_quarantined());
     assert!(!rt.meta_is_active());
     assert_eq!(rt.meta_candidate_digest(), None);
 }
