@@ -11,7 +11,8 @@
 //! 5. a confidence calibration head ([`calib`]);
 //! 6. a memory/context/latency cost measure ([`cost`]);
 //! 7. AdamW / AMSGrad optimizers with checked arithmetic ([`optim`]);
-//! 8. a bounded, pre-allocated, fallible KV cache ([`kv`]).
+//! 8. a bounded, pre-allocated, fallible KV cache ([`kv`]);
+//! 9. bounded deterministic one-hidden-layer neural networks ([`nn`]).
 //!
 //! ## Authority boundary (COGNO-1 V2 §3, §4, §8, §23)
 //!
@@ -68,6 +69,7 @@ pub mod engine;
 pub mod error;
 pub mod kv;
 pub mod losses;
+pub mod nn;
 pub mod optim;
 pub mod tensor;
 
@@ -78,5 +80,9 @@ pub use engine::{Op, Tape, Var};
 pub use error::{SciRustError, SciRustResult};
 pub use kv::{BoundedKvCache, KvCachePolicy, KvPushError};
 pub use losses::{InfoNCE, PairwiseLoss, SymbolicSatisfaction};
+pub use nn::{
+    MAX_MLP_DIM, MAX_MLP_PARAMETERS, MAX_MLP_TAPE_NODES, Mlp, MlpAdamW, MlpConfig,
+    MlpGradients,
+};
 pub use optim::{AdamW, AmsGrad, Optimizer};
 pub use tensor::{Shape, Tensor};
