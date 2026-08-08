@@ -139,8 +139,58 @@ impl SymbolicSatisfaction {
         })
     }
 
-    /// Compute the satisfaction loss for a vector of `s_i` in `[0,1]`.
+    /// Compute symbolic satisfaction from caller-owned connected scalar Vars.
+    ///
+    /// Every satisfaction must be a scalar in `[0, 1]`. The conjunction is
+    /// assembled entirely on the tape, so gradients reach every upstream
+    /// producer instead of stopping at a detached product.
+    pub fn loss_vars(&self, tape: &mut Tape, satisfactions: &[Var]) -> SciRustResult<Var> {
+        if satisfactions.is_empty() {
+            return Err(crate::error::SciRustError::Empty);
+        }
+        if satisfactions.len() > self.max_rules {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: satisfactions.len(),
+                maximum: self.max_rules,
+            });
+        }
+        if satisfactions.len() > self.max_elements {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: satisfactions.len(),
+                maximum: self.max_elements,
+            });
+        }
+
+        for &satisfaction in satisfactions {
+            let value = tape.value_of(satisfaction);
+            if !value.shape.is_scalar() {
+                return Err(crate::error::SciRustError::Shape {
+                    lhs: value.shape.as_slice().to_vec(),
+                    rhs: vec![1],
+                });
+            }
+            let scalar = value.data[0];
+            if !(0.0..=1.0).contains(&scalar) {
+                return Err(crate::error::SciRustError::Shape {
+                    lhs: value.shape.as_slice().to_vec(),
+                    rhs: vec![1],
+                });
+            }
+        }
+
+        let mut product = satisfactions[0];
+        for &satisfaction in &satisfactions[1..] {
+            product = tape.mul(product, satisfaction)?;
+        }
+        let one = tape.variable(Tensor::try_scalar(1.0)?)?;
+        tape.sub(one, product)
+    }
+
+    /// Compute the satisfaction loss for detached `s_i` data in `[0,1]`.
     /// Returns a scalar `Var` = `1 - Π s_i`.
+    ///
+    /// New trainable model paths should keep their scalar satisfactions on the
+    /// tape and use [`Self::loss_vars`].
     pub fn loss(&self, tape: &mut Tape, satisfactions: Tensor) -> SciRustResult<Var> {
         if satisfactions.data.len() > self.max_rules {
             return Err(crate::error::SciRustError::CapacityExceeded {
@@ -158,19 +208,14 @@ impl SymbolicSatisfaction {
                 rhs: vec![satisfactions.data.len()],
             });
         }
-        // Compute the soft-conjunction product in plain Rust (deterministic) —
-        // the satisfaction vector is data, not a differentiable input here
-        // (the symbolic layer is the authority; this loss only shapes the
-        // neuro-symbolic score). We expose the product as a tape leaf so a
-        // downstream combiner can chain ops if needed.
+        // Compatibility path: the symbolic vector is detached data. Connected
+        // neural/symbolic producers should use `loss_vars` above.
         let product: f32 = satisfactions.data.iter().copied().product();
         let one = Tensor::try_scalar(1.0)?;
         let one_var = tape.variable(one)?;
         let prod_tensor = Tensor::try_scalar(product)?;
         let prod_var = tape.variable(prod_tensor)?;
-        // loss = 1 - product
-        let loss = tape.sub(one_var, prod_var)?;
-        Ok(loss)
+        tape.sub(one_var, prod_var)
     }
 }
 
@@ -326,6 +371,43 @@ impl InfoNCE {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn connected_symbolic_satisfaction_reaches_every_producer() {
+        let mut tape = Tape::new(32, 8);
+        let left_logit = tape
+            .variable(Tensor::try_scalar(0.0).expect("left logit"))
+            .expect("left logit var");
+        let right_logit = tape
+            .variable(Tensor::try_scalar(1.0).expect("right logit"))
+            .expect("right logit var");
+        let left = tape.sigmoid(left_logit).expect("left satisfaction");
+        let right = tape.sigmoid(right_logit).expect("right satisfaction");
+        let loss = SymbolicSatisfaction::try_new(2, 8)
+            .expect("symbolic loss")
+            .loss_vars(&mut tape, &[left, right])
+            .expect("connected symbolic loss");
+        tape.backward(loss).expect("backward");
+
+        assert!(tape.grad_of(left_logit)[0] < 0.0);
+        assert!(tape.grad_of(right_logit)[0] < 0.0);
+    }
+
+    #[test]
+    fn connected_symbolic_satisfaction_rejects_non_scalar_inputs() {
+        let mut tape = Tape::new(16, 8);
+        let vector = tape
+            .variable(
+                Tensor::try_new(Shape::try_new(&[2]).expect("shape"), vec![0.5, 0.5], 8)
+                    .expect("vector"),
+            )
+            .expect("vector var");
+        let error = SymbolicSatisfaction::try_new(2, 8)
+            .expect("symbolic loss")
+            .loss_vars(&mut tape, &[vector])
+            .expect_err("non-scalar satisfaction must fail");
+        assert!(matches!(error, crate::error::SciRustError::Shape { .. }));
+    }
 
     #[test]
     fn connected_infonce_scalar_vars_reach_positive_and_negative_producers() {
