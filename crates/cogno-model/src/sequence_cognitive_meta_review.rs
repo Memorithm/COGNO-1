@@ -26,7 +26,9 @@ use crate::sequence_cognitive_artifact::{
     SequenceCognitiveArtifactError,
 };
 use crate::tokenizer::{ByteTokenizer, ByteTokenizerError};
-use crate::training::{Corpus, CorpusSplit, Label, LabeledExample, SplitKind, ToyTrainer, TrainedModel};
+use crate::training::{
+    Corpus, CorpusSplit, Label, LabeledExample, SplitKind, ToyTrainer, TrainedModel,
+};
 use cogno_core::{EvidenceOrigin, Fingerprint, InputOrigin};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
@@ -297,7 +299,8 @@ impl SequenceCognitiveMetaReviewReport {
     /// so post-review mutation fails closed.
     pub fn into_eligible(
         self,
-    ) -> Result<EligibleSequenceCognitiveMetaModelReview, SequenceCognitiveMetaEligibilityError> {
+    ) -> Result<EligibleSequenceCognitiveMetaModelReview, SequenceCognitiveMetaEligibilityError>
+    {
         if !self.seal.eligible
             || self.disposition != MetaPromotionDisposition::EligibleForControlledPromotionReview
             || self.authority != MetaPromotionAuthority::ReviewOnly
@@ -503,11 +506,13 @@ fn validate_splits(
         }
         let review = &corpus.examples[index];
         if !trusted_review_provenance(review.origin, review.evidence_origin) {
-            return Err(SequenceCognitiveMetaReviewError::UntrustedReviewProvenance {
-                index,
-                input_origin: review.origin,
-                evidence_origin: review.evidence_origin,
-            });
+            return Err(
+                SequenceCognitiveMetaReviewError::UntrustedReviewProvenance {
+                    index,
+                    input_origin: review.origin,
+                    evidence_origin: review.evidence_origin,
+                },
+            );
         }
         validate_example(&review.example, config, &tokenizer)?;
     }
@@ -525,9 +530,11 @@ fn validate_splits(
     for &index in validation.indices.iter().chain(test.indices.iter()) {
         let example = &corpus.examples[index].example;
         if !train_classes.contains(&example.classification_target) {
-            return Err(SequenceCognitiveMetaReviewError::HeldOutClassAbsentFromTraining(
-                example.classification_target,
-            ));
+            return Err(
+                SequenceCognitiveMetaReviewError::HeldOutClassAbsentFromTraining(
+                    example.classification_target,
+                ),
+            );
         }
         if !train_contradictions.contains(&example.contradicts) {
             return Err(
@@ -612,10 +619,8 @@ fn verify_outputs(
             return Err(SequenceCognitiveMetaReviewError::InvalidProbability);
         }
 
-        let contradiction = model.contradiction_probability(
-            &example.contradiction_left,
-            &example.contradiction_right,
-        )?;
+        let contradiction = model
+            .contradiction_probability(&example.contradiction_left, &example.contradiction_right)?;
         if !contradiction.is_finite() || contradiction <= 0.0 || contradiction >= 1.0 {
             return Err(SequenceCognitiveMetaReviewError::InvalidProbability);
         }
@@ -676,7 +681,8 @@ fn evaluate_cognitive(
         if model.classify(&example.classification_payload)? == example.classification_target {
             classification_correct = checked_increment(classification_correct)?;
         }
-        if model.preference_compare(&example.preferred, &example.dispreferred)? == Ordering::Greater {
+        if model.preference_compare(&example.preferred, &example.dispreferred)? == Ordering::Greater
+        {
             preference_correct = checked_increment(preference_correct)?;
         }
         let satisfactions = model.symbolic_satisfactions(&example.symbolic_payload)?;
@@ -686,10 +692,8 @@ fn evaluate_cognitive(
                 symbolic_correct = checked_increment(symbolic_correct)?;
             }
         }
-        let contradiction = model.contradiction_probability(
-            &example.contradiction_left,
-            &example.contradiction_right,
-        )?;
+        let contradiction = model
+            .contradiction_probability(&example.contradiction_left, &example.contradiction_right)?;
         if (contradiction >= 0.5) == example.contradicts {
             contradiction_correct = checked_increment(contradiction_correct)?;
         }
@@ -747,7 +751,9 @@ fn evaluate_baseline(
     let correct = split
         .indices
         .iter()
-        .filter(|&&index| model.classify(&corpus.examples[index].payload) == corpus.examples[index].label)
+        .filter(|&&index| {
+            model.classify(&corpus.examples[index].payload) == corpus.examples[index].label
+        })
         .count();
     Ok(HeldOutMetrics {
         examples: split.indices.len(),
@@ -756,10 +762,7 @@ fn evaluate_baseline(
     })
 }
 
-fn accuracy_bps(
-    correct: usize,
-    decisions: usize,
-) -> Result<u16, SequenceCognitiveMetaReviewError> {
+fn accuracy_bps(correct: usize, decisions: usize) -> Result<u16, SequenceCognitiveMetaReviewError> {
     let scaled = correct
         .checked_mul(10_000)
         .ok_or(SequenceCognitiveMetaReviewError::ArithmeticOverflow)?
@@ -827,12 +830,22 @@ fn hash_usize(hash: &mut Sha256, value: usize) {
 mod tests {
     use super::*;
     use crate::sequence_cognitive_artifact::SEQUENCE_COGNITIVE_ARCHITECTURE_ID;
-    use cogno_scirust::{SequenceCognitiveConfig, SequenceCognitiveLossWeights, SequenceEncoderConfig};
+    use cogno_scirust::{
+        SequenceCognitiveConfig, SequenceCognitiveLossWeights, SequenceEncoderConfig,
+    };
 
     fn observation(index: u8, class: usize, contradicts: bool) -> SequenceCognitiveReviewExample {
         let alpha = class == 0;
-        let positive = if alpha { b"alpha memory" } else { b"omega memory" };
-        let negative = if alpha { b"omega memory" } else { b"alpha memory" };
+        let positive = if alpha {
+            b"alpha memory"
+        } else {
+            b"omega memory"
+        };
+        let negative = if alpha {
+            b"omega memory"
+        } else {
+            b"alpha memory"
+        };
         SequenceCognitiveReviewExample::new(
             SequenceCognitiveExample {
                 classification_payload: format!("class-{class}-sample-{index}").into_bytes(),
@@ -844,7 +857,11 @@ mod tests {
                 contradiction_left: format!("claim-{index}").into_bytes(),
                 contradiction_right: format!("counter-{index}").into_bytes(),
                 contradicts,
-                retrieval_query: if alpha { b"alpha".to_vec() } else { b"omega".to_vec() },
+                retrieval_query: if alpha {
+                    b"alpha".to_vec()
+                } else {
+                    b"omega".to_vec()
+                },
                 retrieval_candidates: vec![positive.to_vec(), negative.to_vec()],
                 retrieval_positive_idx: 0,
             },
@@ -957,7 +974,10 @@ mod tests {
         .into_iter()
         .min()
         .expect("five metrics");
-        assert_eq!(report.validation_cognitive.weakest_accuracy_bps, expected_weakest);
+        assert_eq!(
+            report.validation_cognitive.weakest_accuracy_bps,
+            expected_weakest
+        );
         let eligible = report.into_eligible().expect("eligible");
         assert_eq!(
             eligible.artifact().manifest.architecture_id,
