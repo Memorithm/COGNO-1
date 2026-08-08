@@ -6,12 +6,10 @@
 //! persistence attestation. The model artifact is never hot-swapped here.
 
 use crate::model_generation::{
-    ModelGenerationChain, ModelGenerationError, ModelGenerationManifest, MODEL_GENERATION_MANIFEST_BYTES,
-    MODEL_GENESIS_DIGEST,
+    ModelGenerationChain, ModelGenerationError, ModelGenerationManifest,
+    MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
 };
-use cogno_core::{
-    ArchitectureId, MANIFEST_SCHEMA_VERSION, ModelFamily, ModelManifest,
-};
+use cogno_core::{ArchitectureId, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
 use cogno_model::{
     load_neural_artifact, EligibleMetaModelReview, EncodedNeuralArtifact, NeuralArtifactError,
     NeuralModel, MAX_NEURAL_ARTIFACT_BYTES,
@@ -296,7 +294,9 @@ fn read_current_generation(root: &Path) -> Result<u64, ModelPersistenceError> {
         || !text.ends_with('\n')
         || text[..text.len() - 1].contains('\n')
         || text[..text.len() - 1].starts_with('0')
-        || !text[..text.len() - 1].bytes().all(|byte| byte.is_ascii_digit())
+        || !text[..text.len() - 1]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit())
     {
         return Err(ModelPersistenceError::MalformedCurrent);
     }
@@ -331,21 +331,49 @@ fn read_generation_manifest(path: &Path) -> Result<ModelGenerationManifest, Mode
     })
 }
 
-fn encode_model_manifest(manifest: &ModelManifest) -> Result<[u8; MODEL_MANIFEST_BYTES], ModelPersistenceError> {
-    if manifest.schema_version != MANIFEST_SCHEMA_VERSION || manifest.model_family != ModelFamily::Generic {
+fn encode_model_manifest(
+    manifest: &ModelManifest,
+) -> Result<[u8; MODEL_MANIFEST_BYTES], ModelPersistenceError> {
+    if manifest.schema_version != MANIFEST_SCHEMA_VERSION
+        || manifest.model_family != ModelFamily::Generic
+    {
         return Err(ModelPersistenceError::UnsupportedModelManifest);
     }
     let mut bytes = [0u8; MODEL_MANIFEST_BYTES];
     let mut offset = 0usize;
-    put(&mut bytes, &mut offset, &manifest.schema_version.to_le_bytes());
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.schema_version.to_le_bytes(),
+    );
     put(&mut bytes, &mut offset, &[0]);
-    put(&mut bytes, &mut offset, &manifest.architecture_id.0.to_le_bytes());
-    put(&mut bytes, &mut offset, &manifest.tensor_count.to_le_bytes());
-    put(&mut bytes, &mut offset, &manifest.parameter_count.to_le_bytes());
-    put(&mut bytes, &mut offset, &manifest.max_context_tokens.to_le_bytes());
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.architecture_id.0.to_le_bytes(),
+    );
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.tensor_count.to_le_bytes(),
+    );
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.parameter_count.to_le_bytes(),
+    );
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.max_context_tokens.to_le_bytes(),
+    );
     put(&mut bytes, &mut offset, &manifest.tokenizer_hash);
     put(&mut bytes, &mut offset, &manifest.weights_hash);
-    put(&mut bytes, &mut offset, &manifest.expected_file_bytes.to_le_bytes());
+    put(
+        &mut bytes,
+        &mut offset,
+        &manifest.expected_file_bytes.to_le_bytes(),
+    );
     debug_assert_eq!(offset, MODEL_MANIFEST_BYTES);
     Ok(bytes)
 }
@@ -398,12 +426,15 @@ fn read_bounded_artifact(path: &Path) -> Result<Vec<u8>, ModelPersistenceError> 
             maximum,
         });
     }
-    let capacity = usize::try_from(metadata.len()).map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
+    let capacity =
+        usize::try_from(metadata.len()).map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(capacity)
         .map_err(|_| ModelPersistenceError::ArithmeticOverflow)?;
-    File::open(path)?.take(maximum.saturating_add(1)).read_to_end(&mut bytes)?;
+    File::open(path)?
+        .take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)?;
     if bytes.len() > MAX_NEURAL_ARTIFACT_BYTES {
         return Err(ModelPersistenceError::ArtifactTooLarge {
             actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
@@ -509,7 +540,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        std::env::temp_dir().join(format!("cogno-model-persistence-{}-{nonce}", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "cogno-model-persistence-{}-{nonce}",
+            std::process::id()
+        ))
     }
 
     fn eligible_review() -> EligibleMetaModelReview {
@@ -576,7 +610,10 @@ mod tests {
         let review = eligible_review();
         let first = commit_reviewed_model_generation(&root, 1, &review, host()).expect("first");
         let second = commit_reviewed_model_generation(&root, 2, &review, host()).expect("second");
-        assert_ne!(first.generation_manifest_sha256, second.generation_manifest_sha256);
+        assert_ne!(
+            first.generation_manifest_sha256,
+            second.generation_manifest_sha256
+        );
         let selection = load_persisted_model_generation_selection(&root).expect("replay");
         assert_eq!(selection.selected_generation, 2);
         assert_eq!(selection.chain.len(), 2);

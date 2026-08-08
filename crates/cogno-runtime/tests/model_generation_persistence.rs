@@ -98,7 +98,10 @@ fn public_commit_and_restart_replay_are_deterministic() {
     assert_eq!(left.selected_generation, 2);
     assert_eq!(left.chain, right.chain);
     assert_eq!(left.selected_artifact, right.selected_artifact);
-    assert_eq!(left.selected_model.weights(), right.selected_model.weights());
+    assert_eq!(
+        left.selected_model.weights(),
+        right.selected_model.weights()
+    );
     fs::remove_dir_all(root).expect("cleanup");
 }
 
