@@ -5,11 +5,12 @@
 //! never parsed as v1. This keeps restart/replay compatibility explicit for
 //! later runtime integration.
 
-use crate::artifact::{load_neural_artifact, NeuralArtifactError, NeuralModel, NEURAL_ARCHITECTURE_ID};
+use crate::artifact::{load_neural_artifact, NeuralArtifactError, NEURAL_ARCHITECTURE_ID};
 use crate::mlp::MlpNeuralModel;
 use crate::mlp_artifact::{
     load_mlp_neural_artifact, MlpNeuralArtifactError, MLP_NEURAL_ARCHITECTURE_ID,
 };
+use crate::neural::NeuralModel;
 use cogno_core::ModelManifest;
 
 /// Successfully decoded model generation, tagged by its canonical architecture.
