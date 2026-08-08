@@ -14,7 +14,7 @@ use crate::neural::NeuralModel;
 use cogno_core::ModelManifest;
 
 /// Successfully decoded model generation, tagged by its canonical architecture.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum LoadedNeuralModel {
     LinearV1(NeuralModel),
     MlpV2(MlpNeuralModel),
