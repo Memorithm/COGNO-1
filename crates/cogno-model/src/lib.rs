@@ -49,9 +49,10 @@ pub mod training;
 
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 pub use neural::{
-    MAX_NEURAL_EPOCHS, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS, MAX_NEURAL_PARAMETERS,
-    MAX_NEURAL_PAYLOAD_BYTES, MAX_NEURAL_RANK_CANDIDATES, MIN_NEURAL_FEATURES, NeuralConfig,
-    NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport, SciRustReadOnlyModel,
+    NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
+    SciRustReadOnlyModel, MAX_NEURAL_EPOCHS, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS,
+    MAX_NEURAL_PARAMETERS, MAX_NEURAL_PAYLOAD_BYTES, MAX_NEURAL_RANK_CANDIDATES,
+    MIN_NEURAL_FEATURES,
 };
 pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
 pub use simulator::SimBackend;
