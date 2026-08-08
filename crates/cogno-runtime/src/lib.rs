@@ -38,6 +38,7 @@ pub mod dialogue_store;
 pub mod executor;
 pub mod kv_controller;
 pub mod meta_activation;
+pub mod meta_activation_versioned;
 pub mod model_generation;
 // Legacy items in this internal module retain `pub` so sibling modules can use
 // them, but the module itself is intentionally not reachable outside the crate.
@@ -80,6 +81,7 @@ pub use meta_activation::{
     ControlledMetaActivationError, HostMetaAttestation, MetaActivationAuthority,
     MetaActivationReceipt,
 };
+pub use meta_activation_versioned::ControlledVersionedMetaActivationError;
 pub use model_generation::{
     ModelGenerationChain, ModelGenerationError, ModelGenerationManifest,
     MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
