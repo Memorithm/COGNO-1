@@ -84,7 +84,10 @@ pub mod sequence_symbolic;
 pub mod tensor;
 
 pub use backend::{BackendReport, Config, SciRustBackend};
-pub use calib::{CalibratedConfidence, Calibration};
+pub use calib::{
+    CalibratedConfidence, Calibration, CalibrationFitConfig, CalibrationFitReport,
+    MAX_CALIBRATION_EPOCHS, MAX_CALIBRATION_EXAMPLES,
+};
 pub use cost::{Cost, CostBreakdown};
 pub use engine::{Op, Tape, Var};
 pub use error::{SciRustError, SciRustResult};
