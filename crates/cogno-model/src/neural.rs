@@ -92,6 +92,37 @@ pub struct NeuralModel {
 }
 
 impl NeuralModel {
+    pub(crate) fn from_verified_parts(
+        input_dim: usize,
+        num_labels: u16,
+        max_payload_bytes: usize,
+        weights: Vec<f32>,
+    ) -> Result<Self, NeuralModelError> {
+        if !(MIN_NEURAL_FEATURES..=MAX_NEURAL_FEATURES).contains(&input_dim)
+            || num_labels == 0
+            || num_labels > MAX_NEURAL_LABELS
+            || max_payload_bytes == 0
+            || max_payload_bytes > MAX_NEURAL_PAYLOAD_BYTES
+        {
+            return Err(NeuralModelError::InvalidConfig);
+        }
+        let expected = usize::from(num_labels)
+            .checked_mul(input_dim)
+            .ok_or(NeuralModelError::ArithmeticOverflow)?;
+        if expected == 0 || expected > MAX_NEURAL_PARAMETERS || weights.len() != expected {
+            return Err(NeuralModelError::InvalidConfig);
+        }
+        if weights.iter().any(|weight| !weight.is_finite()) {
+            return Err(NeuralModelError::SciRust(SciRustError::NonFinite));
+        }
+        Ok(Self {
+            input_dim,
+            num_labels,
+            max_payload_bytes,
+            weights,
+        })
+    }
+
     #[must_use]
     pub const fn input_dim(&self) -> usize {
         self.input_dim
@@ -277,12 +308,12 @@ impl NeuralTrainer {
             }
         }
 
-        let model = NeuralModel {
-            input_dim: self.config.input_dim,
+        let model = NeuralModel::from_verified_parts(
+            self.config.input_dim,
             num_labels,
-            max_payload_bytes: self.config.max_payload_bytes,
+            self.config.max_payload_bytes,
             weights,
-        };
+        )?;
         let (correct, total) = evaluate(&model, corpus, split)?;
         let scaled = correct
             .checked_mul(10_000)

@@ -39,6 +39,7 @@ version = "0.0.1"
 dependencies = [
  "cogno-core",
  "cogno-scirust",
+ "sha2",
 ]
 
 [[package]]
