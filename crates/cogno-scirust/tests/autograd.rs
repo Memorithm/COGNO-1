@@ -163,7 +163,10 @@ fn single_row_log_softmax_preserves_shape_and_backpropagates() -> SciRustResult<
     let selected = tape.sum(selected)?;
     let loss = tape.neg(selected)?;
     tape.backward(loss)?;
-    assert!(tape.grad_of(logits).iter().any(|gradient| gradient.abs() > 1e-6));
+    assert!(tape
+        .grad_of(logits)
+        .iter()
+        .any(|gradient| gradient.abs() > 1e-6));
     Ok(())
 }
 
@@ -175,6 +178,9 @@ fn softmax_rejects_multirow_matrix() -> SciRustResult<()> {
         vec![1.0, 2.0, 3.0, 4.0],
         1024,
     )?)?;
-    assert!(matches!(tape.softmax(logits), Err(SciRustError::Shape { .. })));
+    assert!(matches!(
+        tape.softmax(logits),
+        Err(SciRustError::Shape { .. })
+    ));
     Ok(())
 }
