@@ -7,7 +7,9 @@
 //! `reference_policy_frozen`) false, so a model review can never activate the
 //! meta-objective by itself.
 
-use crate::artifact::{encode_neural_artifact, EncodedNeuralArtifact, NeuralArtifactError};
+use crate::artifact::{
+    encode_neural_artifact, load_neural_artifact, EncodedNeuralArtifact, NeuralArtifactError,
+};
 use crate::neural::{NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer};
 use crate::training::{Corpus, CorpusSplit, Label, SplitKind, ToyTrainer, TrainedModel};
 use cogno_core::{EvidenceOrigin, InputOrigin, MetaPreconditions};
@@ -87,6 +89,13 @@ impl MetaModelEvidence {
             anti_poisoning_working: self.anti_poisoning_working,
         }
     }
+
+    const fn complete(self) -> bool {
+        self.log_probabilities_available
+            && self.backend_differentiable
+            && self.held_out_tests_in_place
+            && self.anti_poisoning_working
+    }
 }
 
 /// Integer held-out metrics for one classifier.
@@ -97,7 +106,67 @@ pub struct HeldOutMetrics {
     pub accuracy_bps: u16,
 }
 
+/// Private proof minted only by `review_neural_model_for_meta`.
+///
+/// The digest and authoritative held-out metrics are captured before the
+/// report is returned. External callers cannot construct or modify this token.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MetaReviewSeal {
+    eligible: bool,
+    candidate_digest: Option<[u8; 32]>,
+    validation_accuracy_bps: u16,
+    test_accuracy_bps: u16,
+}
+
+/// A consuming, non-forgeable proof that the model-side held-out review passed.
+///
+/// Its fields are private and there is no public constructor. The only public
+/// creation path is [`MetaNeuralReviewReport::into_eligible`], which checks the
+/// private review seal and re-verifies the candidate artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EligibleMetaModelReview {
+    artifact: EncodedNeuralArtifact,
+    evidence: MetaModelEvidence,
+    validation_accuracy_bps: u16,
+    test_accuracy_bps: u16,
+}
+
+impl EligibleMetaModelReview {
+    #[must_use]
+    pub const fn evidence(&self) -> MetaModelEvidence {
+        self.evidence
+    }
+
+    #[must_use]
+    pub const fn validation_accuracy_bps(&self) -> u16 {
+        self.validation_accuracy_bps
+    }
+
+    #[must_use]
+    pub const fn test_accuracy_bps(&self) -> u16 {
+        self.test_accuracy_bps
+    }
+
+    #[must_use]
+    pub fn artifact(&self) -> &EncodedNeuralArtifact {
+        &self.artifact
+    }
+}
+
+/// Failure while converting a report into the stronger eligible-review proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MetaEligibilityError {
+    ReviewHeld,
+    IncompleteModelEvidence,
+    CandidateMissing,
+    CandidateDigestMismatch,
+    CandidateArtifactInvalid(NeuralArtifactError),
+}
+
 /// Complete non-authoritative review result.
+///
+/// The visible report remains useful for audit, but its private `seal` field
+/// prevents external construction of a fake review result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MetaNeuralReviewReport {
     pub train_examples: usize,
@@ -112,6 +181,43 @@ pub struct MetaNeuralReviewReport {
     /// Present only after every review gate passes. This remains a candidate
     /// artifact and is not installed by this module.
     pub candidate_artifact: Option<EncodedNeuralArtifact>,
+    seal: MetaReviewSeal,
+}
+
+impl MetaNeuralReviewReport {
+    /// Consume an eligible report into the proof required by runtime Meta
+    /// activation. The candidate artifact is revalidated to make post-review
+    /// mutation fail closed.
+    pub fn into_eligible(self) -> Result<EligibleMetaModelReview, MetaEligibilityError> {
+        if !self.seal.eligible
+            || self.disposition != MetaPromotionDisposition::EligibleForControlledPromotionReview
+            || self.authority != MetaPromotionAuthority::ReviewOnly
+            || !self.blockers.is_empty()
+        {
+            return Err(MetaEligibilityError::ReviewHeld);
+        }
+        if !self.model_evidence.complete() {
+            return Err(MetaEligibilityError::IncompleteModelEvidence);
+        }
+        let artifact = self
+            .candidate_artifact
+            .ok_or(MetaEligibilityError::CandidateMissing)?;
+        let expected_digest = self
+            .seal
+            .candidate_digest
+            .ok_or(MetaEligibilityError::CandidateMissing)?;
+        if artifact.manifest.weights_hash != expected_digest {
+            return Err(MetaEligibilityError::CandidateDigestMismatch);
+        }
+        load_neural_artifact(&artifact.manifest, &artifact.bytes)
+            .map_err(MetaEligibilityError::CandidateArtifactInvalid)?;
+        Ok(EligibleMetaModelReview {
+            artifact,
+            evidence: self.model_evidence,
+            validation_accuracy_bps: self.seal.validation_accuracy_bps,
+            test_accuracy_bps: self.seal.test_accuracy_bps,
+        })
+    }
 }
 
 /// Structural or provenance failures stop review entirely rather than being
@@ -216,6 +322,15 @@ pub fn review_neural_model_for_meta(
     } else {
         None
     };
+    let candidate_digest = candidate_artifact
+        .as_ref()
+        .map(|artifact| artifact.manifest.weights_hash);
+    let model_evidence = MetaModelEvidence {
+        log_probabilities_available: true,
+        backend_differentiable: true,
+        held_out_tests_in_place: true,
+        anti_poisoning_working: true,
+    };
 
     Ok(MetaNeuralReviewReport {
         train_examples: train.indices.len(),
@@ -223,12 +338,7 @@ pub fn review_neural_model_for_meta(
         validation_baseline,
         test_neural,
         test_baseline,
-        model_evidence: MetaModelEvidence {
-            log_probabilities_available: true,
-            backend_differentiable: true,
-            held_out_tests_in_place: true,
-            anti_poisoning_working: true,
-        },
+        model_evidence,
         blockers,
         disposition: if eligible {
             MetaPromotionDisposition::EligibleForControlledPromotionReview
@@ -237,6 +347,12 @@ pub fn review_neural_model_for_meta(
         },
         authority: MetaPromotionAuthority::ReviewOnly,
         candidate_artifact,
+        seal: MetaReviewSeal {
+            eligible,
+            candidate_digest,
+            validation_accuracy_bps: validation_neural.accuracy_bps,
+            test_accuracy_bps: test_neural.accuracy_bps,
+        },
     })
 }
 
@@ -468,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn eligible_review_produces_candidate_but_cannot_activate_meta_alone() {
+    fn eligible_review_produces_sealed_candidate_but_cannot_activate_meta_alone() {
         let (corpus, train, validation, test) = corpus_and_splits();
         let report = review_neural_model_for_meta(
             &corpus,
@@ -498,6 +614,33 @@ mod tests {
         assert!(partial.held_out_tests_in_place);
         assert!(partial.anti_poisoning_working);
         assert!(!partial.satisfied());
+        let eligible = report.into_eligible().expect("sealed eligible review");
+        assert!(eligible.evidence().complete());
+    }
+
+    #[test]
+    fn post_review_artifact_replacement_breaks_private_digest_seal() {
+        let (corpus, train, validation, test) = corpus_and_splits();
+        let mut report = review_neural_model_for_meta(
+            &corpus,
+            &train,
+            &validation,
+            &test,
+            config(),
+            MetaNeuralReviewPolicy {
+                minimum_validation_accuracy_bps: 5_000,
+                minimum_test_accuracy_bps: 5_000,
+                maximum_regression_bps: 5_000,
+                artifact_max_context_tokens: 2_048,
+            },
+        )
+        .expect("review");
+        let artifact = report.candidate_artifact.as_mut().expect("candidate");
+        artifact.manifest.weights_hash[0] ^= 1;
+        assert_eq!(
+            report.into_eligible(),
+            Err(MetaEligibilityError::CandidateDigestMismatch)
+        );
     }
 
     #[test]
