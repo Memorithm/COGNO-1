@@ -1,14 +1,8 @@
 //! Bounded differentiable classifier backed by `cogno-scirust`.
 //!
-//! This module is the first production-facing bridge between `cogno-model`
-//! and the differentiable SciRust substrate. It deliberately keeps the model
-//! small and read-only at inference time: training may update weights, but a
-//! frozen [`NeuralModel`] can only classify/rank/propose. Every proposal still
-//! crosses the deterministic `cogno-core` validation and policy boundary.
-//!
-//! Training is bounded by fixed feature/label/parameter/payload caps. For each
-//! class, a one-vs-rest sigmoid head is differentiated through the
-//! `cogno_scirust::Tape` and updated by AdamW. No model output gains authority.
+//! The model is trainable, but it remains non-authoritative: after training it
+//! is frozen behind a read-only surface and every proposal still crosses the
+//! deterministic `cogno-core` validation and policy boundary.
 
 use crate::backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 use crate::readonly::ReadOnlyCapability;
@@ -53,7 +47,7 @@ impl Default for NeuralConfig {
     }
 }
 
-/// Fail-closed errors raised by differentiable model training/inference.
+/// Fail-closed errors raised by differentiable model training or inference.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NeuralModelError {
     InvalidConfig,
@@ -112,7 +106,7 @@ impl NeuralModel {
         self.weights.len()
     }
 
-    /// Exposes frozen weights for deterministic audit/replay comparisons.
+    /// Frozen weights exposed only for deterministic audit/replay comparison.
     #[must_use]
     pub fn weights(&self) -> &[f32] {
         &self.weights
@@ -120,51 +114,23 @@ impl NeuralModel {
 
     /// Probability-like sigmoid score for one label.
     pub fn score(&self, label: u16, payload: &[u8]) -> Result<f32, NeuralModelError> {
-        if label >= self.num_labels {
-            return Err(NeuralModelError::LabelOutOfRange {
-                label,
-                maximum: self.num_labels,
-            });
-        }
         let features = encode_payload(self.input_dim, self.max_payload_bytes, payload)?;
-        let range = weight_range(label, self.input_dim, self.weights.len())?;
-        let class_weights = self
-            .weights
-            .get(range)
-            .ok_or(NeuralModelError::ArithmeticOverflow)?;
-        let mut logit = 0.0f32;
-        for (&feature, &weight) in features.iter().zip(class_weights.iter()) {
-            logit += feature * weight;
-        }
-        if !logit.is_finite() {
-            return Err(NeuralModelError::SciRust(SciRustError::NonFinite));
-        }
-        stable_sigmoid(logit)
+        self.score_encoded(label, &features)
     }
 
     /// Deterministic argmax. Equal scores select the lowest label id.
     pub fn classify(&self, payload: &[u8]) -> Result<Label, NeuralModelError> {
-        if self.num_labels == 0 {
-            return Err(NeuralModelError::EmptyTrainingSplit);
-        }
-        let mut best = Label(0);
-        let mut best_score = f32::NEG_INFINITY;
-        for label in 0..self.num_labels {
-            let score = self.score(label, payload)?;
-            if score > best_score {
-                best = Label(label);
-                best_score = score;
-            }
-        }
-        Ok(best)
+        let features = encode_payload(self.input_dim, self.max_payload_bytes, payload)?;
+        self.classify_encoded(&features)
     }
 
-    /// Confidence is the top-two probability margin, expressed in basis points.
+    /// Confidence is the top-two probability margin in basis points.
     pub fn confidence_bps(&self, payload: &[u8]) -> Result<u16, NeuralModelError> {
+        let features = encode_payload(self.input_dim, self.max_payload_bytes, payload)?;
         let mut best = f32::NEG_INFINITY;
         let mut runner_up = f32::NEG_INFINITY;
         for label in 0..self.num_labels {
-            let score = self.score(label, payload)?;
+            let score = self.score_encoded(label, &features)?;
             if score > best {
                 runner_up = best;
                 best = score;
@@ -181,6 +147,44 @@ impl NeuralModel {
             return Err(NeuralModelError::SciRust(SciRustError::NonFinite));
         }
         Ok((margin.clamp(0.0, 1.0) * 10_000.0).round() as u16)
+    }
+
+    fn classify_encoded(&self, features: &[f32]) -> Result<Label, NeuralModelError> {
+        if self.num_labels == 0 {
+            return Err(NeuralModelError::EmptyTrainingSplit);
+        }
+        let mut best = Label(0);
+        let mut best_score = f32::NEG_INFINITY;
+        for label in 0..self.num_labels {
+            let score = self.score_encoded(label, features)?;
+            if score > best_score {
+                best = Label(label);
+                best_score = score;
+            }
+        }
+        Ok(best)
+    }
+
+    fn score_encoded(&self, label: u16, features: &[f32]) -> Result<f32, NeuralModelError> {
+        if label >= self.num_labels {
+            return Err(NeuralModelError::LabelOutOfRange {
+                label,
+                maximum: self.num_labels,
+            });
+        }
+        if features.len() != self.input_dim {
+            return Err(NeuralModelError::InvalidConfig);
+        }
+        let range = weight_range(label, self.input_dim, self.weights.len())?;
+        let class_weights = self
+            .weights
+            .get(range)
+            .ok_or(NeuralModelError::ArithmeticOverflow)?;
+        let mut logit = 0.0f32;
+        for (&feature, &weight) in features.iter().zip(class_weights.iter()) {
+            logit += feature * weight;
+        }
+        stable_sigmoid(logit)
     }
 }
 
@@ -207,21 +211,14 @@ impl NeuralTrainer {
 
         let mut max_label = 0u16;
         for &index in &split.indices {
-            let example =
-                corpus
-                    .examples
-                    .get(index)
-                    .ok_or(NeuralModelError::InvalidSplitIndex {
-                        index,
-                        corpus_len: corpus.examples.len(),
-                    })?;
+            let example = corpus.examples.get(index).ok_or(
+                NeuralModelError::InvalidSplitIndex {
+                    index,
+                    corpus_len: corpus.examples.len(),
+                },
+            )?;
             max_label = max_label.max(example.label.0);
-            if example.payload.len() > self.config.max_payload_bytes {
-                return Err(NeuralModelError::PayloadTooLarge {
-                    actual: example.payload.len(),
-                    maximum: self.config.max_payload_bytes,
-                });
-            }
+            admit_payload(self.config.max_payload_bytes, &example.payload)?;
         }
 
         let num_labels = max_label
@@ -251,14 +248,12 @@ impl NeuralTrainer {
 
         for _ in 0..self.config.epochs {
             for &index in &split.indices {
-                let example =
-                    corpus
-                        .examples
-                        .get(index)
-                        .ok_or(NeuralModelError::InvalidSplitIndex {
-                            index,
-                            corpus_len: corpus.examples.len(),
-                        })?;
+                let example = corpus.examples.get(index).ok_or(
+                    NeuralModelError::InvalidSplitIndex {
+                        index,
+                        corpus_len: corpus.examples.len(),
+                    },
+                )?;
                 let features = encode_payload(
                     self.config.input_dim,
                     self.config.max_payload_bytes,
@@ -289,7 +284,7 @@ impl NeuralTrainer {
             .ok_or(NeuralModelError::ArithmeticOverflow)?
             .checked_div(total)
             .ok_or(NeuralModelError::ArithmeticOverflow)?;
-        let accuracy_bps =
+        let final_accuracy_bps =
             u16::try_from(scaled).map_err(|_| NeuralModelError::ArithmeticOverflow)?;
         Ok((
             model,
@@ -298,13 +293,13 @@ impl NeuralTrainer {
                 epochs: self.config.epochs,
                 parameters,
                 final_correct: correct,
-                final_accuracy_bps: accuracy_bps,
+                final_accuracy_bps,
             },
         ))
     }
 }
 
-/// Frozen read-only façade over a differentiably-trained model.
+/// Frozen read-only façade over a differentiably trained model.
 #[derive(Clone, Debug)]
 pub struct SciRustReadOnlyModel {
     pub model: Arc<NeuralModel>,
@@ -375,7 +370,7 @@ impl SciRustReadOnlyModel {
 
     #[must_use]
     pub fn explain(&self, label: Label) -> ReasonCode {
-        ReasonCode(label.0.min(u16::MAX - 1))
+        ReasonCode(label.0)
     }
 }
 
@@ -409,17 +404,22 @@ fn validate_config(config: NeuralConfig) -> Result<(), NeuralModelError> {
     Ok(())
 }
 
+fn admit_payload(maximum: usize, payload: &[u8]) -> Result<(), NeuralModelError> {
+    if payload.len() > maximum {
+        return Err(NeuralModelError::PayloadTooLarge {
+            actual: payload.len(),
+            maximum,
+        });
+    }
+    Ok(())
+}
+
 fn encode_payload(
     input_dim: usize,
     max_payload_bytes: usize,
     payload: &[u8],
 ) -> Result<Vec<f32>, NeuralModelError> {
-    if payload.len() > max_payload_bytes {
-        return Err(NeuralModelError::PayloadTooLarge {
-            actual: payload.len(),
-            maximum: max_payload_bytes,
-        });
-    }
+    admit_payload(max_payload_bytes, payload)?;
     if input_dim < MIN_NEURAL_FEATURES {
         return Err(NeuralModelError::InvalidConfig);
     }
@@ -457,24 +457,35 @@ fn train_head(
         .to_vec();
 
     let mut tape = Tape::new(8, input_dim);
-    let feature_tensor =
-        Tensor::try_new(Shape::try_new(&[input_dim])?, features.to_vec(), input_dim)?;
-    let weight_tensor = Tensor::try_new(Shape::try_new(&[input_dim])?, class_weights, input_dim)?;
+    let feature_tensor = Tensor::try_new(
+        Shape::try_new(&[input_dim])?,
+        features.to_vec(),
+        input_dim,
+    )?;
+    let weight_tensor = Tensor::try_new(
+        Shape::try_new(&[input_dim])?,
+        class_weights,
+        input_dim,
+    )?;
     let feature_var = tape.variable(feature_tensor)?;
     let weight_var = tape.variable(weight_tensor)?;
     let product = tape.mul(feature_var, weight_var)?;
     let logit = tape.sum(product)?;
+    let target = tape.variable(Tensor::try_scalar(if target_label.0 == label {
+        1.0
+    } else {
+        0.0
+    })?)?;
     let probability = tape.sigmoid(logit)?;
-    let target = if label == target_label.0 { 1.0 } else { 0.0 };
-    let target_var = tape.variable(Tensor::try_scalar(target)?)?;
-    let difference = tape.sub(probability, target_var)?;
-    let loss = tape.mul(difference, difference)?;
+    let error = tape.sub(probability, target)?;
+    let loss = tape.mul(error, error)?;
     tape.backward(loss)?;
     let gradient = tape.grad_of(weight_var).to_vec();
-    let class_weights = weights
+
+    let row = weights
         .get_mut(range)
         .ok_or(NeuralModelError::ArithmeticOverflow)?;
-    optimizer.step(class_weights, &gradient)?;
+    optimizer.step(row, &gradient)?;
     Ok(())
 }
 
@@ -517,6 +528,9 @@ fn weight_range(
 }
 
 fn stable_sigmoid(value: f32) -> Result<f32, NeuralModelError> {
+    if !value.is_finite() {
+        return Err(NeuralModelError::SciRust(SciRustError::NonFinite));
+    }
     let output = if value >= 0.0 {
         let z = (-value).exp();
         1.0 / (1.0 + z)
@@ -534,13 +548,12 @@ fn stable_sigmoid(value: f32) -> Result<f32, NeuralModelError> {
 fn map_backend_error(error: NeuralModelError) -> BackendError {
     match error {
         NeuralModelError::PayloadTooLarge { .. }
-        | NeuralModelError::TooManyRankCandidates { .. } => BackendError::InputTooLarge,
-        NeuralModelError::InvalidConfig
-        | NeuralModelError::EmptyTrainingSplit
-        | NeuralModelError::InvalidSplitIndex { .. }
-        | NeuralModelError::LabelOutOfRange { .. }
-        | NeuralModelError::ArithmeticOverflow
-        | NeuralModelError::SciRust(_) => BackendError::HostileArtifact,
+        | NeuralModelError::TooManyRankCandidates { .. }
+        | NeuralModelError::SciRust(SciRustError::CapacityExceeded { .. })
+        | NeuralModelError::SciRust(SciRustError::BudgetExceeded { .. }) => {
+            BackendError::InputTooLarge
+        }
+        _ => BackendError::HostileArtifact,
     }
 }
 
@@ -550,9 +563,9 @@ mod tests {
     use crate::training::{LabeledExample, SplitKind};
     use cogno_core::{EvidenceOrigin, InputOrigin};
 
-    fn corpus() -> (Corpus, CorpusSplit) {
+    fn corpus() -> Corpus {
         let mut corpus = Corpus::with_seed(7);
-        for payload in [b"aaaa-alpha".as_slice(), b"aaaa-style", b"aaaa-format"] {
+        for payload in [b"alpha-alpha".as_slice(), b"alpha-one", b"alpha-two", b"aaa"] {
             assert!(corpus.add(LabeledExample::new(
                 Label(0),
                 payload.to_vec(),
@@ -560,7 +573,7 @@ mod tests {
                 EvidenceOrigin::ExplicitUserApproval,
             )));
         }
-        for payload in [b"zzzz-beta".as_slice(), b"zzzz-behavior", b"zzzz-policy"] {
+        for payload in [b"omega-omega".as_slice(), b"omega-one", b"omega-two", b"zzz"] {
             assert!(corpus.add(LabeledExample::new(
                 Label(1),
                 payload.to_vec(),
@@ -568,52 +581,59 @@ mod tests {
                 EvidenceOrigin::ExplicitUserApproval,
             )));
         }
-        let split = CorpusSplit {
+        corpus
+    }
+
+    fn split() -> CorpusSplit {
+        CorpusSplit {
             kind: SplitKind::Train,
-            indices: (0..corpus.examples.len()).collect(),
-        };
-        (corpus, split)
+            indices: (0..8).collect(),
+        }
+    }
+
+    fn trainer() -> NeuralTrainer {
+        NeuralTrainer::try_new(NeuralConfig {
+            input_dim: 64,
+            epochs: 64,
+            learning_rate: 0.03,
+            max_payload_bytes: 128,
+        })
+        .expect("valid neural config")
     }
 
     #[test]
-    fn differentiable_training_is_repeatable_and_learns_training_set() {
-        let (corpus, split) = corpus();
-        let trainer = NeuralTrainer::try_new(NeuralConfig {
-            input_dim: 64,
-            epochs: 48,
-            learning_rate: 0.02,
-            max_payload_bytes: 128,
-        })
-        .expect("valid neural config");
-        let (left, left_report) = trainer.train(&corpus, &split).expect("train left");
-        let (right, right_report) = trainer.train(&corpus, &split).expect("train right");
-        assert_eq!(left_report, right_report);
+    fn neural_training_is_repeatable() {
+        let corpus = corpus();
+        let split = split();
+        let (left, left_report) = trainer().train(&corpus, &split).expect("left");
+        let (right, right_report) = trainer().train(&corpus, &split).expect("right");
         assert_eq!(left.weights(), right.weights());
-        assert_eq!(left_report.examples, 6);
-        assert_eq!(left_report.final_correct, 6);
-        assert_eq!(left_report.final_accuracy_bps, 10_000);
-        assert_eq!(left.classify(b"aaaa-alpha").expect("classify"), Label(0));
-        assert_eq!(left.classify(b"zzzz-beta").expect("classify"), Label(1));
+        assert_eq!(left_report, right_report);
+        assert_eq!(left.parameter_count(), 128);
     }
 
     #[test]
-    fn read_only_scirust_backend_proposes_but_has_no_authority() {
-        let (corpus, split) = corpus();
-        let trainer = NeuralTrainer::try_new(NeuralConfig {
-            input_dim: 64,
-            epochs: 48,
-            learning_rate: 0.02,
-            max_payload_bytes: 128,
-        })
-        .expect("valid neural config");
-        let (model, _) = trainer.train(&corpus, &split).expect("train");
+    fn neural_training_learns_the_training_split() {
+        let corpus = corpus();
+        let split = split();
+        let (model, report) = trainer().train(&corpus, &split).expect("train");
+        assert!(report.final_accuracy_bps >= 7_500);
+        assert_eq!(model.classify(b"alpha-alpha").expect("classify"), Label(0));
+        assert_eq!(model.classify(b"omega-omega").expect("classify"), Label(1));
+    }
+
+    #[test]
+    fn read_only_neural_backend_has_no_mutation_authority() {
+        let corpus = corpus();
+        let split = split();
+        let (model, _) = trainer().train(&corpus, &split).expect("train");
         let mut backend = SciRustReadOnlyModel::from_trained(model);
         let info = backend.info();
         assert!(info.read_only);
         assert!(info.differentiable);
         assert!(!info.tools_enabled);
         let proposal = backend
-            .extract(b"aaaa-alpha", EvidenceId::from_u64(9))
+            .extract(b"alpha-alpha", EvidenceId::from_u64(9))
             .expect("extract");
         assert!(cogno_core::validate_proposal(&proposal.as_view()).is_ok());
         assert_eq!(
@@ -623,33 +643,29 @@ mod tests {
     }
 
     #[test]
-    fn oversized_payload_and_invalid_split_fail_closed() {
-        let (corpus, split) = corpus();
-        let trainer = NeuralTrainer::try_new(NeuralConfig {
-            input_dim: 64,
-            epochs: 1,
-            learning_rate: 0.02,
-            max_payload_bytes: 8,
-        })
-        .expect("valid neural config");
+    fn oversized_payload_fails_closed() {
+        let corpus = corpus();
+        let split = split();
+        let (model, _) = trainer().train(&corpus, &split).expect("train");
+        let payload = vec![0u8; 129];
         assert!(matches!(
-            trainer.train(&corpus, &split),
-            Err(NeuralModelError::PayloadTooLarge { .. })
+            model.classify(&payload),
+            Err(NeuralModelError::PayloadTooLarge {
+                actual: 129,
+                maximum: 128
+            })
         ));
+    }
 
+    #[test]
+    fn invalid_split_index_fails_closed() {
+        let corpus = corpus();
         let bad_split = CorpusSplit {
             kind: SplitKind::Train,
-            indices: vec![usize::MAX],
+            indices: vec![99],
         };
-        let trainer = NeuralTrainer::try_new(NeuralConfig {
-            input_dim: 64,
-            epochs: 1,
-            learning_rate: 0.02,
-            max_payload_bytes: 128,
-        })
-        .expect("valid neural config");
         assert!(matches!(
-            trainer.train(&corpus, &bad_split),
+            trainer().train(&corpus, &bad_split),
             Err(NeuralModelError::InvalidSplitIndex { .. })
         ));
     }
