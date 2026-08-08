@@ -26,6 +26,9 @@ pub const MAX_SEQUENCE_SYMBOLIC_PARAMETERS: usize = MAX_SEQUENCE_PARAMETERS
 /// Encoder nodes + six nodes per rule head + the connected conjunction loss.
 pub const SEQUENCE_SYMBOLIC_TAPE_NODES: usize =
     SEQUENCE_ENCODER_TAPE_NODES + 7 * MAX_SEQUENCE_SYMBOLIC_RULES + 1;
+/// Encoder/head graph plus target, squared-error accumulation and averaging.
+pub const SEQUENCE_SYMBOLIC_SUPERVISED_TAPE_NODES: usize =
+    SEQUENCE_ENCODER_TAPE_NODES + 10 * MAX_SEQUENCE_SYMBOLIC_RULES;
 
 /// Architecture of a shared sequence encoder plus bounded symbolic rule heads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -214,7 +217,9 @@ impl SequenceSymbolicHead {
         Ok(product)
     }
 
-    /// Connected soft-conjunction loss and exact gradients for one sequence.
+    /// Connected soft-conjunction regularizer and exact gradients for one
+    /// sequence. This path pushes every soft rule output toward satisfaction;
+    /// supervised violation learning should use [`Self::target_loss_and_gradients`].
     pub fn loss_and_gradients(
         &self,
         token_ids: &[u16],
@@ -225,43 +230,61 @@ impl SequenceSymbolicHead {
         let loss = SymbolicSatisfaction::try_new(self.config.num_rules, max_elements)?
             .loss_vars(&mut tape, &graph.satisfactions)?;
         tape.backward(loss)?;
-        let loss_value = tape
-            .value_of(loss)
-            .as_slice()
-            .first()
-            .copied()
-            .ok_or(SciRustError::Empty)?;
-        ensure_finite(loss_value)?;
-
-        let mut head_weights = Vec::with_capacity(self.head_weights.len());
-        for weights in &graph.head_weights {
-            head_weights.extend_from_slice(tape.grad_of(*weights));
-        }
-        let mut head_bias = Vec::with_capacity(self.head_bias.len());
-        for bias in &graph.head_bias {
-            head_bias.extend_from_slice(tape.grad_of(*bias));
-        }
-        validate_finite(&head_weights)?;
-        validate_finite(&head_bias)?;
-
-        Ok((
-            loss_value,
-            SequenceSymbolicGradients {
-                encoder: self.encoder.gradients_from_tape(&tape, graph.encoder),
-                head_weights,
-                head_bias,
-            },
-        ))
+        let loss_value = scalar_value(&tape, loss)?;
+        Ok((loss_value, self.gradients_from_graph(&tape, &graph)?))
     }
 
-    /// Apply one deterministic AdamW update through all symbolic heads and the
-    /// shared sequence encoder.
+    /// Mean squared error against explicit per-rule satisfaction targets in
+    /// `[0, 1]`. Unlike the conjunction regularizer, this path can teach both
+    /// satisfied (`1`) and violated (`0`) rule examples while preserving exact
+    /// gradients through every rule head into the shared encoder.
+    pub fn target_loss_and_gradients(
+        &self,
+        token_ids: &[u16],
+        targets: &[f32],
+    ) -> SciRustResult<(f32, SequenceSymbolicGradients)> {
+        self.validate_targets(targets)?;
+        let max_elements = self.required_max_elements(token_ids.len())?;
+        let mut tape = Tape::new(SEQUENCE_SYMBOLIC_SUPERVISED_TAPE_NODES, max_elements);
+        let graph = self.append_to_tape(&mut tape, token_ids)?;
+        let mut squared_errors = Vec::with_capacity(self.config.num_rules);
+        for (&satisfaction, &target_value) in graph.satisfactions.iter().zip(targets) {
+            let target = tape.variable(Tensor::try_scalar(target_value)?)?;
+            let difference = tape.sub(satisfaction, target)?;
+            squared_errors.push(tape.mul(difference, difference)?);
+        }
+        let mut loss = squared_errors[0];
+        for &squared_error in &squared_errors[1..] {
+            loss = tape.add(loss, squared_error)?;
+        }
+        let divisor = self.config.num_rules as f32;
+        ensure_finite(divisor)?;
+        loss = tape.scale(loss, divisor.recip())?;
+        tape.backward(loss)?;
+        let loss_value = scalar_value(&tape, loss)?;
+        Ok((loss_value, self.gradients_from_graph(&tape, &graph)?))
+    }
+
+    /// Apply one deterministic AdamW update for the soft-conjunction
+    /// regularizer.
     pub fn train_step(
         &mut self,
         optimizer: &mut SequenceSymbolicAdamW,
         token_ids: &[u16],
     ) -> SciRustResult<f32> {
         let (loss, gradients) = self.loss_and_gradients(token_ids)?;
+        optimizer.step(self, &gradients)?;
+        Ok(loss)
+    }
+
+    /// Apply one deterministic AdamW update against explicit per-rule targets.
+    pub fn train_target_step(
+        &mut self,
+        optimizer: &mut SequenceSymbolicAdamW,
+        token_ids: &[u16],
+        targets: &[f32],
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.target_loss_and_gradients(token_ids, targets)?;
         optimizer.step(self, &gradients)?;
         Ok(loss)
     }
@@ -305,12 +328,53 @@ impl SequenceSymbolicHead {
         })
     }
 
+    fn gradients_from_graph(
+        &self,
+        tape: &Tape,
+        graph: &SequenceSymbolicGraph,
+    ) -> SciRustResult<SequenceSymbolicGradients> {
+        let mut head_weights = Vec::with_capacity(self.head_weights.len());
+        for &weights in &graph.head_weights {
+            head_weights.extend_from_slice(tape.grad_of(weights));
+        }
+        let mut head_bias = Vec::with_capacity(self.head_bias.len());
+        for &bias in &graph.head_bias {
+            head_bias.extend_from_slice(tape.grad_of(bias));
+        }
+        validate_finite(&head_weights)?;
+        validate_finite(&head_bias)?;
+        Ok(SequenceSymbolicGradients {
+            encoder: self.encoder.gradients_from_tape(tape, graph.encoder),
+            head_weights,
+            head_bias,
+        })
+    }
+
     fn required_max_elements(&self, token_count: usize) -> SciRustResult<usize> {
         Ok(self
             .encoder
             .required_max_elements(token_count)?
             .max(self.config.encoder.hidden_dim)
             .max(self.config.num_rules))
+    }
+
+    fn validate_targets(&self, targets: &[f32]) -> SciRustResult<()> {
+        if targets.len() != self.config.num_rules {
+            return Err(SciRustError::Shape {
+                lhs: vec![targets.len()],
+                rhs: vec![self.config.num_rules],
+            });
+        }
+        for &target in targets {
+            ensure_finite(target)?;
+            if !(0.0..=1.0).contains(&target) {
+                return Err(SciRustError::Shape {
+                    lhs: vec![0],
+                    rhs: vec![1],
+                });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -353,6 +417,17 @@ impl SequenceSymbolicAdamW {
         validate_finite(&model.head_bias)?;
         Ok(())
     }
+}
+
+fn scalar_value(tape: &Tape, value: Var) -> SciRustResult<f32> {
+    let value = tape
+        .value_of(value)
+        .as_slice()
+        .first()
+        .copied()
+        .ok_or(SciRustError::Empty)?;
+    ensure_finite(value)?;
+    Ok(value)
 }
 
 fn deterministic_weights(len: usize, fan_in: usize, state: &mut u64) -> SciRustResult<Vec<f32>> {
@@ -483,6 +558,59 @@ mod tests {
         }
         let after = model.loss_and_gradients(&[1, 2]).expect("after").0;
         assert!(after < before, "before={before}, after={after}");
+    }
+
+    #[test]
+    fn supervised_targets_train_satisfied_and_violated_rules() {
+        let mut model = controlled_head();
+        let targets = [1.0, 0.0];
+        let before = model
+            .target_loss_and_gradients(&[1, 2], &targets)
+            .expect("before")
+            .0;
+        let mut optimizer = SequenceSymbolicAdamW::try_new(0.01, &model).expect("optimizer");
+        for _ in 0..64 {
+            model
+                .train_target_step(&mut optimizer, &[1, 2], &targets)
+                .expect("target step");
+        }
+        let after = model
+            .target_loss_and_gradients(&[1, 2], &targets)
+            .expect("after")
+            .0;
+        assert!(after < before, "before={before}, after={after}");
+    }
+
+    #[test]
+    fn supervised_target_gradients_reach_heads_and_encoder() {
+        let model = controlled_head();
+        let (_, gradients) = model
+            .target_loss_and_gradients(&[1, 2], &[1.0, 0.0])
+            .expect("target gradients");
+        assert!(gradients
+            .encoder()
+            .token_embeddings()
+            .iter()
+            .any(|value| *value != 0.0));
+        assert!(gradients.head_weights().iter().any(|value| *value != 0.0));
+        assert!(gradients.head_bias().iter().any(|value| *value != 0.0));
+    }
+
+    #[test]
+    fn hostile_supervised_targets_fail_closed() {
+        let model = controlled_head();
+        assert!(matches!(
+            model.target_loss_and_gradients(&[1, 2], &[1.0]),
+            Err(SciRustError::Shape { .. })
+        ));
+        assert!(matches!(
+            model.target_loss_and_gradients(&[1, 2], &[1.0, 1.1]),
+            Err(SciRustError::Shape { .. })
+        ));
+        assert_eq!(
+            model.target_loss_and_gradients(&[1, 2], &[1.0, f32::NAN]),
+            Err(SciRustError::NonFinite)
+        );
     }
 
     #[test]

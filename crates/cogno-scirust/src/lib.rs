@@ -116,6 +116,7 @@ pub use sequence_scorer::{
 };
 pub use sequence_symbolic::{
     SequenceSymbolicAdamW, SequenceSymbolicConfig, SequenceSymbolicGradients, SequenceSymbolicHead,
-    MAX_SEQUENCE_SYMBOLIC_PARAMETERS, MAX_SEQUENCE_SYMBOLIC_RULES, SEQUENCE_SYMBOLIC_TAPE_NODES,
+    MAX_SEQUENCE_SYMBOLIC_PARAMETERS, MAX_SEQUENCE_SYMBOLIC_RULES,
+    SEQUENCE_SYMBOLIC_SUPERVISED_TAPE_NODES, SEQUENCE_SYMBOLIC_TAPE_NODES,
 };
 pub use tensor::{Shape, Tensor};
