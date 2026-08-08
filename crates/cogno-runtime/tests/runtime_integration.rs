@@ -11,8 +11,8 @@ use cogno_core::{
     RewardParams, SafetyPolicy, TrustClass,
 };
 use cogno_model::{
-    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample, MetaNeuralReviewPolicy,
-    NeuralConfig, SplitKind,
+    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
+    MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
 };
 use cogno_runtime::{
     BoundedQueue, ControlledMetaActivationError, HostMetaAttestation, KvController,
