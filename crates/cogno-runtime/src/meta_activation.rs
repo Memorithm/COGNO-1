@@ -4,11 +4,13 @@
 //! private digest seal was minted by the held-out review gate in `cogno-model`.
 //! The host contributes the two facts only it can attest: scalar-engine
 //! validation and a frozen reference policy. The candidate artifact is
-//! re-verified before the six preconditions are combined.
+//! re-verified through the architecture-selected hostile loader before the six
+//! preconditions are combined.
 
 use cogno_core::{MetaObjectiveError, MetaPreconditions};
 use cogno_model::{
-    load_neural_artifact, EligibleMetaModelReview, MetaModelEvidence, NeuralArtifactError,
+    load_versioned_neural_artifact, EligibleMetaModelReview, MetaModelEvidence,
+    VersionedNeuralArtifactError,
 };
 
 /// Explicit host attestation for the two Phase-4 facts that model code cannot
@@ -50,7 +52,7 @@ pub struct MetaActivationReceipt {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ControlledMetaActivationError {
     AlreadyActive,
-    CandidateArtifactInvalid(NeuralArtifactError),
+    CandidateArtifactInvalid(VersionedNeuralArtifactError),
     Precondition(MetaObjectiveError),
 }
 
@@ -59,7 +61,7 @@ pub(crate) fn prepare_controlled_meta_activation(
     _host: HostMetaAttestation,
 ) -> Result<(MetaPreconditions, MetaActivationReceipt), ControlledMetaActivationError> {
     let artifact = review.artifact();
-    load_neural_artifact(&artifact.manifest, &artifact.bytes)
+    load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes)
         .map_err(ControlledMetaActivationError::CandidateArtifactInvalid)?;
 
     let evidence = review.evidence();
