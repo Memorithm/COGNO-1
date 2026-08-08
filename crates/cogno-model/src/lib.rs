@@ -25,9 +25,11 @@
 //!   integer baseline.
 //! - **Phase 3**: [`training`] — provenance-aware corpus/splits plus the integer
 //!   perceptron baseline retained for regression/oracle comparisons.
-//! - **Phase 4 foundation**: [`neural`] — bounded differentiable supervised
-//!   classifier trained through `cogno-scirust` autograd and AdamW, then frozen
-//!   behind a read-only model surface. [`artifact`] provides the canonical
+//! - **Phase 4 foundation**: [`neural`] retains the canonical v1 bounded linear
+//!   differentiable classifier, while [`mlp`] adds a genuinely nonlinear
+//!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
+//!   read-only model surfaces. The MLP remains pre-artifact until an explicit
+//!   versioned migration lands. [`artifact`] provides the canonical v1
 //!   non-executable, manifest-bound hostile artifact loader. [`meta_review`]
 //!   adds held-out regression review, model-side Phase-4 evidence and a private
 //!   digest-bound eligibility seal without granting promotion authority.
@@ -46,6 +48,7 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_review;
+pub mod mlp;
 pub mod neural;
 pub mod readonly;
 pub mod simulator;
@@ -63,6 +66,10 @@ pub use meta_review::{
     MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy, MetaNeuralReviewReport,
     MetaPromotionAuthority, MetaPromotionBlocker, MetaPromotionDisposition,
     DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS, MAX_META_REVIEW_EXAMPLES,
+};
+pub use mlp::{
+    MlpNeuralConfig, MlpNeuralModel, MlpNeuralTrainer, SciRustMlpReadOnlyModel,
+    MAX_MLP_HIDDEN_FEATURES, MIN_MLP_HIDDEN_FEATURES,
 };
 pub use neural::{
     NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
