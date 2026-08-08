@@ -299,6 +299,15 @@ fn validate_splits(
         if !seen.insert(index) {
             return Err(MetaNeuralReviewError::SplitOverlap(index));
         }
+        let example = &corpus.examples[index];
+        if !trusted_review_provenance(example.provenance.origin, example.provenance.evidence_origin)
+        {
+            return Err(MetaNeuralReviewError::UntrustedHeldOutProvenance {
+                index,
+                input_origin: example.provenance.origin,
+                evidence_origin: example.provenance.evidence_origin,
+            });
+        }
     }
 
     let train_labels: BTreeSet<Label> = train
@@ -313,18 +322,11 @@ fn validate_splits(
                 example.label,
             ));
         }
-        if !trusted_held_out(example.provenance.origin, example.provenance.evidence_origin) {
-            return Err(MetaNeuralReviewError::UntrustedHeldOutProvenance {
-                index,
-                input_origin: example.provenance.origin,
-                evidence_origin: example.provenance.evidence_origin,
-            });
-        }
     }
     Ok(())
 }
 
-const fn trusted_held_out(input: InputOrigin, evidence: EvidenceOrigin) -> bool {
+const fn trusted_review_provenance(input: InputOrigin, evidence: EvidenceOrigin) -> bool {
     !matches!(input, InputOrigin::ModelOutput)
         && !matches!(evidence, EvidenceOrigin::ModelInference)
 }
@@ -352,7 +354,9 @@ fn evaluate_baseline(
     let correct = split
         .indices
         .iter()
-        .filter(|&&index| model.classify(&corpus.examples[index].payload) == corpus.examples[index].label)
+        .filter(|&&index| {
+            model.classify(&corpus.examples[index].payload) == corpus.examples[index].label
+        })
         .count();
     metrics(correct, split.indices.len())
 }
@@ -495,9 +499,23 @@ mod tests {
     }
 
     #[test]
-    fn model_origin_heldout_example_is_rejected_before_training() {
+    fn model_origin_examples_are_rejected_before_training() {
         let (mut corpus, train, validation, test) = corpus_and_splits();
         corpus.examples[validation.indices[0]].provenance.origin = InputOrigin::ModelOutput;
+        assert!(matches!(
+            review_neural_model_for_meta(
+                &corpus,
+                &train,
+                &validation,
+                &test,
+                config(),
+                MetaNeuralReviewPolicy::default(),
+            ),
+            Err(MetaNeuralReviewError::UntrustedHeldOutProvenance { .. })
+        ));
+
+        let (mut corpus, train, validation, test) = corpus_and_splits();
+        corpus.examples[train.indices[0]].provenance.evidence_origin = EvidenceOrigin::ModelInference;
         assert!(matches!(
             review_neural_model_for_meta(
                 &corpus,
@@ -543,25 +561,9 @@ mod tests {
     }
 
     #[test]
-    fn impossible_accuracy_policy_holds_without_candidate_artifact() {
-        let (corpus, train, validation, test) = corpus_and_splits();
-        let report = review_neural_model_for_meta(
-            &corpus,
-            &train,
-            &validation,
-            &test,
-            config(),
-            MetaNeuralReviewPolicy {
-                minimum_validation_accuracy_bps: 10_000,
-                minimum_test_accuracy_bps: 10_000,
-                maximum_regression_bps: 0,
-                artifact_max_context_tokens: 2_048,
-            },
-        )
-        .expect("review");
-        if report.validation_neural.accuracy_bps < 10_000 || report.test_neural.accuracy_bps < 10_000 {
-            assert_eq!(report.disposition, MetaPromotionDisposition::Hold);
-            assert!(report.candidate_artifact.is_none());
-        }
+    fn regression_tolerance_is_fail_closed() {
+        assert!(regressed_beyond(7_999, 8_000, 0));
+        assert!(!regressed_beyond(7_999, 8_000, 1));
+        assert!(!regressed_beyond(8_000, 8_000, 0));
     }
 }
