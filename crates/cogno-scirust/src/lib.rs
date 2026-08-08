@@ -104,9 +104,9 @@ pub use sequence_classifier::{
     SEQUENCE_CLASSIFIER_TAPE_NODES, SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES,
 };
 pub use sequence_retriever::{
-    SequenceRetriever, SequenceRetrieverAdamW, SequenceRetrieverConfig,
-    SequenceRetrieverGradients, MAX_SEQUENCE_RETRIEVAL_CANDIDATES,
-    MAX_SEQUENCE_RETRIEVER_PARAMETERS, SEQUENCE_RETRIEVER_TAPE_NODES,
+    SequenceRetriever, SequenceRetrieverAdamW, SequenceRetrieverConfig, SequenceRetrieverGradients,
+    MAX_SEQUENCE_RETRIEVAL_CANDIDATES, MAX_SEQUENCE_RETRIEVER_PARAMETERS,
+    SEQUENCE_RETRIEVER_TAPE_NODES,
 };
 pub use sequence_scorer::{
     SequenceScorer, SequenceScorerAdamW, SequenceScorerConfig, SequenceScorerGradients,
