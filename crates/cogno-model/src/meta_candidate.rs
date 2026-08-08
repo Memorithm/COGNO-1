@@ -2,11 +2,13 @@
 //!
 //! The public trait is sealed: external crates can consume reviewed candidates
 //! generically but cannot implement the trait for arbitrary artifacts. This
-//! preserves the non-forgeability of both historical v1 and sequence-v3 review
-//! proofs while allowing runtime persistence/activation to share one interface.
+//! preserves the non-forgeability of historical v1, sequence-v3 and shared
+//! cognitive-V4 review proofs while allowing runtime persistence/activation to
+//! share one interface.
 
 use crate::artifact::EncodedNeuralArtifact;
 use crate::meta_review::{EligibleMetaModelReview, MetaModelEvidence};
+use crate::sequence_cognitive_meta_review::EligibleSequenceCognitiveMetaModelReview;
 use crate::sequence_meta_review::EligibleSequenceMetaModelReview;
 
 mod sealed {
@@ -61,6 +63,26 @@ impl MetaReviewedCandidate for EligibleSequenceMetaModelReview {
     }
 }
 
+impl sealed::Sealed for EligibleSequenceCognitiveMetaModelReview {}
+
+impl MetaReviewedCandidate for EligibleSequenceCognitiveMetaModelReview {
+    fn artifact(&self) -> &EncodedNeuralArtifact {
+        EligibleSequenceCognitiveMetaModelReview::artifact(self)
+    }
+
+    fn evidence(&self) -> MetaModelEvidence {
+        EligibleSequenceCognitiveMetaModelReview::evidence(self)
+    }
+
+    fn validation_accuracy_bps(&self) -> u16 {
+        EligibleSequenceCognitiveMetaModelReview::validation_accuracy_bps(self)
+    }
+
+    fn test_accuracy_bps(&self) -> u16 {
+        EligibleSequenceCognitiveMetaModelReview::test_accuracy_bps(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -68,8 +90,9 @@ mod tests {
     fn assert_candidate_surface<T: MetaReviewedCandidate>() {}
 
     #[test]
-    fn both_cogno_review_proofs_implement_the_sealed_surface() {
+    fn all_cogno_review_proofs_implement_the_sealed_surface() {
         assert_candidate_surface::<EligibleMetaModelReview>();
         assert_candidate_surface::<EligibleSequenceMetaModelReview>();
+        assert_candidate_surface::<EligibleSequenceCognitiveMetaModelReview>();
     }
 }
