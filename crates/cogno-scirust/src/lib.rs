@@ -121,8 +121,7 @@ pub use sequence_cognitive::{
 pub use sequence_cognitive_objective::{
     CognitiveClassification, CognitiveContradiction, CognitivePreference, CognitiveRetrieval,
     CognitiveSymbolic, SequenceCognitiveAdamW, SequenceCognitiveBatch, SequenceCognitiveGradients,
-    SequenceCognitiveLossReport, SequenceCognitiveLossWeights,
-    SEQUENCE_COGNITIVE_JOINT_TAPE_NODES,
+    SequenceCognitiveLossReport, SequenceCognitiveLossWeights, SEQUENCE_COGNITIVE_JOINT_TAPE_NODES,
 };
 pub use sequence_retriever::{
     SequenceRetriever, SequenceRetrieverAdamW, SequenceRetrieverConfig, SequenceRetrieverGradients,
