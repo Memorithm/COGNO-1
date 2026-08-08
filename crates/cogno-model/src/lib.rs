@@ -32,10 +32,10 @@
 //!   format, [`mlp_artifact`] defines the separate v2 four-tensor format, and
 //!   [`versioned_artifact`] dispatches without reinterpreting either version.
 //!   [`tokenizer`] defines the deterministic byte-token contract for the future
-//!   sequence model without changing v1/v2 manifest hashes. Runtime persistence
-//!   remains a separate explicit migration. [`meta_review`] adds held-out
-//!   regression review, model-side Phase-4 evidence and a private digest-bound
-//!   eligibility seal without granting promotion authority.
+//!   sequence model without changing v1/v2 manifest hashes. [`meta_review`]
+//!   retains the historical v1 held-out gate while [`meta_review_mlp`] adds an
+//!   explicitly sealed v2 path and a versioned eligibility wrapper. Runtime
+//!   persistence remains a separate explicit migration.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -51,6 +51,7 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_review;
+pub mod meta_review_mlp;
 #[allow(
     clippy::too_many_arguments,
     reason = "the crate-private verified MLP reconstruction boundary names canonical shape metadata and all four persisted tensors explicitly"
@@ -76,6 +77,10 @@ pub use meta_review::{
     MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy, MetaNeuralReviewReport,
     MetaPromotionAuthority, MetaPromotionBlocker, MetaPromotionDisposition,
     DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS, MAX_META_REVIEW_EXAMPLES,
+};
+pub use meta_review_mlp::{
+    review_mlp_model_for_meta, EligibleMlpMetaModelReview, EligibleVersionedMetaModelReview,
+    MlpMetaEligibilityError, MlpMetaNeuralReviewError, MlpMetaNeuralReviewReport,
 };
 pub use mlp::{
     MlpNeuralConfig, MlpNeuralModel, MlpNeuralTrainer, SciRustMlpReadOnlyModel,
