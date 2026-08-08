@@ -2,7 +2,7 @@
 //!
 //! Model generations live in a namespace separate from scientific taste:
 //! `model-generation-N/` plus a strict `MODEL_CURRENT` pointer. A commit is
-//! accepted only from an [`EligibleMetaModelReview`] plus an explicit host
+//! accepted only from a sealed [`MetaReviewedCandidate`] plus an explicit host
 //! persistence attestation. The model artifact is never hot-swapped here.
 
 use crate::model_generation::{
@@ -11,9 +11,9 @@ use crate::model_generation::{
 };
 use cogno_core::{ArchitectureId, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
 use cogno_model::{
-    load_versioned_neural_artifact, EligibleMetaModelReview, EncodedNeuralArtifact,
-    LoadedNeuralModel, NeuralArtifactError, VersionedNeuralArtifactError,
-    MAX_MLP_NEURAL_ARTIFACT_BYTES, MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
+    load_versioned_neural_artifact, EncodedNeuralArtifact, LoadedNeuralModel,
+    MetaReviewedCandidate, VersionedNeuralArtifactError, MAX_MLP_NEURAL_ARTIFACT_BYTES,
+    MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
 };
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -119,18 +119,12 @@ impl From<VersionedNeuralArtifactError> for ModelPersistenceError {
     }
 }
 
-impl From<NeuralArtifactError> for ModelPersistenceError {
-    fn from(error: NeuralArtifactError) -> Self {
-        Self::ModelArtifact(VersionedNeuralArtifactError::LinearV1(error))
-    }
-}
-
 /// Persist one reviewed neural candidate as the exact next immutable model
 /// generation and atomically advance `MODEL_CURRENT`.
 pub fn commit_reviewed_model_generation(
     root: impl AsRef<Path>,
     generation: u64,
-    review: &EligibleMetaModelReview,
+    review: &impl MetaReviewedCandidate,
     _host: HostModelPromotionAttestation,
 ) -> Result<ModelGenerationCommit, ModelPersistenceError> {
     if generation == 0 {
@@ -549,8 +543,8 @@ mod tests {
     use super::*;
     use cogno_core::{EvidenceOrigin, InputOrigin};
     use cogno_model::{
-        review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
-        MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
+        review_neural_model_for_meta, Corpus, CorpusSplit, EligibleMetaModelReview, Label,
+        LabeledExample, MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
     };
     use std::time::{SystemTime, UNIX_EPOCH};
 
