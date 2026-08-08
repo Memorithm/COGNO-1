@@ -284,15 +284,13 @@ impl NeuralTrainer {
             weights,
         };
         let (correct, total) = evaluate(&model, corpus, split)?;
-        let accuracy_bps = if total == 0 {
-            0
-        } else {
-            let scaled = correct
-                .checked_mul(10_000)
-                .ok_or(NeuralModelError::ArithmeticOverflow)?
-                / total;
-            u16::try_from(scaled).map_err(|_| NeuralModelError::ArithmeticOverflow)?
-        };
+        let scaled = correct
+            .checked_mul(10_000)
+            .ok_or(NeuralModelError::ArithmeticOverflow)?
+            .checked_div(total)
+            .ok_or(NeuralModelError::ArithmeticOverflow)?;
+        let accuracy_bps =
+            u16::try_from(scaled).map_err(|_| NeuralModelError::ArithmeticOverflow)?;
         Ok((
             model,
             NeuralTrainingReport {
