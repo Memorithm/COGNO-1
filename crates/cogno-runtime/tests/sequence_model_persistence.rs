@@ -1,13 +1,12 @@
 use cogno_core::{EvidenceOrigin, InputOrigin};
 use cogno_model::{
     review_sequence_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample, LoadedNeuralModel,
-    SequenceMetaReviewConfig, SequenceMetaReviewPolicy, SplitKind, BYTE_TOKENIZER_VOCAB_SIZE,
+    SequenceMetaReviewConfig, SequenceMetaReviewPolicy, SplitKind,
 };
 use cogno_runtime::{
     commit_reviewed_model_generation, load_persisted_model_generation_selection,
     HostModelPromotionAttestation,
 };
-use cogno_scirust::{SequenceClassifierConfig, SequenceEncoderConfig};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -42,6 +41,17 @@ fn reviewed_sequence() -> cogno_model::EligibleSequenceMetaModelReview {
             EvidenceOrigin::ExplicitUserApproval,
         )));
     }
+    let mut config = SequenceMetaReviewConfig::default();
+    config.classifier.encoder.max_tokens = 64;
+    config.classifier.encoder.embedding_dim = 8;
+    config.classifier.encoder.hidden_dim = 12;
+    config.classifier.encoder.seed = 409;
+    config.classifier.num_classes = 2;
+    config.classifier.head_seed = 419;
+    config.epochs = 16;
+    config.learning_rate = 0.02;
+    config.baseline_feature_dim = 64;
+
     review_sequence_model_for_meta(
         &corpus,
         &CorpusSplit {
@@ -56,22 +66,7 @@ fn reviewed_sequence() -> cogno_model::EligibleSequenceMetaModelReview {
             kind: SplitKind::Test,
             indices: vec![6, 7],
         },
-        SequenceMetaReviewConfig {
-            classifier: SequenceClassifierConfig {
-                encoder: SequenceEncoderConfig {
-                    vocab_size: BYTE_TOKENIZER_VOCAB_SIZE,
-                    max_tokens: 64,
-                    embedding_dim: 8,
-                    hidden_dim: 12,
-                    seed: 409,
-                },
-                num_classes: 2,
-                head_seed: 419,
-            },
-            epochs: 16,
-            learning_rate: 0.02,
-            baseline_feature_dim: 64,
-        },
+        config,
         SequenceMetaReviewPolicy {
             minimum_validation_accuracy_bps: 0,
             minimum_test_accuracy_bps: 0,
