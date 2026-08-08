@@ -31,13 +31,15 @@
 //!   read-only model surfaces. [`sequence_preference`] adds the byte-tokenized
 //!   pairwise ranking bridge to the shared sequence substrate,
 //!   [`sequence_retrieval`] adds the byte-tokenized InfoNCE bridge for soft
-//!   memory/rule relevance, and [`sequence_symbolic`] exposes host-labelled
-//!   per-rule soft satisfaction training without granting rule authority.
-//!   [`artifact`] keeps the canonical v1 hostile format, [`mlp_artifact`] defines
-//!   the separate v2 four-tensor format, and [`sequence_artifact`] defines the
-//!   v3 five-tensor sequence-classifier format bound to the deterministic byte
-//!   tokenizer. [`versioned_artifact`] dispatches without reinterpreting
-//!   versions. [`meta_review`] retains the historical v1 held-out proof while
+//!   memory/rule relevance, [`sequence_symbolic`] exposes host-labelled per-rule
+//!   soft satisfaction training without granting rule authority, and
+//!   [`sequence_contradiction`] classifies explicitly framed evidence pairs for
+//!   a non-authoritative contradiction signal. [`artifact`] keeps the canonical
+//!   v1 hostile format, [`mlp_artifact`] defines the separate v2 four-tensor
+//!   format, and [`sequence_artifact`] defines the v3 five-tensor
+//!   sequence-classifier format bound to the deterministic byte tokenizer.
+//!   [`versioned_artifact`] dispatches without reinterpreting versions.
+//!   [`meta_review`] retains the historical v1 held-out proof while
 //!   [`sequence_meta_review`] provides the equivalent sealed v3 review.
 //!   [`meta_candidate`] exposes both proofs through one architecture-neutral
 //!   but externally non-implementable surface.
@@ -66,6 +68,7 @@ pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
 pub mod sequence_artifact;
+pub mod sequence_contradiction;
 pub mod sequence_meta_review;
 pub mod sequence_preference;
 pub mod sequence_retrieval;
@@ -110,6 +113,13 @@ pub use sequence_artifact::{
     MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES, SEQUENCE_NEURAL_ARCHITECTURE_ID,
     SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES, SEQUENCE_NEURAL_ARTIFACT_MAGIC,
     SEQUENCE_NEURAL_ARTIFACT_VERSION, SEQUENCE_NEURAL_TENSOR_COUNT,
+};
+pub use sequence_contradiction::{
+    SciRustSequenceContradictionReadOnlyModel, SequenceContradictionConfig,
+    SequenceContradictionError, SequenceContradictionExample, SequenceContradictionModel,
+    SequenceContradictionTrainer, SequenceContradictionTrainingReport,
+    MAX_SEQUENCE_CONTRADICTION_EXAMPLES, SEQUENCE_CONTRADICTION_CLASSES,
+    SEQUENCE_CONTRADICTION_CLASS, SEQUENCE_CONTRADICTION_CLEAR_CLASS,
 };
 pub use sequence_meta_review::{
     review_sequence_model_for_meta, EligibleSequenceMetaModelReview, SequenceMetaEligibilityError,
