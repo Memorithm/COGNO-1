@@ -28,9 +28,10 @@
 //! - **Phase 4 foundation**: [`neural`] retains the canonical v1 bounded linear
 //!   differentiable classifier, while [`mlp`] adds a genuinely nonlinear
 //!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
-//!   read-only model surfaces. The MLP remains pre-artifact until an explicit
-//!   versioned migration lands. [`artifact`] provides the canonical v1
-//!   non-executable, manifest-bound hostile artifact loader. [`meta_review`]
+//!   read-only model surfaces. [`artifact`] keeps the canonical v1 hostile
+//!   format, [`mlp_artifact`] defines the separate v2 four-tensor format, and
+//!   [`versioned_artifact`] dispatches without reinterpreting either version.
+//!   Runtime persistence remains a separate explicit migration. [`meta_review`]
 //!   adds held-out regression review, model-side Phase-4 evidence and a private
 //!   digest-bound eligibility seal without granting promotion authority.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
@@ -48,11 +49,17 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_review;
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the crate-private verified MLP reconstruction boundary names canonical shape metadata and all four persisted tensors explicitly"
+)]
 pub mod mlp;
+pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
 pub mod simulator;
 pub mod training;
+pub mod versioned_artifact;
 
 pub use artifact::{
     encode_neural_artifact, load_neural_artifact, neural_tokenizer_hash, EncodedNeuralArtifact,
@@ -71,6 +78,11 @@ pub use mlp::{
     MlpNeuralConfig, MlpNeuralModel, MlpNeuralTrainer, SciRustMlpReadOnlyModel,
     MAX_MLP_HIDDEN_FEATURES, MIN_MLP_HIDDEN_FEATURES,
 };
+pub use mlp_artifact::{
+    encode_mlp_neural_artifact, load_mlp_neural_artifact, MlpNeuralArtifactError,
+    MAX_MLP_NEURAL_ARTIFACT_BYTES, MLP_NEURAL_ARCHITECTURE_ID, MLP_NEURAL_ARTIFACT_HEADER_BYTES,
+    MLP_NEURAL_ARTIFACT_MAGIC, MLP_NEURAL_ARTIFACT_VERSION, MLP_NEURAL_TENSOR_COUNT,
+};
 pub use neural::{
     NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
     SciRustReadOnlyModel, MAX_NEURAL_EPOCHS, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS,
@@ -81,4 +93,7 @@ pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
 pub use simulator::SimBackend;
 pub use training::{
     Corpus, CorpusSplit, Label, LabeledExample, Provenance, SplitKind, ToyTrainer, TrainedModel,
+};
+pub use versioned_artifact::{
+    load_versioned_neural_artifact, LoadedNeuralModel, VersionedNeuralArtifactError,
 };
