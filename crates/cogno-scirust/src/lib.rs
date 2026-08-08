@@ -19,7 +19,9 @@
 //! 13. a connected sequence InfoNCE retriever ([`sequence_retriever`]);
 //! 14. a connected sequence symbolic-satisfaction head ([`sequence_symbolic`]);
 //! 15. one shared sequence encoder parameterization for cognitive heads
-//!     ([`sequence_cognitive`]).
+//!     ([`sequence_cognitive`]);
+//! 16. one connected weighted multi-task backward pass over those shared heads
+//!     ([`sequence_cognitive_objective`]).
 //!
 //! ## Authority boundary (COGNO-1 V2 §3, §4, §8, §23)
 //!
@@ -81,6 +83,15 @@ pub mod optim;
 pub mod sequence;
 pub mod sequence_classifier;
 pub mod sequence_cognitive;
+#[cfg_attr(
+    test,
+    allow(
+        clippy::field_reassign_with_default,
+        clippy::too_many_arguments,
+        reason = "private joint-objective fixtures explicitly enumerate cognitive views and mutate one hostile default weight"
+    )
+)]
+pub mod sequence_cognitive_objective;
 pub mod sequence_retriever;
 pub mod sequence_scorer;
 pub mod sequence_symbolic;
@@ -114,6 +125,11 @@ pub use sequence_classifier::{
 pub use sequence_cognitive::{
     SequenceCognitiveConfig, SequenceCognitiveHeads, COGNITIVE_CONTRADICTION_CLASSES,
     MAX_SEQUENCE_COGNITIVE_PARAMETERS,
+};
+pub use sequence_cognitive_objective::{
+    CognitiveClassification, CognitiveContradiction, CognitivePreference, CognitiveRetrieval,
+    CognitiveSymbolic, SequenceCognitiveAdamW, SequenceCognitiveBatch, SequenceCognitiveGradients,
+    SequenceCognitiveLossReport, SequenceCognitiveLossWeights, SEQUENCE_COGNITIVE_JOINT_TAPE_NODES,
 };
 pub use sequence_retriever::{
     SequenceRetriever, SequenceRetrieverAdamW, SequenceRetrieverConfig, SequenceRetrieverGradients,
