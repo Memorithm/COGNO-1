@@ -54,18 +54,13 @@ pub(crate) fn prepare_model_persistence_root(root: &Path) -> Result<(), ModelPer
 /// Validate every reserved object currently present in the model persistence
 /// root. Unknown unrelated entries are ignored; malformed names inside the
 /// reserved generation/staging namespaces are rejected.
-pub(crate) fn validate_model_persistence_tree(
-    root: &Path,
-) -> Result<(), ModelPersistenceError> {
+pub(crate) fn validate_model_persistence_tree(root: &Path) -> Result<(), ModelPersistenceError> {
     let root_metadata = fs::symlink_metadata(root)?;
     require_directory_metadata(&root_metadata, "model persistence root")?;
 
     validate_regular_file_if_present(&root.join(MODEL_COMMIT_LOCK_FILE), "model commit lock")?;
     validate_regular_file_if_present(&root.join(MODEL_CURRENT_FILE), "MODEL_CURRENT")?;
-    validate_regular_file_if_present(
-        &root.join(MODEL_CURRENT_TMP_FILE),
-        ".MODEL_CURRENT.tmp",
-    )?;
+    validate_regular_file_if_present(&root.join(MODEL_CURRENT_TMP_FILE), ".MODEL_CURRENT.tmp")?;
 
     for entry in fs::read_dir(root)? {
         let entry = entry?;
@@ -77,14 +72,8 @@ pub(crate) fn validate_model_persistence_tree(
             let path = entry.path();
             let metadata = fs::symlink_metadata(&path)?;
             require_directory_metadata(&metadata, "model generation directory")?;
-            validate_regular_file(
-                &path.join(MODEL_ARTIFACT_FILE),
-                "persisted model artifact",
-            )?;
-            validate_regular_file(
-                &path.join(MODEL_MANIFEST_FILE),
-                "persisted model manifest",
-            )?;
+            validate_regular_file(&path.join(MODEL_ARTIFACT_FILE), "persisted model artifact")?;
+            validate_regular_file(&path.join(MODEL_MANIFEST_FILE), "persisted model manifest")?;
             validate_regular_file(
                 &path.join(GENERATION_MANIFEST_FILE),
                 "persisted generation manifest",
