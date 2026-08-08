@@ -279,7 +279,9 @@ impl SequenceSymbolicHead {
 
         for (rule, &bias_value) in self.head_bias.iter().enumerate() {
             let start = rule.checked_mul(hidden_dim).ok_or(SciRustError::Overflow)?;
-            let end = start.checked_add(hidden_dim).ok_or(SciRustError::Overflow)?;
+            let end = start
+                .checked_add(hidden_dim)
+                .ok_or(SciRustError::Overflow)?;
             let weights = tape.variable(Tensor::try_new(
                 Shape::try_new(&[1, hidden_dim])?,
                 self.head_weights[start..end].to_vec(),
