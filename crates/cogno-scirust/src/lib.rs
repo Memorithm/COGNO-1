@@ -14,7 +14,8 @@
 //! 8. a bounded, pre-allocated, fallible KV cache ([`kv`]);
 //! 9. bounded deterministic one-hidden-layer neural networks ([`nn`]);
 //! 10. a bounded trainable positional sequence encoder ([`sequence`]);
-//! 11. an end-to-end trainable sequence classifier ([`sequence_classifier`]).
+//! 11. an end-to-end trainable sequence classifier ([`sequence_classifier`]);
+//! 12. a connected sequence preference scorer ([`sequence_scorer`]).
 //!
 //! ## Authority boundary (COGNO-1 V2 §3, §4, §8, §23)
 //!
@@ -75,6 +76,7 @@ pub mod nn;
 pub mod optim;
 pub mod sequence;
 pub mod sequence_classifier;
+pub mod sequence_scorer;
 pub mod tensor;
 
 pub use backend::{BackendReport, Config, SciRustBackend};
@@ -98,5 +100,9 @@ pub use sequence_classifier::{
     SequenceClassifier, SequenceClassifierAdamW, SequenceClassifierConfig,
     SequenceClassifierGradients, MAX_SEQUENCE_CLASSES, MAX_SEQUENCE_CLASSIFIER_PARAMETERS,
     SEQUENCE_CLASSIFIER_TAPE_NODES, SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES,
+};
+pub use sequence_scorer::{
+    SequenceScorer, SequenceScorerAdamW, SequenceScorerConfig, SequenceScorerGradients,
+    MAX_SEQUENCE_SCORER_PARAMETERS, SEQUENCE_PAIRWISE_TAPE_NODES, SEQUENCE_SCORER_TAPE_NODES,
 };
 pub use tensor::{Shape, Tensor};
