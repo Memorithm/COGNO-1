@@ -12,7 +12,8 @@
 //! 6. a memory/context/latency cost measure ([`cost`]);
 //! 7. AdamW / AMSGrad optimizers with checked arithmetic ([`optim`]);
 //! 8. a bounded, pre-allocated, fallible KV cache ([`kv`]);
-//! 9. bounded deterministic one-hidden-layer neural networks ([`nn`]).
+//! 9. bounded deterministic one-hidden-layer neural networks ([`nn`]);
+//! 10. a bounded trainable positional sequence encoder ([`sequence`]).
 //!
 //! ## Authority boundary (COGNO-1 V2 §3, §4, §8, §23)
 //!
@@ -71,6 +72,7 @@ pub mod kv;
 pub mod losses;
 pub mod nn;
 pub mod optim;
+pub mod sequence;
 pub mod tensor;
 
 pub use backend::{BackendReport, Config, SciRustBackend};
@@ -84,4 +86,10 @@ pub use nn::{
     Mlp, MlpAdamW, MlpConfig, MlpGradients, MAX_MLP_DIM, MAX_MLP_PARAMETERS, MAX_MLP_TAPE_NODES,
 };
 pub use optim::{AdamW, AmsGrad, Optimizer};
+pub use sequence::{
+    SequenceEncoder, SequenceEncoderAdamW, SequenceEncoderConfig, SequenceEncoderGradients,
+    SequenceEncoderGraph, MAX_SEQUENCE_ACTIVATION_ELEMENTS, MAX_SEQUENCE_EMBEDDING_DIM,
+    MAX_SEQUENCE_HIDDEN_DIM, MAX_SEQUENCE_PARAMETERS, MAX_SEQUENCE_TOKENS, MAX_SEQUENCE_VOCAB,
+    SEQUENCE_ENCODER_TAPE_NODES, SEQUENCE_TRAINING_TAPE_NODES,
+};
 pub use tensor::{Shape, Tensor};
