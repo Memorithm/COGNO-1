@@ -34,8 +34,8 @@ pub const SEQUENCE_COGNITIVE_TENSOR_COUNT: u32 = 11;
 /// Fixed bytes before the first scalar tensor payload.
 pub const SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES: usize = 88;
 /// Maximum accepted V4 artifact size.
-pub const MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES: usize = SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES
-    + MAX_SEQUENCE_COGNITIVE_PARAMETERS * size_of::<f32>();
+pub const MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES: usize =
+    SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES + MAX_SEQUENCE_COGNITIVE_PARAMETERS * size_of::<f32>();
 
 /// Verified persisted state. Runtime activation is intentionally separate.
 #[derive(Clone, Debug, PartialEq)]
@@ -248,25 +248,62 @@ pub fn load_sequence_cognitive_artifact(
 
     let mut offset = SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES;
     let mut scalar_index = 0usize;
-    let token_embeddings = decode_f32s(bytes, &mut offset, layout.token_embeddings, &mut scalar_index)?;
-    let position_embeddings =
-        decode_f32s(bytes, &mut offset, layout.position_embeddings, &mut scalar_index)?;
+    let token_embeddings = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.token_embeddings,
+        &mut scalar_index,
+    )?;
+    let position_embeddings = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.position_embeddings,
+        &mut scalar_index,
+    )?;
     let mixing_weights = decode_f32s(bytes, &mut offset, layout.mixing_weights, &mut scalar_index)?;
-    let classification_weights =
-        decode_f32s(bytes, &mut offset, layout.classification_weights, &mut scalar_index)?;
-    let classification_bias =
-        decode_f32s(bytes, &mut offset, layout.classification_bias, &mut scalar_index)?;
-    let preference_weights =
-        decode_f32s(bytes, &mut offset, layout.preference_weights, &mut scalar_index)?;
-    let preference_bias =
-        decode_f32s(bytes, &mut offset, layout.preference_bias, &mut scalar_index)?;
-    let symbolic_weights =
-        decode_f32s(bytes, &mut offset, layout.symbolic_weights, &mut scalar_index)?;
+    let classification_weights = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.classification_weights,
+        &mut scalar_index,
+    )?;
+    let classification_bias = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.classification_bias,
+        &mut scalar_index,
+    )?;
+    let preference_weights = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.preference_weights,
+        &mut scalar_index,
+    )?;
+    let preference_bias = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.preference_bias,
+        &mut scalar_index,
+    )?;
+    let symbolic_weights = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.symbolic_weights,
+        &mut scalar_index,
+    )?;
     let symbolic_bias = decode_f32s(bytes, &mut offset, layout.symbolic_bias, &mut scalar_index)?;
-    let contradiction_weights =
-        decode_f32s(bytes, &mut offset, layout.contradiction_weights, &mut scalar_index)?;
-    let contradiction_bias =
-        decode_f32s(bytes, &mut offset, layout.contradiction_bias, &mut scalar_index)?;
+    let contradiction_weights = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.contradiction_weights,
+        &mut scalar_index,
+    )?;
+    let contradiction_bias = decode_f32s(
+        bytes,
+        &mut offset,
+        layout.contradiction_bias,
+        &mut scalar_index,
+    )?;
     if offset != bytes.len() || scalar_index != layout.parameters {
         return Err(SequenceCognitiveArtifactError::HeaderMismatch);
     }
@@ -385,10 +422,8 @@ fn validate_config(
     let mixing_weights = checked_mul(config.encoder.embedding_dim, config.encoder.hidden_dim)?;
     let classification_weights = checked_mul(config.encoder.hidden_dim, config.num_classes)?;
     let symbolic_weights = checked_mul(config.encoder.hidden_dim, config.num_rules)?;
-    let contradiction_weights = checked_mul(
-        config.encoder.hidden_dim,
-        COGNITIVE_CONTRADICTION_CLASSES,
-    )?;
+    let contradiction_weights =
+        checked_mul(config.encoder.hidden_dim, COGNITIVE_CONTRADICTION_CLASSES)?;
     Ok(CognitiveLayout {
         token_embeddings,
         position_embeddings,
