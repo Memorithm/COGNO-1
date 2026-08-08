@@ -7,11 +7,11 @@
 //! embedded in the format.
 
 use crate::neural::{
-    MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS, MAX_NEURAL_PARAMETERS, MAX_NEURAL_PAYLOAD_BYTES,
-    MIN_NEURAL_FEATURES, NeuralModel,
+    NeuralModel, MAX_NEURAL_FEATURES, MAX_NEURAL_LABELS, MAX_NEURAL_PARAMETERS,
+    MAX_NEURAL_PAYLOAD_BYTES, MIN_NEURAL_FEATURES,
 };
 use cogno_core::{
-    ArchitectureId, MANIFEST_SCHEMA_VERSION, ManifestError, ModelFamily, ModelManifest,
+    ArchitectureId, ManifestError, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION,
 };
 use sha2::{Digest, Sha256};
 use std::mem::size_of;
