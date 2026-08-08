@@ -56,6 +56,37 @@ pub struct MlpNeuralModel {
 }
 
 impl MlpNeuralModel {
+    pub(crate) fn from_verified_parts(
+        input_dim: usize,
+        hidden_dim: usize,
+        num_labels: u16,
+        max_payload_bytes: usize,
+        initialization_seed: u64,
+        input_hidden: Vec<f32>,
+        hidden_bias: Vec<f32>,
+        hidden_output: Vec<f32>,
+        output_bias: Vec<f32>,
+    ) -> Result<Self, NeuralModelError> {
+        validate_model_shape(input_dim, hidden_dim, num_labels, max_payload_bytes)?;
+        let network = Mlp::from_parts(
+            MlpConfig {
+                input_dim,
+                hidden_dim,
+                output_dim: usize::from(num_labels),
+                seed: initialization_seed,
+            },
+            input_hidden,
+            hidden_bias,
+            hidden_output,
+            output_bias,
+        )?;
+        Ok(Self {
+            network,
+            num_labels,
+            max_payload_bytes,
+        })
+    }
+
     #[must_use]
     pub const fn input_dim(&self) -> usize {
         self.network.config().input_dim
