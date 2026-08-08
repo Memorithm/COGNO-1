@@ -323,7 +323,7 @@ impl Mlp {
             .hidden_dim
             .checked_mul(self.config.output_dim)
             .ok_or(SciRustError::Overflow)?;
-        Ok([
+        [
             self.config.input_dim,
             self.config.hidden_dim,
             self.config.output_dim,
@@ -332,7 +332,7 @@ impl Mlp {
         ]
         .into_iter()
         .max()
-        .ok_or(SciRustError::Empty)?)
+        .ok_or(SciRustError::Empty)
     }
 }
 
