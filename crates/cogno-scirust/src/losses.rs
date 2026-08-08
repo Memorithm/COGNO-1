@@ -248,11 +248,7 @@ impl InfoNCE {
         let logsm = tape.log_softmax(scaled)?;
         let mut mask = vec![0.0f32; n];
         mask[positive_idx] = 1.0;
-        let mask = Tensor::try_new(
-            tape.value_of(logsm).shape.clone(),
-            mask,
-            self.max_elements,
-        )?;
+        let mask = Tensor::try_new(tape.value_of(logsm).shape.clone(), mask, self.max_elements)?;
         let mask = tape.variable(mask)?;
         let picked = tape.mul(mask, logsm)?;
         let picked_sum = tape.sum(picked)?;
