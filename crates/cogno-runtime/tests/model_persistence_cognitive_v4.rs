@@ -116,7 +116,10 @@ fn reviewed_cognitive_v4_commits_and_replays_exact_architecture() {
         HostModelPromotionAttestation::approve_reviewed_candidate_for_controlled_persistence(),
     )
     .expect("persist V4");
-    assert_eq!(commit.artifact_sha256, review.artifact().manifest.weights_hash);
+    assert_eq!(
+        commit.artifact_sha256,
+        review.artifact().manifest.weights_hash
+    );
 
     let selection = load_persisted_model_generation_selection(&root).expect("replay V4");
     assert_eq!(selection.selected_generation, 1);
@@ -130,7 +133,8 @@ fn reviewed_cognitive_v4_commits_and_replays_exact_architecture() {
             assert_eq!(state.max_retrieval_candidates(), 2);
             assert_eq!(
                 state.parameter_count(),
-                usize::try_from(review.artifact().manifest.parameter_count).expect("parameter count")
+                usize::try_from(review.artifact().manifest.parameter_count)
+                    .expect("parameter count")
             );
         }
         _ => panic!("expected persisted sequence cognitive V4 model"),
