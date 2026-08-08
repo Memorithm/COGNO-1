@@ -81,8 +81,7 @@ pub use error::{SciRustError, SciRustResult};
 pub use kv::{BoundedKvCache, KvCachePolicy, KvPushError};
 pub use losses::{InfoNCE, PairwiseLoss, SymbolicSatisfaction};
 pub use nn::{
-    MAX_MLP_DIM, MAX_MLP_PARAMETERS, MAX_MLP_TAPE_NODES, Mlp, MlpAdamW, MlpConfig,
-    MlpGradients,
+    Mlp, MlpAdamW, MlpConfig, MlpGradients, MAX_MLP_DIM, MAX_MLP_PARAMETERS, MAX_MLP_TAPE_NODES,
 };
 pub use optim::{AdamW, AmsGrad, Optimizer};
 pub use tensor::{Shape, Tensor};
