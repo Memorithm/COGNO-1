@@ -124,8 +124,7 @@ impl SequenceCognitiveHeads {
             hidden,
             &mut classification_state,
         )?;
-        let preference_weights =
-            deterministic_weights(hidden, hidden, &mut preference_state)?;
+        let preference_weights = deterministic_weights(hidden, hidden, &mut preference_state)?;
         let symbolic_weights = deterministic_weights(
             hidden
                 .checked_mul(config.num_rules)
@@ -327,8 +326,9 @@ impl SequenceCognitiveHeads {
             COGNITIVE_CONTRADICTION_CLASSES,
         )?;
         let probabilities = stable_softmax(&logits)?;
+        let probability_count = probabilities.len();
         probabilities.try_into().map_err(|_| SciRustError::Shape {
-            lhs: vec![probabilities.len()],
+            lhs: vec![probability_count],
             rhs: vec![COGNITIVE_CONTRADICTION_CLASSES],
         })
     }
@@ -541,15 +541,16 @@ mod tests {
     #[test]
     fn all_heads_share_one_bounded_encoder_parameterization() {
         let model = SequenceCognitiveHeads::try_new(config()).expect("model");
-        assert_eq!(model.parameter_count(), config().parameter_count().expect("count"));
+        assert_eq!(
+            model.parameter_count(),
+            config().parameter_count().expect("count")
+        );
         let classes = model
             .classification_probabilities(&[1, 2, 3])
             .expect("classes");
         assert_eq!(classes.len(), 3);
         assert!((classes.iter().copied().sum::<f32>() - 1.0).abs() < 1.0e-5);
-        let rules = model
-            .symbolic_satisfactions(&[1, 2, 3])
-            .expect("rules");
+        let rules = model.symbolic_satisfactions(&[1, 2, 3]).expect("rules");
         assert_eq!(rules.len(), 2);
         assert!(rules.iter().all(|value| (0.0..=1.0).contains(value)));
         let contradiction = model
