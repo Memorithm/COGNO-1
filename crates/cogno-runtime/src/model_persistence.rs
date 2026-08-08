@@ -13,7 +13,8 @@ use cogno_core::{ArchitectureId, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VER
 use cogno_model::{
     load_versioned_neural_artifact, EncodedNeuralArtifact, LoadedNeuralModel,
     MetaReviewedCandidate, VersionedNeuralArtifactError, MAX_MLP_NEURAL_ARTIFACT_BYTES,
-    MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
+    MAX_NEURAL_ARTIFACT_BYTES, MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES,
+    MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
 };
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -27,18 +28,17 @@ const MODEL_MANIFEST_FILE: &str = "model.manifest";
 const GENERATION_MANIFEST_FILE: &str = "generation.manifest";
 const MODEL_MANIFEST_BYTES: usize = 95;
 const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
-const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize =
-    if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_MLP_NEURAL_ARTIFACT_BYTES {
-        if MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
-            MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES
-        } else {
-            MAX_NEURAL_ARTIFACT_BYTES
-        }
-    } else if MAX_MLP_NEURAL_ARTIFACT_BYTES > MAX_NEURAL_ARTIFACT_BYTES {
-        MAX_MLP_NEURAL_ARTIFACT_BYTES
-    } else {
-        MAX_NEURAL_ARTIFACT_BYTES
-    };
+const MAX_PERSISTED_MODEL_ARTIFACT_BYTES: usize = max_artifact_bytes(
+    MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES,
+    max_artifact_bytes(
+        MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES,
+        max_artifact_bytes(MAX_MLP_NEURAL_ARTIFACT_BYTES, MAX_NEURAL_ARTIFACT_BYTES),
+    ),
+);
+
+const fn max_artifact_bytes(left: usize, right: usize) -> usize {
+    if left > right { left } else { right }
+}
 
 /// Explicit host authorization to persist one already-reviewed candidate.
 ///
