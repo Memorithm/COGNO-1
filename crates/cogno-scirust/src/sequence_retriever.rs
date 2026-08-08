@@ -11,7 +11,7 @@
 use crate::error::{ensure_finite, SciRustError, SciRustResult};
 use crate::{
     AdamW, InfoNCE, Optimizer, SequenceEncoder, SequenceEncoderConfig, SequenceEncoderGradients,
-    SequenceEncoderGraph, Tape, MAX_SEQUENCE_PARAMETERS, SEQUENCE_ENCODER_TAPE_NODES,
+    Tape, MAX_SEQUENCE_PARAMETERS, SEQUENCE_ENCODER_TAPE_NODES,
 };
 
 /// Maximum candidate memories/rules in one bounded InfoNCE comparison.
@@ -19,10 +19,10 @@ pub const MAX_SEQUENCE_RETRIEVAL_CANDIDATES: usize = 32;
 /// Maximum trainable scalars: the retriever owns only the shared encoder.
 pub const MAX_SEQUENCE_RETRIEVER_PARAMETERS: usize = MAX_SEQUENCE_PARAMETERS;
 /// Tape bound for query + max candidates + dot products + connected InfoNCE.
-pub const SEQUENCE_RETRIEVER_TAPE_NODES: usize =
-    SEQUENCE_ENCODER_TAPE_NODES * (MAX_SEQUENCE_RETRIEVAL_CANDIDATES + 1)
-        + 2 * MAX_SEQUENCE_RETRIEVAL_CANDIDATES
-        + 8;
+pub const SEQUENCE_RETRIEVER_TAPE_NODES: usize = SEQUENCE_ENCODER_TAPE_NODES
+    * (MAX_SEQUENCE_RETRIEVAL_CANDIDATES + 1)
+    + 2 * MAX_SEQUENCE_RETRIEVAL_CANDIDATES
+    + 8;
 
 /// Configuration of the shared sequence retriever.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -136,11 +136,7 @@ impl SequenceRetriever {
     }
 
     /// Deterministic dot-product similarities for inference/ranking.
-    pub fn similarities(
-        &self,
-        query: &[u16],
-        candidates: &[&[u16]],
-    ) -> SciRustResult<Vec<f32>> {
+    pub fn similarities(&self, query: &[u16], candidates: &[&[u16]]) -> SciRustResult<Vec<f32>> {
         self.validate_candidates(candidates.len())?;
         let query_embedding = self.encoder.forward(query)?;
         let mut similarities = Vec::with_capacity(candidates.len());
@@ -250,11 +246,7 @@ impl SequenceRetriever {
         Ok(())
     }
 
-    fn required_max_elements(
-        &self,
-        query: &[u16],
-        candidates: &[&[u16]],
-    ) -> SciRustResult<usize> {
+    fn required_max_elements(&self, query: &[u16], candidates: &[&[u16]]) -> SciRustResult<usize> {
         let mut required = self.encoder.required_max_elements(query.len())?;
         for candidate in candidates {
             required = required.max(self.encoder.required_max_elements(candidate.len())?);
@@ -448,11 +440,7 @@ mod tests {
             Err(SciRustError::Empty)
         ));
         assert!(matches!(
-            model.loss_and_gradients(
-                &[0],
-                &[positive.as_slice(), negative.as_slice()],
-                2,
-            ),
+            model.loss_and_gradients(&[0], &[positive.as_slice(), negative.as_slice()], 2,),
             Err(SciRustError::Index { idx: 2, len: 2 })
         ));
     }
