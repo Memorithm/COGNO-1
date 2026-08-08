@@ -37,13 +37,14 @@
 //!   a non-authoritative contradiction signal, and [`sequence_cognitive`] trains
 //!   these signals jointly over one shared byte-tokenized representation.
 //!   [`artifact`] keeps the canonical v1 hostile format, [`mlp_artifact`] defines
-//!   the separate v2 four-tensor format, and [`sequence_artifact`] defines the
-//!   v3 five-tensor sequence-classifier format bound to the deterministic byte
-//!   tokenizer. [`versioned_artifact`] dispatches without reinterpreting
-//!   versions. [`meta_review`] retains the historical v1 held-out proof while
-//!   [`sequence_meta_review`] provides the equivalent sealed v3 review.
-//!   [`meta_candidate`] exposes both proofs through one architecture-neutral
-//!   but externally non-implementable surface.
+//!   the separate v2 four-tensor format, [`sequence_artifact`] defines the v3
+//!   five-tensor sequence-classifier format, and [`sequence_cognitive_artifact`]
+//!   defines the V4 eleven-tensor shared-cognitive state. All byte-sequence
+//!   formats bind to the deterministic byte tokenizer. [`versioned_artifact`]
+//!   dispatches without reinterpreting versions. [`meta_review`] retains the
+//!   historical v1 held-out proof while [`sequence_meta_review`] provides the
+//!   equivalent sealed v3 review. [`meta_candidate`] exposes both proofs through
+//!   one architecture-neutral but externally non-implementable surface.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -70,6 +71,7 @@ pub mod neural;
 pub mod readonly;
 pub mod sequence_artifact;
 pub mod sequence_cognitive;
+pub mod sequence_cognitive_artifact;
 pub mod sequence_contradiction;
 pub mod sequence_meta_review;
 pub mod sequence_preference;
@@ -120,6 +122,13 @@ pub use sequence_cognitive::{
     SciRustSequenceCognitiveReadOnlyModel, SequenceCognitiveExample, SequenceCognitiveModel,
     SequenceCognitiveModelConfig, SequenceCognitiveModelError, SequenceCognitiveTrainer,
     SequenceCognitiveTrainingReport, MAX_SEQUENCE_COGNITIVE_EXAMPLES,
+};
+pub use sequence_cognitive_artifact::{
+    encode_sequence_cognitive_artifact, load_sequence_cognitive_artifact,
+    SequenceCognitiveArtifactError, SequenceCognitiveArtifactState,
+    MAX_SEQUENCE_COGNITIVE_ARTIFACT_BYTES, SEQUENCE_COGNITIVE_ARCHITECTURE_ID,
+    SEQUENCE_COGNITIVE_ARTIFACT_HEADER_BYTES, SEQUENCE_COGNITIVE_ARTIFACT_MAGIC,
+    SEQUENCE_COGNITIVE_ARTIFACT_VERSION, SEQUENCE_COGNITIVE_TENSOR_COUNT,
 };
 pub use sequence_contradiction::{
     SciRustSequenceContradictionReadOnlyModel, SequenceContradictionConfig,
