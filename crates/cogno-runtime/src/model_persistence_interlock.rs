@@ -28,6 +28,7 @@ const MODEL_ARTIFACT_FILE: &str = "model.bin";
 const MODEL_MANIFEST_FILE: &str = "model.manifest";
 const GENERATION_MANIFEST_FILE: &str = "generation.manifest";
 const MODEL_MANIFEST_BYTES: usize = 95;
+const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
 
 /// Commit the exact next reviewed model generation while holding the
 /// root-scoped native inter-process mutation lock.
@@ -54,6 +55,10 @@ pub fn commit_reviewed_model_generation(
             )));
         }
         Err(TryLockError::Error(error)) => return Err(ModelPersistenceError::Io(error)),
+    }
+
+    if generation == 0 || generation > MAX_PERSISTED_MODEL_GENERATIONS {
+        return model_persistence::commit_reviewed_model_generation(root, generation, review, host);
     }
 
     if let Some(commit) = try_resume_published_generation(root, generation, review)? {
@@ -106,10 +111,14 @@ fn try_resume_published_generation(
         validation_accuracy_bps: review.validation_accuracy_bps(),
         test_accuracy_bps: review.test_accuracy_bps(),
     };
+    let generation_manifest_bytes = generation_manifest.canonical_bytes();
+    if generation_manifest_bytes.len() != MODEL_GENERATION_MANIFEST_BYTES {
+        return Err(ModelPersistenceError::ArithmeticOverflow);
+    }
 
     verify_exact_file(
         &generation_path.join(GENERATION_MANIFEST_FILE),
-        &generation_manifest.canonical_bytes(),
+        &generation_manifest_bytes,
         "persisted generation manifest does not match reviewed recovery candidate",
     )?;
     verify_exact_file(
