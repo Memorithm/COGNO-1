@@ -6,11 +6,17 @@
 //! saturation, MVP tool refusal, secret-vs-pipeline).
 
 use cogno_core::{
-    CognoProposalView, DataClassification, EvidenceId, KvCachePolicy, MemoryBudget, ProposalAction,
-    QueueFullPolicy, RejectReason, Reward, RewardEngine, RewardParams, SafetyPolicy, TrustClass,
+    CognoProposalView, DataClassification, EvidenceId, EvidenceOrigin, InputOrigin, KvCachePolicy,
+    MemoryBudget, ProposalAction, QueueFullPolicy, RejectReason, Reward, RewardEngine,
+    RewardParams, SafetyPolicy, TrustClass,
+};
+use cogno_model::{
+    review_neural_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
+    MetaNeuralReviewPolicy, NeuralConfig, SplitKind,
 };
 use cogno_runtime::{
-    BoundedQueue, KvController, Pipeline, PipelineParams, Runtime, RuntimeConfig, ToolExecutor,
+    BoundedQueue, ControlledMetaActivationError, HostMetaAttestation, KvController,
+    MetaActivationAuthority, Pipeline, PipelineParams, Runtime, RuntimeConfig, ToolExecutor,
     ToolOutcome,
 };
 
@@ -32,6 +38,59 @@ fn cfg() -> RuntimeConfig {
         queue_capacity: 8,
         queue_policy: QueueFullPolicy::RejectNewest,
     }
+}
+
+fn eligible_meta_review() -> cogno_model::EligibleMetaModelReview {
+    let mut corpus = Corpus::with_seed(1);
+    for (label, payload) in [
+        (Label(0), b"alpha train one".as_slice()),
+        (Label(1), b"omega train one"),
+        (Label(0), b"alpha train two"),
+        (Label(1), b"omega train two"),
+        (Label(0), b"alpha validation"),
+        (Label(1), b"omega validation"),
+        (Label(0), b"alpha test"),
+        (Label(1), b"omega test"),
+    ] {
+        assert!(corpus.add(LabeledExample::new(
+            label,
+            payload.to_vec(),
+            InputOrigin::ExplicitUserInstruction,
+            EvidenceOrigin::ExplicitUserApproval,
+        )));
+    }
+    let train = CorpusSplit {
+        kind: SplitKind::Train,
+        indices: vec![0, 1, 2, 3],
+    };
+    let validation = CorpusSplit {
+        kind: SplitKind::Validation,
+        indices: vec![4, 5],
+    };
+    let test = CorpusSplit {
+        kind: SplitKind::Test,
+        indices: vec![6, 7],
+    };
+    let report = review_neural_model_for_meta(
+        &corpus,
+        &train,
+        &validation,
+        &test,
+        NeuralConfig {
+            input_dim: 64,
+            epochs: 64,
+            learning_rate: 0.02,
+            max_payload_bytes: 128,
+        },
+        MetaNeuralReviewPolicy {
+            minimum_validation_accuracy_bps: 5_000,
+            minimum_test_accuracy_bps: 5_000,
+            maximum_regression_bps: 5_000,
+            artifact_max_context_tokens: 2_048,
+        },
+    )
+    .expect("held-out review");
+    report.into_eligible().expect("eligible sealed review")
 }
 
 #[test]
@@ -327,30 +386,36 @@ fn runtime_run_pipeline_rejects_secret_and_audits() {
 }
 
 #[test]
-fn runtime_meta_objective_refuses_without_preconditions() {
-    let mut rt = Runtime::try_new(cfg()).unwrap();
-    let empty = cogno_core::MetaPreconditions::default();
-    assert_eq!(
-        rt.activate_meta(empty).unwrap_err(),
-        cogno_core::MetaObjectiveError::PreconditionMissing
-    );
-    assert!(rt.meta.is_quarantined());
-    assert!(!rt.meta.is_active());
+fn runtime_meta_objective_starts_disabled_without_review() {
+    let rt = Runtime::try_new(cfg()).unwrap();
+    assert!(!rt.meta_is_quarantined());
+    assert!(!rt.meta_is_active());
+    assert_eq!(rt.meta_candidate_digest(), None);
 }
 
 #[test]
-fn runtime_meta_objective_activates_with_all_preconditions() {
+fn runtime_meta_objective_activates_only_from_sealed_review_and_host_attestation() {
     let mut rt = Runtime::try_new(cfg()).unwrap();
-    let pre = cogno_core::MetaPreconditions {
-        scalar_engine_validated: true,
-        reference_policy_frozen: true,
-        log_probabilities_available: true,
-        backend_differentiable: true,
-        held_out_tests_in_place: true,
-        anti_poisoning_working: true,
-    };
-    assert!(rt.activate_meta(pre).is_ok());
-    assert!(rt.meta.is_active());
+    let review = eligible_meta_review();
+    let expected_digest = review.artifact().manifest.weights_hash;
+    let receipt = rt
+        .activate_meta_from_review(
+            &review,
+            HostMetaAttestation::attest_validated_scalar_engine_and_frozen_reference_policy(),
+        )
+        .expect("controlled activation");
+    assert!(rt.meta_is_active());
+    assert!(!rt.meta_is_quarantined());
+    assert_eq!(rt.meta_candidate_digest(), Some(expected_digest));
+    assert_eq!(receipt.candidate_artifact_sha256, expected_digest);
+    assert_eq!(receipt.authority, MetaActivationAuthority::ObjectiveOnly);
+    assert_eq!(
+        rt.activate_meta_from_review(
+            &review,
+            HostMetaAttestation::attest_validated_scalar_engine_and_frozen_reference_policy(),
+        ),
+        Err(ControlledMetaActivationError::AlreadyActive)
+    );
 }
 
 #[test]

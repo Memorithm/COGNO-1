@@ -10,6 +10,10 @@ use crate::admission::{Admission, AdmissionError};
 use crate::audit::Audit;
 use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
+use crate::meta_activation::{
+    prepare_controlled_meta_activation, ControlledMetaActivationError, HostMetaAttestation,
+    MetaActivationReceipt,
+};
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
 use crate::taste_controlled_restart::GenerationBoundControlledRestartTasteProfile;
@@ -20,6 +24,7 @@ use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfil
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
+use cogno_model::EligibleMetaModelReview;
 
 /// Runtime configuration (validated by the construction).
 #[derive(Clone, Debug)]
@@ -64,12 +69,13 @@ pub struct Runtime {
     pub tools: ToolExecutor,
     pub audit: Audit,
     pub pipeline: Pipeline,
-    pub meta: MetaObjective,
+    meta: MetaObjective,
     pub policy: SafetyPolicy,
     pub admissions: u64,
     pub rejections: u64,
     pub truncations: u64,
     taste_profile: Option<VerifiedTasteProfile>,
+    meta_candidate_digest: Option<[u8; 32]>,
 }
 
 /// A cheap queue payload used by the runtime (here: a placeholder ticket the
@@ -101,6 +107,7 @@ impl Runtime {
             rejections: 0,
             truncations: 0,
             taste_profile: None,
+            meta_candidate_digest: None,
         })
     }
 
@@ -245,13 +252,44 @@ impl Runtime {
         o
     }
 
-    /// Try to activate the §4 meta-objective. Fails closed until all
-    /// preconditions are attested.
-    pub fn activate_meta(
+    /// Activate the §4 meta-objective only from a sealed, held-out eligible
+    /// model review plus the two explicit host attestations.
+    ///
+    /// The candidate artifact is re-verified immediately before activation.
+    /// The runtime stores only its digest; this method does not install model
+    /// weights, persist state, enable tools, or grant any additional authority.
+    pub fn activate_meta_from_review(
         &mut self,
-        pre: cogno_core::MetaPreconditions,
-    ) -> Result<(), cogno_core::MetaObjectiveError> {
-        self.meta.activate(pre)
+        review: &EligibleMetaModelReview,
+        host: HostMetaAttestation,
+    ) -> Result<MetaActivationReceipt, ControlledMetaActivationError> {
+        if self.meta.is_active() {
+            return Err(ControlledMetaActivationError::AlreadyActive);
+        }
+        let (preconditions, receipt) = prepare_controlled_meta_activation(review, host)?;
+        self.meta
+            .activate(preconditions)
+            .map_err(ControlledMetaActivationError::Precondition)?;
+        self.meta_candidate_digest = Some(receipt.candidate_artifact_sha256);
+        Ok(receipt)
+    }
+
+    /// Whether the controlled Meta objective is active.
+    #[must_use]
+    pub const fn meta_is_active(&self) -> bool {
+        self.meta.is_active()
+    }
+
+    /// Whether the Meta objective remains quarantined.
+    #[must_use]
+    pub const fn meta_is_quarantined(&self) -> bool {
+        self.meta.is_quarantined()
+    }
+
+    /// Digest of the reviewed candidate to which active Meta state is bound.
+    #[must_use]
+    pub const fn meta_candidate_digest(&self) -> Option<[u8; 32]> {
+        self.meta_candidate_digest
     }
 
     /// CLI `doctor`/`phase` report.

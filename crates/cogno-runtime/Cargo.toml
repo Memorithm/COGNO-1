@@ -14,6 +14,7 @@ path = "src/lib.rs"
 
 [dependencies]
 cogno-core = { workspace = true }
+cogno-model = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"

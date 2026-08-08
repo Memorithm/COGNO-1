@@ -29,8 +29,8 @@
 //!   classifier trained through `cogno-scirust` autograd and AdamW, then frozen
 //!   behind a read-only model surface. [`artifact`] provides the canonical
 //!   non-executable, manifest-bound hostile artifact loader. [`meta_review`]
-//!   adds held-out regression review and model-side Phase-4 evidence without
-//!   granting promotion authority.
+//!   adds held-out regression review, model-side Phase-4 evidence and a private
+//!   digest-bound eligibility seal without granting promotion authority.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -59,10 +59,10 @@ pub use artifact::{
 };
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 pub use meta_review::{
-    review_neural_model_for_meta, HeldOutMetrics, MetaModelEvidence, MetaNeuralReviewError,
-    MetaNeuralReviewPolicy, MetaNeuralReviewReport, MetaPromotionAuthority, MetaPromotionBlocker,
-    MetaPromotionDisposition, DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS,
-    MAX_META_REVIEW_EXAMPLES,
+    review_neural_model_for_meta, EligibleMetaModelReview, HeldOutMetrics, MetaEligibilityError,
+    MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy, MetaNeuralReviewReport,
+    MetaPromotionAuthority, MetaPromotionBlocker, MetaPromotionDisposition,
+    DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS, MAX_META_REVIEW_EXAMPLES,
 };
 pub use neural::{
     NeuralConfig, NeuralModel, NeuralModelError, NeuralTrainer, NeuralTrainingReport,
