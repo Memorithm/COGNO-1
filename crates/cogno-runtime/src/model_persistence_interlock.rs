@@ -19,7 +19,7 @@ use crate::model_persistence_fs::{
     validate_model_persistence_tree,
 };
 use cogno_core::{ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION};
-use cogno_model::{load_neural_artifact, EligibleMetaModelReview};
+use cogno_model::{load_versioned_neural_artifact, MetaReviewedCandidate};
 use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{self, Read, Write};
@@ -44,7 +44,7 @@ const MAX_PERSISTED_MODEL_GENERATIONS: u64 = 4_096;
 pub fn commit_reviewed_model_generation(
     root: impl AsRef<Path>,
     generation: u64,
-    review: &EligibleMetaModelReview,
+    review: &impl MetaReviewedCandidate,
     host: model_persistence::HostModelPromotionAttestation,
 ) -> Result<ModelGenerationCommit, ModelPersistenceError> {
     let root = root.as_ref();
@@ -77,7 +77,7 @@ pub fn commit_reviewed_model_generation(
 fn try_resume_published_generation(
     root: &Path,
     generation: u64,
-    review: &EligibleMetaModelReview,
+    review: &impl MetaReviewedCandidate,
 ) -> Result<Option<ModelGenerationCommit>, ModelPersistenceError> {
     let generation_path = model_generation_path(root, generation);
     if !generation_path.is_dir() || current_points_to(root, generation)? {
@@ -106,7 +106,7 @@ fn try_resume_published_generation(
     };
 
     let artifact = review.artifact();
-    let _verified_model = load_neural_artifact(&artifact.manifest, &artifact.bytes)?;
+    let _verified_model = load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes)?;
     let model_manifest_bytes = encode_model_manifest(&artifact.manifest)?;
     let model_manifest_sha256: [u8; 32] = Sha256::digest(model_manifest_bytes).into();
     let generation_manifest = ModelGenerationManifest {
