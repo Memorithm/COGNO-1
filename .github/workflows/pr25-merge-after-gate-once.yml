@@ -1,0 +1,47 @@
+name: pr25-merge-after-gate-once
+
+on:
+  push:
+    branches:
+      - feat/controlled-model-generation-persistence
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/controlled-model-generation-persistence
+          fetch-depth: 0
+      - name: require exact green-gate proof in history
+        id: proof
+        run: |
+          if git log --format=%s | grep -Fxq "ci: finalize PR25 after exact green gates"; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: self-delete helper
+        run: |
+          rm -f .github/workflows/pr25-merge-after-gate-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "ci: remove PR25 merge helper"
+          git push origin HEAD:feat/controlled-model-generation-persistence
+      - name: refuse merge without gate proof
+        if: steps.proof.outputs.eligible != 'true'
+        run: exit 1
+      - name: merge exact validated branch head
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          HEAD_SHA="$(git rev-parse HEAD)"
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pulls/25/merge" \
+            -f merge_method=squash \
+            -f sha="$HEAD_SHA"
