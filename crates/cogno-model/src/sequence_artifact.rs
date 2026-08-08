@@ -8,9 +8,7 @@
 //! tensor allocation.
 
 use crate::artifact::EncodedNeuralArtifact;
-use crate::tokenizer::{
-    byte_tokenizer_hash, BYTE_TOKENIZER_VOCAB_SIZE, MAX_BYTE_TOKENIZER_TOKENS,
-};
+use crate::tokenizer::{byte_tokenizer_hash, BYTE_TOKENIZER_VOCAB_SIZE, MAX_BYTE_TOKENIZER_TOKENS};
 use cogno_core::{
     ArchitectureId, ManifestError, ModelFamily, ModelManifest, MANIFEST_SCHEMA_VERSION,
 };
@@ -33,8 +31,8 @@ pub const SEQUENCE_NEURAL_TENSOR_COUNT: u32 = 5;
 /// Fixed bytes before the first scalar tensor payload.
 pub const SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES: usize = 56;
 /// Maximum accepted v3 artifact size.
-pub const MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES: usize = SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES
-    + MAX_SEQUENCE_CLASSIFIER_PARAMETERS * size_of::<f32>();
+pub const MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES: usize =
+    SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES + MAX_SEQUENCE_CLASSIFIER_PARAMETERS * size_of::<f32>();
 
 /// Fail-closed errors for sequence artifact encoding and loading.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -225,18 +223,8 @@ pub fn load_sequence_neural_artifact(
         layout.position_embeddings,
         &mut scalar_index,
     )?;
-    let mixing_weights = decode_f32s(
-        bytes,
-        &mut offset,
-        layout.mixing_weights,
-        &mut scalar_index,
-    )?;
-    let head_weights = decode_f32s(
-        bytes,
-        &mut offset,
-        layout.head_weights,
-        &mut scalar_index,
-    )?;
+    let mixing_weights = decode_f32s(bytes, &mut offset, layout.mixing_weights, &mut scalar_index)?;
+    let head_weights = decode_f32s(bytes, &mut offset, layout.head_weights, &mut scalar_index)?;
     let head_bias = decode_f32s(bytes, &mut offset, layout.head_bias, &mut scalar_index)?;
     if offset != bytes.len() || scalar_index != layout.parameters {
         return Err(SequenceNeuralArtifactError::HeaderMismatch);
@@ -496,7 +484,10 @@ mod tests {
         let left = encode_sequence_neural_artifact(&model).expect("encode");
         let right = encode_sequence_neural_artifact(&model).expect("repeat encode");
         assert_eq!(left, right);
-        assert_eq!(left.manifest.architecture_id, SEQUENCE_NEURAL_ARCHITECTURE_ID);
+        assert_eq!(
+            left.manifest.architecture_id,
+            SEQUENCE_NEURAL_ARCHITECTURE_ID
+        );
         assert_eq!(left.manifest.tensor_count, SEQUENCE_NEURAL_TENSOR_COUNT);
         assert_eq!(left.manifest.tokenizer_hash, byte_tokenizer_hash());
         assert_eq!(left.manifest.max_context_tokens, 32);
