@@ -207,12 +207,14 @@ impl NeuralTrainer {
 
         let mut max_label = 0u16;
         for &index in &split.indices {
-            let example = corpus.examples.get(index).ok_or(
-                NeuralModelError::InvalidSplitIndex {
-                    index,
-                    corpus_len: corpus.examples.len(),
-                },
-            )?;
+            let example =
+                corpus
+                    .examples
+                    .get(index)
+                    .ok_or(NeuralModelError::InvalidSplitIndex {
+                        index,
+                        corpus_len: corpus.examples.len(),
+                    })?;
             max_label = max_label.max(example.label.0);
             if example.payload.len() > self.config.max_payload_bytes {
                 return Err(NeuralModelError::PayloadTooLarge {
@@ -249,12 +251,14 @@ impl NeuralTrainer {
 
         for _ in 0..self.config.epochs {
             for &index in &split.indices {
-                let example = corpus.examples.get(index).ok_or(
-                    NeuralModelError::InvalidSplitIndex {
-                        index,
-                        corpus_len: corpus.examples.len(),
-                    },
-                )?;
+                let example =
+                    corpus
+                        .examples
+                        .get(index)
+                        .ok_or(NeuralModelError::InvalidSplitIndex {
+                            index,
+                            corpus_len: corpus.examples.len(),
+                        })?;
                 let features = encode_payload(
                     self.config.input_dim,
                     self.config.max_payload_bytes,
@@ -372,7 +376,7 @@ impl SciRustReadOnlyModel {
     }
 
     #[must_use]
-    pub const fn explain(&self, label: Label) -> ReasonCode {
+    pub fn explain(&self, label: Label) -> ReasonCode {
         ReasonCode(label.0.min(u16::MAX - 1))
     }
 }
@@ -455,16 +459,9 @@ fn train_head(
         .to_vec();
 
     let mut tape = Tape::new(8, input_dim);
-    let feature_tensor = Tensor::try_new(
-        Shape::try_new(&[input_dim])?,
-        features.to_vec(),
-        input_dim,
-    )?;
-    let weight_tensor = Tensor::try_new(
-        Shape::try_new(&[input_dim])?,
-        class_weights,
-        input_dim,
-    )?;
+    let feature_tensor =
+        Tensor::try_new(Shape::try_new(&[input_dim])?, features.to_vec(), input_dim)?;
+    let weight_tensor = Tensor::try_new(Shape::try_new(&[input_dim])?, class_weights, input_dim)?;
     let feature_var = tape.variable(feature_tensor)?;
     let weight_var = tape.variable(weight_tensor)?;
     let product = tape.mul(feature_var, weight_var)?;
@@ -621,7 +618,10 @@ mod tests {
             .extract(b"aaaa-alpha", EvidenceId::from_u64(9))
             .expect("extract");
         assert!(cogno_core::validate_proposal(&proposal.as_view()).is_ok());
-        assert_eq!(backend.next_proposal(), Err(BackendError::ReadOnlyViolation));
+        assert_eq!(
+            backend.next_proposal(),
+            Err(BackendError::ReadOnlyViolation)
+        );
     }
 
     #[test]
