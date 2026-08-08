@@ -30,12 +30,12 @@
 //!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
 //!   read-only model surfaces. [`artifact`] keeps the canonical v1 hostile
 //!   format, [`mlp_artifact`] defines the separate v2 four-tensor format, and
-//!   [`versioned_artifact`] dispatches without reinterpreting either version.
-//!   [`tokenizer`] defines the deterministic byte-token contract for the future
-//!   sequence model without changing v1/v2 manifest hashes. Runtime persistence
-//!   remains a separate explicit migration. [`meta_review`] adds held-out
-//!   regression review, model-side Phase-4 evidence and a private digest-bound
-//!   eligibility seal without granting promotion authority.
+//!   [`sequence_artifact`] defines the v3 five-tensor sequence-classifier
+//!   format bound to the deterministic byte tokenizer. [`versioned_artifact`]
+//!   dispatches without reinterpreting versions. Runtime persistence remains a
+//!   separate explicit migration. [`meta_review`] adds held-out regression
+//!   review, model-side Phase-4 evidence and a private digest-bound eligibility
+//!   seal without granting promotion authority.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
 //!
@@ -59,6 +59,7 @@ pub mod mlp;
 pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
+pub mod sequence_artifact;
 pub mod simulator;
 pub mod tokenizer;
 pub mod training;
@@ -93,6 +94,12 @@ pub use neural::{
     MIN_NEURAL_FEATURES,
 };
 pub use readonly::{ReadOnlyCapability, ReadOnlyModel};
+pub use sequence_artifact::{
+    encode_sequence_neural_artifact, load_sequence_neural_artifact, SequenceNeuralArtifactError,
+    MAX_SEQUENCE_NEURAL_ARTIFACT_BYTES, SEQUENCE_NEURAL_ARCHITECTURE_ID,
+    SEQUENCE_NEURAL_ARTIFACT_HEADER_BYTES, SEQUENCE_NEURAL_ARTIFACT_MAGIC,
+    SEQUENCE_NEURAL_ARTIFACT_VERSION, SEQUENCE_NEURAL_TENSOR_COUNT,
+};
 pub use simulator::SimBackend;
 pub use tokenizer::{
     byte_tokenizer_hash, ByteTokenizer, ByteTokenizerError, BOS_TOKEN, BYTE_TOKENIZER_DESCRIPTOR,
