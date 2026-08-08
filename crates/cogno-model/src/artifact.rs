@@ -14,6 +14,7 @@ use cogno_core::{
     ArchitectureId, MANIFEST_SCHEMA_VERSION, ManifestError, ModelFamily, ModelManifest,
 };
 use sha2::{Digest, Sha256};
+use std::mem::size_of;
 
 /// Fixed binary prefix. The full header is exactly 32 bytes.
 pub const NEURAL_ARTIFACT_MAGIC: [u8; 8] = *b"COGNNA01";
@@ -151,7 +152,8 @@ pub fn load_neural_artifact(
     manifest: &ModelManifest,
     bytes: &[u8],
 ) -> Result<NeuralModel, NeuralArtifactError> {
-    let file_bytes = u64::try_from(bytes.len()).map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
+    let file_bytes =
+        u64::try_from(bytes.len()).map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
     manifest.validate(file_bytes)?;
     validate_manifest(manifest)?;
     if bytes.len() < NEURAL_ARTIFACT_HEADER_BYTES {
@@ -231,9 +233,9 @@ fn validate_manifest(manifest: &ModelManifest) -> Result<(), NeuralArtifactError
     if manifest.max_context_tokens == 0 || manifest.max_context_tokens > MAX_NEURAL_CONTEXT_TOKENS {
         return Err(NeuralArtifactError::InvalidContext);
     }
-    if manifest.parameter_count == 0
-        || manifest.parameter_count > u64::try_from(MAX_NEURAL_PARAMETERS).unwrap_or(u64::MAX)
-    {
+    let max_parameters = u64::try_from(MAX_NEURAL_PARAMETERS)
+        .map_err(|_| NeuralArtifactError::ArtifactSizeOverflow)?;
+    if manifest.parameter_count == 0 || manifest.parameter_count > max_parameters {
         return Err(NeuralArtifactError::InvalidParameterCount);
     }
     if manifest.tokenizer_hash != neural_tokenizer_hash() {
@@ -358,10 +360,10 @@ mod tests {
         let model = trained_model();
         let mut artifact = encode_neural_artifact(&model, 2_048).expect("encode");
         artifact.bytes[NEURAL_ARTIFACT_HEADER_BYTES] ^= 0x80;
-        assert_eq!(
+        assert!(matches!(
             load_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(NeuralArtifactError::WeightHashMismatch)
-        );
+        ));
     }
 
     #[test]
@@ -371,10 +373,10 @@ mod tests {
         artifact.bytes[NEURAL_ARTIFACT_HEADER_BYTES..NEURAL_ARTIFACT_HEADER_BYTES + 4]
             .copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
         artifact.manifest.weights_hash = sha256(&artifact.bytes[NEURAL_ARTIFACT_HEADER_BYTES..]);
-        assert_eq!(
+        assert!(matches!(
             load_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(NeuralArtifactError::NonFiniteWeight { index: 0 })
-        );
+        ));
     }
 
     #[test]
@@ -383,10 +385,10 @@ mod tests {
         let mut artifact = encode_neural_artifact(&model, 2_048).expect("encode");
         artifact.bytes[24..32].copy_from_slice(&u64::MAX.to_le_bytes());
         artifact.manifest.parameter_count = u64::MAX;
-        assert_eq!(
+        assert!(matches!(
             load_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(NeuralArtifactError::InvalidParameterCount)
-        );
+        ));
     }
 
     #[test]
@@ -396,22 +398,24 @@ mod tests {
 
         let mut tokenizer = artifact.manifest;
         tokenizer.tokenizer_hash[0] ^= 1;
-        assert_eq!(
+        assert!(matches!(
             load_neural_artifact(&tokenizer, &artifact.bytes),
             Err(NeuralArtifactError::InvalidTokenizerHash)
-        );
+        ));
 
         let mut architecture = artifact.manifest;
         architecture.architecture_id = ArchitectureId(0);
-        assert_eq!(
+        assert!(matches!(
             load_neural_artifact(&architecture, &artifact.bytes),
             Err(NeuralArtifactError::UnsupportedArchitecture)
-        );
+        ));
 
         let truncated = &artifact.bytes[..artifact.bytes.len() - 1];
         assert!(matches!(
             load_neural_artifact(&artifact.manifest, truncated),
-            Err(NeuralArtifactError::Manifest(ManifestError::FileSizeMismatch { .. }))
+            Err(NeuralArtifactError::Manifest(
+                ManifestError::FileSizeMismatch { .. }
+            ))
         ));
     }
 }
