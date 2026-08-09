@@ -66,6 +66,13 @@ struct PersistedSciRustValidationReceipt {
     payload_sha256: [u8; 32],
 }
 
+#[derive(Debug, Default)]
+struct ReplayedReceiptIndexes {
+    by_validation_id: BTreeMap<u64, PersistedSciRustValidationReceipt>,
+    by_message_id: BTreeMap<[u8; 32], u64>,
+    by_evidence_id: BTreeMap<u64, u64>,
+}
+
 /// Persistent replay firewall for authenticated SciRust deterministic evidence.
 #[derive(Debug)]
 pub struct PersistentSciRustValidationReceiptStore {
@@ -85,12 +92,12 @@ impl PersistentSciRustValidationReceiptStore {
             file.write_all(&MAGIC)?;
             file.sync_data()?;
         }
-        let (by_validation_id, by_message_id, by_evidence_id) = replay(&path)?;
+        let indexes = replay(&path)?;
         Ok(Self {
             path,
-            by_validation_id,
-            by_message_id,
-            by_evidence_id,
+            by_validation_id: indexes.by_validation_id,
+            by_message_id: indexes.by_message_id,
+            by_evidence_id: indexes.by_evidence_id,
         })
     }
 
@@ -105,9 +112,11 @@ impl PersistentSciRustValidationReceiptStore {
             return if *existing == record {
                 Ok(SciRustValidationReceiptAppendOutcome::Duplicate)
             } else {
-                Err(SciRustValidationReceiptStoreError::DuplicateValidationConflict(
-                    record.validation.validation_id,
-                ))
+                Err(
+                    SciRustValidationReceiptStoreError::DuplicateValidationConflict(
+                        record.validation.validation_id,
+                    ),
+                )
             };
         }
         if self.by_message_id.contains_key(&record.message_id_sha256) {
@@ -117,9 +126,11 @@ impl PersistentSciRustValidationReceiptStore {
             .by_evidence_id
             .contains_key(&record.validation.evidence_id)
         {
-            return Err(SciRustValidationReceiptStoreError::DuplicateEvidenceConflict(
-                record.validation.evidence_id,
-            ));
+            return Err(
+                SciRustValidationReceiptStoreError::DuplicateEvidenceConflict(
+                    record.validation.evidence_id,
+                ),
+            );
         }
 
         let encoded = encode(record);
@@ -128,8 +139,10 @@ impl PersistentSciRustValidationReceiptStore {
         file.sync_data()?;
         self.by_message_id
             .insert(record.message_id_sha256, record.validation.validation_id);
-        self.by_evidence_id
-            .insert(record.validation.evidence_id, record.validation.validation_id);
+        self.by_evidence_id.insert(
+            record.validation.evidence_id,
+            record.validation.validation_id,
+        );
         self.by_validation_id
             .insert(record.validation.validation_id, record);
         Ok(SciRustValidationReceiptAppendOutcome::Appended)
@@ -137,7 +150,9 @@ impl PersistentSciRustValidationReceiptStore {
 
     /// Persisted unique deterministic validations, ordered by validation id.
     pub fn validations(&self) -> impl Iterator<Item = StoredTasteValidation> + '_ {
-        self.by_validation_id.values().map(|record| record.validation)
+        self.by_validation_id
+            .values()
+            .map(|record| record.validation)
     }
 
     #[must_use]
@@ -169,10 +184,7 @@ fn persisted_record(
         validation,
         sender_kind: receipt.sender_kind(),
         message_id_sha256: hash_text(MESSAGE_ID_HASH_DOMAIN, receipt.message_id()),
-        conversation_id_sha256: hash_text(
-            CONVERSATION_ID_HASH_DOMAIN,
-            receipt.conversation_id(),
-        ),
+        conversation_id_sha256: hash_text(CONVERSATION_ID_HASH_DOMAIN, receipt.conversation_id()),
         sender_id_sha256: hash_sender(receipt.sender_kind(), receipt.sender_id()),
         execution_profile_sha256: receipt.execution_profile_sha256(),
         payload_sha256: receipt.payload_sha256(),
@@ -253,55 +265,52 @@ fn decode(
     Ok(record)
 }
 
-fn replay(
-    path: &Path,
-) -> Result<
-    (
-        BTreeMap<u64, PersistedSciRustValidationReceipt>,
-        BTreeMap<[u8; 32], u64>,
-        BTreeMap<u64, u64>,
-    ),
-    SciRustValidationReceiptStoreError,
-> {
+fn replay(path: &Path) -> Result<ReplayedReceiptIndexes, SciRustValidationReceiptStoreError> {
     let mut bytes = Vec::new();
     File::open(path)?.read_to_end(&mut bytes)?;
     if bytes.len() < MAGIC.len() || bytes[..MAGIC.len()] != MAGIC {
         return Err(SciRustValidationReceiptStoreError::InvalidMagic);
     }
 
-    let mut by_validation_id = BTreeMap::new();
-    let mut by_message_id = BTreeMap::new();
-    let mut by_evidence_id = BTreeMap::new();
+    let mut indexes = ReplayedReceiptIndexes::default();
     let mut offset = MAGIC.len();
     while offset < bytes.len() {
         if bytes.len() - offset < RECORD_BYTES {
             return Err(SciRustValidationReceiptStoreError::TruncatedRecord);
         }
         let record = decode(&bytes[offset..offset + RECORD_BYTES])?;
-        if let Some(existing) = by_validation_id.insert(record.validation.validation_id, record)
+        if let Some(existing) = indexes
+            .by_validation_id
+            .insert(record.validation.validation_id, record)
             && existing != record
         {
-            return Err(SciRustValidationReceiptStoreError::DuplicateValidationConflict(
-                record.validation.validation_id,
-            ));
+            return Err(
+                SciRustValidationReceiptStoreError::DuplicateValidationConflict(
+                    record.validation.validation_id,
+                ),
+            );
         }
-        if let Some(existing_validation_id) =
-            by_message_id.insert(record.message_id_sha256, record.validation.validation_id)
+        if let Some(existing_validation_id) = indexes
+            .by_message_id
+            .insert(record.message_id_sha256, record.validation.validation_id)
             && existing_validation_id != record.validation.validation_id
         {
             return Err(SciRustValidationReceiptStoreError::DuplicateMessageConflict);
         }
-        if let Some(existing_validation_id) =
-            by_evidence_id.insert(record.validation.evidence_id, record.validation.validation_id)
-            && existing_validation_id != record.validation.validation_id
+        if let Some(existing_validation_id) = indexes.by_evidence_id.insert(
+            record.validation.evidence_id,
+            record.validation.validation_id,
+        ) && existing_validation_id != record.validation.validation_id
         {
-            return Err(SciRustValidationReceiptStoreError::DuplicateEvidenceConflict(
-                record.validation.evidence_id,
-            ));
+            return Err(
+                SciRustValidationReceiptStoreError::DuplicateEvidenceConflict(
+                    record.validation.evidence_id,
+                ),
+            );
         }
         offset += RECORD_BYTES;
     }
-    Ok((by_validation_id, by_message_id, by_evidence_id))
+    Ok(indexes)
 }
 
 fn record_digest(encoded_without_digest: &[u8]) -> [u8; 32] {
@@ -345,12 +354,11 @@ const fn verdict_code(verdict: StoredValidationVerdict) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{HostAuthenticatedSciRustSender, bridge_authenticated_scirust_exchange};
-    use serde_json::{Value, json};
+    use crate::{bridge_authenticated_scirust_exchange, HostAuthenticatedSciRustSender};
+    use serde_json::{json, Value};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    const PROFILE_SHA256: &str =
-        "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
+    const PROFILE_SHA256: &str = "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
 
     fn root(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
