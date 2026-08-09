@@ -74,6 +74,9 @@ impl Runtime {
         &mut self,
         input: CognitiveObservationInput<'_>,
     ) -> Result<CognitiveObservation, CognitiveObservationError> {
+        if self.cognitive_model().is_none() {
+            return Err(CognitiveObservationError::NoModelInstalled);
+        }
         let generation = self
             .cognitive_model_generation()
             .ok_or(CognitiveObservationError::MissingGenerationBinding)?;
