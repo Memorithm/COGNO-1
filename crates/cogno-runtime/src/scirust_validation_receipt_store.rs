@@ -7,11 +7,11 @@
 //! validation and rejects conflicting reuse of validation, message, or evidence
 //! identities across restarts.
 
-use crate::scientific_exchange::{
-    ScientificExchangeDisposition, StoredTasteValidation, StoredValidationOrigin,
-    StoredValidationVerdict,
-};
+use crate::scientific_exchange::ScientificExchangeDisposition;
 use crate::scirust_runtime_bridge::{SciRustExchangeBridgeReceipt, SciRustRuntimeKind};
+use crate::taste_validation_store::{
+    StoredTasteValidation, StoredValidationOrigin, StoredValidationVerdict,
+};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
@@ -213,7 +213,9 @@ fn encode(record: PersistedSciRustValidationReceipt) -> Vec<u8> {
     output
 }
 
-fn decode(bytes: &[u8]) -> Result<PersistedSciRustValidationReceipt, SciRustValidationReceiptStoreError> {
+fn decode(
+    bytes: &[u8],
+) -> Result<PersistedSciRustValidationReceipt, SciRustValidationReceiptStoreError> {
     if bytes.len() != RECORD_BYTES || bytes[..MAGIC.len()] != MAGIC {
         return Err(SciRustValidationReceiptStoreError::InvalidMagic);
     }
@@ -343,9 +345,7 @@ const fn verdict_code(verdict: StoredValidationVerdict) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        HostAuthenticatedSciRustSender, bridge_authenticated_scirust_exchange,
-    };
+    use crate::{HostAuthenticatedSciRustSender, bridge_authenticated_scirust_exchange};
     use serde_json::{Value, json};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -363,7 +363,12 @@ mod tests {
         ))
     }
 
-    fn message(message_id: &str, observation_id: u64, evidence_id: u64, confidence_bps: u16) -> Vec<u8> {
+    fn message(
+        message_id: &str,
+        observation_id: u64,
+        evidence_id: u64,
+        confidence_bps: u16,
+    ) -> Vec<u8> {
         serde_json::to_vec(&json!({
             "schema_version": 1,
             "message_id": message_id,
@@ -497,8 +502,8 @@ mod tests {
 
     #[test]
     fn non_validation_receipt_is_not_persisted_as_promotion_evidence() {
-        let mut value: Value = serde_json::from_slice(&message("m-1", 17, 117, 8_500))
-            .expect("fixture");
+        let mut value: Value =
+            serde_json::from_slice(&message("m-1", 17, 117, 8_500)).expect("fixture");
         value["payload"]["verdict"] = json!("inconclusive");
         let encoded = serde_json::to_vec(&value).expect("encoded");
         let receipt = receipt(&encoded);
