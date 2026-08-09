@@ -44,6 +44,11 @@ pub struct RuntimeReport {
     pub phase: u8,
     pub tools_enabled: bool,
     pub meta_active: bool,
+    pub meta_candidate_digest: Option<[u8; 32]>,
+    pub cognitive_model_loaded: bool,
+    pub cognitive_model_generation: Option<u64>,
+    pub cognitive_model_artifact_sha256: Option<[u8; 32]>,
+    pub cognitive_model_meta_bound: bool,
     pub taste_profile_loaded: bool,
     pub active_taste_preferences: usize,
     pub admissions: u64,
@@ -342,12 +347,23 @@ impl Runtime {
         self.meta_candidate_digest
     }
 
-    /// CLI `doctor`/`phase` report.
+    /// CLI `doctor`/`phase` report, including the exact installed V4/Meta
+    /// binding state required by the cognitive soft-reward path.
     pub fn report(&self) -> RuntimeReport {
+        let cognitive_model_artifact_sha256 = self.cognitive_model_artifact_sha256();
+        let meta_candidate_digest = self.meta_candidate_digest;
+        let cognitive_model_meta_bound = self.meta.is_active()
+            && cognitive_model_artifact_sha256.is_some()
+            && cognitive_model_artifact_sha256 == meta_candidate_digest;
         RuntimeReport {
             phase: 0,
             tools_enabled: self.tools.tools_enabled,
             meta_active: self.meta.is_active(),
+            meta_candidate_digest,
+            cognitive_model_loaded: self.cognitive_model.is_some(),
+            cognitive_model_generation: self.cognitive_model_generation(),
+            cognitive_model_artifact_sha256,
+            cognitive_model_meta_bound,
             taste_profile_loaded: self.taste_profile.is_some(),
             active_taste_preferences: self.active_taste_preferences().len(),
             admissions: self.admissions,
