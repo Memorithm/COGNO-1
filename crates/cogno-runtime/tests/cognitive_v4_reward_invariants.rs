@@ -95,7 +95,10 @@ fn prepare_v4_runtime(root: &Path) -> (Runtime, [u8; 32]) {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(corpus.add(example(index, class, contradiction)));
+        assert!(corpus.add(
+            example(index, class, contradiction),
+            DataClassification::Internal,
+        ));
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,
