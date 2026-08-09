@@ -9,8 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const PROFILE_SHA256: &str =
-    "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
+const PROFILE_SHA256: &str = "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
 
 fn root() -> PathBuf {
     let nonce = SystemTime::now()
@@ -83,8 +82,8 @@ fn reopen_rejects_cross_origin_duplicate_evidence() {
         .expect("user validation");
     drop(validations);
 
-    let sender = HostAuthenticatedSciRustSender::deterministic_kernel("cuda-decode-local")
-        .expect("sender");
+    let sender =
+        HostAuthenticatedSciRustSender::deterministic_kernel("cuda-decode-local").expect("sender");
     let receipt = bridge_authenticated_scirust_exchange(&scirust_message(), &sender, "cogno")
         .expect("bridge");
     let mut receipts = PersistentSciRustValidationReceiptStore::open(&root).expect("receipts");
