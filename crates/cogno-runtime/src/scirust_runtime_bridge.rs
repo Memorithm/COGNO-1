@@ -172,8 +172,8 @@ pub fn bridge_authenticated_scirust_exchange(
         return Err(SciRustRuntimeBridgeError::RecipientMismatch);
     }
 
-    let message: WireAgentMessage =
-        serde_json::from_slice(encoded_message).map_err(|_| SciRustRuntimeBridgeError::MalformedJson)?;
+    let message: WireAgentMessage = serde_json::from_slice(encoded_message)
+        .map_err(|_| SciRustRuntimeBridgeError::MalformedJson)?;
     validate_envelope(&message, authenticated_sender, expected_cogno_recipient_id)?;
 
     let attestation = message
@@ -301,7 +301,8 @@ fn validate_execution_profile(
 fn canonical_execution_profile_bytes(
     profile: &WireExecutionProfile,
 ) -> Result<Vec<u8>, SciRustRuntimeBridgeError> {
-    let backend = backend_tag(&profile.backend).ok_or(SciRustRuntimeBridgeError::InvalidExecutionProfile)?;
+    let backend =
+        backend_tag(&profile.backend).ok_or(SciRustRuntimeBridgeError::InvalidExecutionProfile)?;
     let architecture = architecture_tag(&profile.architecture.family)
         .ok_or(SciRustRuntimeBridgeError::InvalidExecutionProfile)?;
     let reproducibility = reproducibility_tag(&profile.reproducibility)
@@ -333,7 +334,8 @@ fn canonical_execution_profile_bytes(
 }
 
 fn put_text(out: &mut Vec<u8>, value: &str) -> Result<(), SciRustRuntimeBridgeError> {
-    let len = u32::try_from(value.len()).map_err(|_| SciRustRuntimeBridgeError::InvalidExecutionProfile)?;
+    let len = u32::try_from(value.len())
+        .map_err(|_| SciRustRuntimeBridgeError::InvalidExecutionProfile)?;
     out.extend_from_slice(&len.to_le_bytes());
     out.extend_from_slice(value.as_bytes());
     Ok(())
@@ -569,7 +571,10 @@ mod tests {
 
         assert_eq!(receipt.message_id(), "m-runtime-1");
         assert_eq!(receipt.conversation_id(), "c-1");
-        assert_eq!(receipt.sender_kind(), SciRustRuntimeKind::DeterministicKernel);
+        assert_eq!(
+            receipt.sender_kind(),
+            SciRustRuntimeKind::DeterministicKernel
+        );
         assert_eq!(receipt.sender_id(), "cuda-decode-local");
         assert_eq!(
             receipt.execution_profile_sha256(),
@@ -627,7 +632,8 @@ mod tests {
     #[test]
     fn missing_attestation_fails_closed() {
         let mut value: Value = serde_json::from_slice(&valid_message()).expect("fixture");
-        value.as_object_mut()
+        value
+            .as_object_mut()
             .expect("object")
             .remove("execution_attestation");
         let encoded = serde_json::to_vec(&value).expect("tampered json");
