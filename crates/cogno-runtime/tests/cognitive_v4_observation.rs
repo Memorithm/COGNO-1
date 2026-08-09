@@ -91,14 +91,12 @@ fn install_v4(runtime: &mut Runtime, root: &PathBuf) -> [u8; 32] {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(
-            corpus
-                .add(
-                    example(index, class, contradiction),
-                    DataClassification::Internal,
-                )
-                .expect("classified V4 review data")
-        );
+        assert!(corpus
+            .add(
+                example(index, class, contradiction),
+                DataClassification::Internal,
+            )
+            .expect("classified V4 review data"));
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,
