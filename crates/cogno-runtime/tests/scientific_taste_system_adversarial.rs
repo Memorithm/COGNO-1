@@ -2,13 +2,12 @@
 
 use cogno_runtime::{
     classify_attested_scientific_exchange, classify_scientific_exchange, commit_taste_cycle,
-    evaluate_taste_benchmark, orchestrate_scientific_taste_cycle,
-    HostSciRustExecutionAttestation, OrchestratedTasteCandidate, OrchestratedTasteState,
-    ScientificExchangeDisposition, ScientificExchangeOrigin, ScientificExchangeRecord,
-    ScientificExchangeVerdict, StoredTasteValidation, StoredValidationOrigin,
-    StoredValidationVerdict, TasteBenchmarkCase, TasteCycleArtifacts, TasteCycleError,
-    TasteGenerationChain, TasteGenerationError, TasteGenerationManifest, TasteHistoryObservation,
-    TasteLongitudinalTracker, GENESIS_DIGEST,
+    evaluate_taste_benchmark, orchestrate_scientific_taste_cycle, HostSciRustExecutionAttestation,
+    OrchestratedTasteCandidate, OrchestratedTasteState, ScientificExchangeDisposition,
+    ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
+    StoredTasteValidation, StoredValidationOrigin, StoredValidationVerdict, TasteBenchmarkCase,
+    TasteCycleArtifacts, TasteCycleError, TasteGenerationChain, TasteGenerationError,
+    TasteGenerationManifest, TasteHistoryObservation, TasteLongitudinalTracker, GENESIS_DIGEST,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -70,8 +69,7 @@ fn autonomous_cycle_remains_model_quarantined_and_measurably_non_regressive() {
         Ok(ScientificExchangeDisposition::QuarantinedModelObservation)
     );
 
-    let host_attestation =
-        HostSciRustExecutionAttestation::attest_verified_execution([0x42; 32]);
+    let host_attestation = HostSciRustExecutionAttestation::attest_verified_execution([0x42; 32]);
     let mut validations = Vec::<StoredTasteValidation>::new();
     for (observation_id, confidence_bps) in [(2, 8_000), (3, 9_000)] {
         let record = ScientificExchangeRecord {
