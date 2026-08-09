@@ -1,12 +1,9 @@
 //! Deterministic bounded soft adjustment derived from a sealed post-hard V4 context.
 //!
 //! The host supplies explicit task semantics. The model never decides what a
-//! class, rule, contradiction direction or retrieval slot *means*. Public
+//! class, rule, contradiction direction or retrieval slot means. Public
 //! derivation is available only from [`crate::HardGatedCognitiveContext`], so a
 //! raw model observation cannot be converted into a decision influence.
-//!
-//! This module still does not mutate `Reward`; it produces an auditable bounded
-//! scalar delta for the next integration step.
 
 use crate::{
     CognitiveObservation, CognitivePreferenceRelation, HardGatedCognitiveContext,
@@ -41,7 +38,7 @@ impl Default for CognitiveSoftWeights {
     }
 }
 
-/// Host-owned semantics for the current comparison/decision context.
+/// Host-owned semantics for the current comparison or decision context.
 ///
 /// Every target is optional, but a task with a non-zero weight must have its
 /// corresponding target. Symbolic targets must match the observed rule vector.
@@ -70,26 +67,94 @@ impl Default for CognitiveSoftAdjustmentPolicy {
     }
 }
 
-/// Auditable integer-only result. Alignment fields are each in
-/// `[-10_000, 10_000]`; `delta` is bounded by `max_abs_delta`.
+/// Auditable integer-only result. It can only be constructed by the sealed
+/// post-hard context. Alignment fields are each in `[-10_000, 10_000]` and the
+/// delta is bounded by `max_abs_delta`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CognitiveSoftAdjustment {
-    pub base_score: CandidateScore,
-    pub model_generation: u64,
-    pub model_artifact_sha256: [u8; 32],
-    pub meta_candidate_digest: [u8; 32],
-    pub classification_alignment_bps: Option<i16>,
-    pub preference_alignment_bps: Option<i16>,
-    pub symbolic_alignment_bps: Option<i16>,
-    pub contradiction_alignment_bps: Option<i16>,
-    pub retrieval_alignment_bps: Option<i16>,
-    pub weighted_alignment_bps: i16,
-    pub delta: i64,
-    pub max_abs_delta: u16,
-    pub authoritative: bool,
+    base_score: CandidateScore,
+    model_generation: u64,
+    model_artifact_sha256: [u8; 32],
+    meta_candidate_digest: [u8; 32],
+    classification_alignment_bps: Option<i16>,
+    preference_alignment_bps: Option<i16>,
+    symbolic_alignment_bps: Option<i16>,
+    contradiction_alignment_bps: Option<i16>,
+    retrieval_alignment_bps: Option<i16>,
+    weighted_alignment_bps: i16,
+    delta: i64,
+    max_abs_delta: u16,
+    authoritative: bool,
 }
 
-/// Fail-closed policy/target validation errors.
+impl CognitiveSoftAdjustment {
+    #[must_use]
+    pub const fn base_score(&self) -> CandidateScore {
+        self.base_score
+    }
+
+    #[must_use]
+    pub const fn model_generation(&self) -> u64 {
+        self.model_generation
+    }
+
+    #[must_use]
+    pub const fn model_artifact_sha256(&self) -> [u8; 32] {
+        self.model_artifact_sha256
+    }
+
+    #[must_use]
+    pub const fn meta_candidate_digest(&self) -> [u8; 32] {
+        self.meta_candidate_digest
+    }
+
+    #[must_use]
+    pub const fn classification_alignment_bps(&self) -> Option<i16> {
+        self.classification_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn preference_alignment_bps(&self) -> Option<i16> {
+        self.preference_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn symbolic_alignment_bps(&self) -> Option<i16> {
+        self.symbolic_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn contradiction_alignment_bps(&self) -> Option<i16> {
+        self.contradiction_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn retrieval_alignment_bps(&self) -> Option<i16> {
+        self.retrieval_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn weighted_alignment_bps(&self) -> i16 {
+        self.weighted_alignment_bps
+    }
+
+    #[must_use]
+    pub const fn delta(&self) -> i64 {
+        self.delta
+    }
+
+    #[must_use]
+    pub const fn max_abs_delta(&self) -> u16 {
+        self.max_abs_delta
+    }
+
+    #[must_use]
+    pub const fn authoritative(&self) -> bool {
+        self.authoritative
+    }
+}
+
+/// Fail-closed policy or target validation errors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CognitiveSoftAdjustmentError {
     MaxDeltaOutOfRange,
@@ -213,9 +278,7 @@ fn derive_adjustment(
         let target = targets
             .retrieval_index
             .ok_or(CognitiveSoftAdjustmentError::MissingRetrievalTarget)?;
-        if target >= observation.classification_probabilities_bps.len().max(1)
-            && target != observation.retrieval_selected_index
-        {
+        if target >= observation.retrieval_candidate_count {
             return Err(CognitiveSoftAdjustmentError::RetrievalTargetOutOfRange);
         }
         Some(if observation.retrieval_selected_index == target {
@@ -236,8 +299,11 @@ fn derive_adjustment(
     let mut total_weight = 0i64;
     for (alignment, weight) in components {
         if let Some(alignment) = alignment {
+            let weighted = i64::from(alignment)
+                .checked_mul(i64::from(weight))
+                .ok_or(CognitiveSoftAdjustmentError::ArithmeticOverflow)?;
             weighted_sum = weighted_sum
-                .checked_add(i64::from(alignment) * i64::from(weight))
+                .checked_add(weighted)
                 .ok_or(CognitiveSoftAdjustmentError::ArithmeticOverflow)?;
             total_weight = total_weight
                 .checked_add(i64::from(weight))
@@ -335,7 +401,6 @@ fn to_alignment_i16(value: i64) -> Result<i16, CognitiveSoftAdjustmentError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cogno_core::{ProposalId, Reward};
 
     fn observation() -> CognitiveObservation {
         CognitiveObservation {
@@ -348,15 +413,13 @@ mod tests {
             symbolic_satisfaction_bps: vec![9_000, 2_000],
             contradiction_bps: 1_000,
             retrieval_selected_index: 0,
+            retrieval_candidate_count: 2,
             authoritative: false,
         }
     }
 
     fn base_score() -> CandidateScore {
-        CandidateScore {
-            proposal_id: ProposalId(3),
-            reward: Reward::new(42),
-        }
+        CandidateScore::new(42)
     }
 
     #[test]
@@ -378,11 +441,41 @@ mod tests {
             },
         )
         .expect("adjustment");
-        assert!(adjustment.delta > 0);
-        assert!(adjustment.delta <= 25);
-        assert_eq!(adjustment.model_artifact_sha256, [7; 32]);
-        assert_eq!(adjustment.meta_candidate_digest, [7; 32]);
-        assert!(!adjustment.authoritative);
+        assert!(adjustment.delta() > 0);
+        assert!(adjustment.delta() <= 25);
+        assert_eq!(adjustment.model_artifact_sha256(), [7; 32]);
+        assert_eq!(adjustment.meta_candidate_digest(), [7; 32]);
+        assert!(!adjustment.authoritative());
+    }
+
+    #[test]
+    fn retrieval_target_must_be_inside_observed_candidate_set() {
+        let result = derive_adjustment(
+            base_score(),
+            &observation(),
+            [7; 32],
+            CognitiveSoftAdjustmentPolicy {
+                weights: CognitiveSoftWeights {
+                    classification: 0,
+                    preference: 0,
+                    symbolic: 0,
+                    contradiction: 0,
+                    retrieval: 1,
+                },
+                max_abs_delta: 25,
+            },
+            CognitiveSoftTargets {
+                classification_class: None,
+                preference: None,
+                symbolic_satisfied: None,
+                contradiction: None,
+                retrieval_index: Some(2),
+            },
+        );
+        assert_eq!(
+            result,
+            Err(CognitiveSoftAdjustmentError::RetrievalTargetOutOfRange)
+        );
     }
 
     #[test]
