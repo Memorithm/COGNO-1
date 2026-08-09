@@ -24,7 +24,6 @@ impl SequenceCognitiveArtifactState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{
         encode_sequence_cognitive_artifact, load_sequence_cognitive_artifact,
         BYTE_TOKENIZER_VOCAB_SIZE,
