@@ -57,6 +57,7 @@ pub mod queue;
 pub mod runtime;
 pub mod scientific_exchange;
 pub mod scirust_runtime_bridge;
+pub mod scirust_validation_receipt_store;
 pub mod taste_autonomy;
 pub mod taste_benchmark;
 pub mod taste_campaign;
@@ -133,6 +134,10 @@ pub use scirust_runtime_bridge::{
     bridge_authenticated_scirust_exchange, HostAuthenticatedSciRustSender,
     SciRustExchangeBridgeReceipt, SciRustRuntimeBridgeError, SciRustRuntimeKind,
     MAX_SCIRUST_RUNTIME_MESSAGE_BYTES,
+};
+pub use scirust_validation_receipt_store::{
+    PersistentSciRustValidationReceiptStore, SciRustValidationReceiptAppendOutcome,
+    SciRustValidationReceiptStoreError,
 };
 pub use taste_autonomy::{
     run_autonomous_scientific_taste, AutonomousTasteError, AutonomousTasteReport,
