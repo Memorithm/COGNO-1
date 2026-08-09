@@ -1,8 +1,9 @@
 //! System-level adversarial coverage for the autonomous scientific-taste path.
 
 use cogno_runtime::{
-    classify_scientific_exchange, commit_taste_cycle, evaluate_taste_benchmark,
-    orchestrate_scientific_taste_cycle, OrchestratedTasteCandidate, OrchestratedTasteState,
+    classify_attested_scientific_exchange, classify_scientific_exchange, commit_taste_cycle,
+    evaluate_taste_benchmark, orchestrate_scientific_taste_cycle,
+    HostSciRustExecutionAttestation, OrchestratedTasteCandidate, OrchestratedTasteState,
     ScientificExchangeDisposition, ScientificExchangeOrigin, ScientificExchangeRecord,
     ScientificExchangeVerdict, StoredTasteValidation, StoredValidationOrigin,
     StoredValidationVerdict, TasteBenchmarkCase, TasteCycleArtifacts, TasteCycleError,
@@ -69,6 +70,8 @@ fn autonomous_cycle_remains_model_quarantined_and_measurably_non_regressive() {
         Ok(ScientificExchangeDisposition::QuarantinedModelObservation)
     );
 
+    let host_attestation =
+        HostSciRustExecutionAttestation::attest_verified_execution([0x42; 32]);
     let mut validations = Vec::<StoredTasteValidation>::new();
     for (observation_id, confidence_bps) in [(2, 8_000), (3, 9_000)] {
         let record = ScientificExchangeRecord {
@@ -80,7 +83,13 @@ fn autonomous_cycle_remains_model_quarantined_and_measurably_non_regressive() {
             confidence_bps,
             canonical_payload: format!("deterministic-evaluation-{observation_id}").into_bytes(),
         };
-        match classify_scientific_exchange(&record).expect("exchange") {
+        assert_eq!(
+            classify_scientific_exchange(&record),
+            Ok(ScientificExchangeDisposition::RuntimeObservationOnly)
+        );
+        match classify_attested_scientific_exchange(&record, host_attestation)
+            .expect("attested exchange")
+        {
             ScientificExchangeDisposition::Validation(validation) => validations.push(validation),
             other => panic!("unexpected disposition: {other:?}"),
         }
