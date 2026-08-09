@@ -171,7 +171,7 @@ fn validate_data_classifications(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::SequenceCognitiveExample;
+    use crate::{SequenceCognitiveExample, SplitKind};
     use cogno_core::{EvidenceOrigin, InputOrigin};
 
     fn example(index: u8) -> SequenceCognitiveReviewExample {
@@ -212,6 +212,35 @@ mod tests {
         assert!(corpus.add(example(1), DataClassification::Secret));
         assert_eq!(
             validate_data_classifications(&corpus),
+            Err(SequenceCognitiveDataReviewError::SecretTrainingData { index: 0 })
+        );
+    }
+
+    #[test]
+    fn public_review_rejects_secret_before_inner_validation() {
+        let mut corpus = SequenceCognitiveReviewCorpus::with_seed(5);
+        assert!(corpus.add(example(1), DataClassification::Secret));
+        let train = CorpusSplit {
+            kind: SplitKind::Train,
+            indices: Vec::new(),
+        };
+        let validation = CorpusSplit {
+            kind: SplitKind::Validation,
+            indices: Vec::new(),
+        };
+        let test = CorpusSplit {
+            kind: SplitKind::Test,
+            indices: Vec::new(),
+        };
+        assert_eq!(
+            review_sequence_cognitive_model_for_meta(
+                &corpus,
+                &train,
+                &validation,
+                &test,
+                SequenceCognitiveMetaReviewConfig::default(),
+                SequenceCognitiveMetaReviewPolicy::default(),
+            ),
             Err(SequenceCognitiveDataReviewError::SecretTrainingData { index: 0 })
         );
     }
