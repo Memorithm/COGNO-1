@@ -74,9 +74,6 @@ impl Runtime {
         &mut self,
         input: CognitiveObservationInput<'_>,
     ) -> Result<CognitiveObservation, CognitiveObservationError> {
-        let model = self
-            .cognitive_model()
-            .ok_or(CognitiveObservationError::NoModelInstalled)?;
         let generation = self
             .cognitive_model_generation()
             .ok_or(CognitiveObservationError::MissingGenerationBinding)?;
@@ -84,47 +81,69 @@ impl Runtime {
             .cognitive_model_artifact_sha256()
             .ok_or(CognitiveObservationError::MissingArtifactBinding)?;
 
-        let probabilities = model
-            .model
-            .classification_probabilities(input.classification_payload)?;
-        let mut probabilities_bps = Vec::with_capacity(probabilities.len());
-        for probability in &probabilities {
-            probabilities_bps.push(probability_to_bps(*probability)?);
-        }
-        let (classification_class, classification_confidence_bps) = probabilities
-            .iter()
-            .enumerate()
-            .max_by(|left, right| {
-                left.1
-                    .total_cmp(right.1)
-                    .then_with(|| right.0.cmp(&left.0))
-            })
-            .map(|(index, probability)| {
-                Ok((index, probability_to_bps(*probability)?))
-            })
-            .transpose()?
-            .ok_or(CognitiveObservationError::InvalidProbability)?;
+        let (
+            classification_class,
+            classification_confidence_bps,
+            probabilities_bps,
+            preference,
+            symbolic_satisfaction_bps,
+            contradiction_bps,
+            retrieval_selected_index,
+        ) = {
+            let model = self
+                .cognitive_model()
+                .ok_or(CognitiveObservationError::NoModelInstalled)?;
+            let probabilities = model
+                .model
+                .classification_probabilities(input.classification_payload)?;
+            let first_probability = probabilities
+                .first()
+                .copied()
+                .ok_or(CognitiveObservationError::InvalidProbability)?;
+            let mut classification_class = 0usize;
+            let mut best_probability = first_probability;
+            for (index, &probability) in probabilities.iter().enumerate().skip(1) {
+                if probability > best_probability {
+                    classification_class = index;
+                    best_probability = probability;
+                }
+            }
+            let classification_confidence_bps = probability_to_bps(best_probability)?;
+            let mut probabilities_bps = Vec::with_capacity(probabilities.len());
+            for probability in probabilities {
+                probabilities_bps.push(probability_to_bps(probability)?);
+            }
 
-        let preference = match model
-            .model
-            .preference_compare(input.preference_left, input.preference_right)?
-        {
-            Ordering::Greater => CognitivePreferenceRelation::Left,
-            Ordering::Equal => CognitivePreferenceRelation::Tie,
-            Ordering::Less => CognitivePreferenceRelation::Right,
+            let preference = match model
+                .model
+                .preference_compare(input.preference_left, input.preference_right)?
+            {
+                Ordering::Greater => CognitivePreferenceRelation::Left,
+                Ordering::Equal => CognitivePreferenceRelation::Tie,
+                Ordering::Less => CognitivePreferenceRelation::Right,
+            };
+            let symbolic = model.model.symbolic_satisfactions(input.symbolic_payload)?;
+            let mut symbolic_satisfaction_bps = Vec::with_capacity(symbolic.len());
+            for probability in symbolic {
+                symbolic_satisfaction_bps.push(probability_to_bps(probability)?);
+            }
+            let contradiction_bps = probability_to_bps(model.model.contradiction_probability(
+                input.contradiction_left,
+                input.contradiction_right,
+            )?)?;
+            let retrieval_selected_index = model
+                .model
+                .retrieval_select_best(input.retrieval_query, input.retrieval_candidates)?;
+            (
+                classification_class,
+                classification_confidence_bps,
+                probabilities_bps,
+                preference,
+                symbolic_satisfaction_bps,
+                contradiction_bps,
+                retrieval_selected_index,
+            )
         };
-        let symbolic = model.model.symbolic_satisfactions(input.symbolic_payload)?;
-        let mut symbolic_satisfaction_bps = Vec::with_capacity(symbolic.len());
-        for probability in symbolic {
-            symbolic_satisfaction_bps.push(probability_to_bps(probability)?);
-        }
-        let contradiction_bps = probability_to_bps(model.model.contradiction_probability(
-            input.contradiction_left,
-            input.contradiction_right,
-        )?)?;
-        let retrieval_selected_index = model
-            .model
-            .retrieval_select_best(input.retrieval_query, input.retrieval_candidates)?;
 
         let observation = CognitiveObservation {
             model_generation: generation,
