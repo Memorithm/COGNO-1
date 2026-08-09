@@ -10,9 +10,9 @@ use cogno_model::{
 };
 use cogno_runtime::{
     commit_reviewed_model_generation, load_persisted_model_generation_selection,
-    CognitiveObservationInput, CognitivePostHardGateError, CognitivePreferenceRelation,
-    CognitiveRewardError, CognitiveSoftAdjustmentPolicy, CognitiveSoftTargets,
-    GenerationBoundControlledRestartCognitiveModel, HostMetaAttestation,
+    CognitiveDecisionCandidate, CognitiveObservationInput, CognitivePostHardGateError,
+    CognitivePreferenceRelation, CognitiveRewardError, CognitiveSoftAdjustmentPolicy,
+    CognitiveSoftTargets, GenerationBoundControlledRestartCognitiveModel, HostMetaAttestation,
     HostModelPromotionAttestation, HostModelRestartActivationAttestation, PipelineParams, Runtime,
     RuntimeConfig,
 };
@@ -315,6 +315,98 @@ fn eligible_candidate_gets_checked_bounded_generation_bound_reward() {
             .records
             .iter()
             .filter(|record| record.cognitive_reward.is_some())
+            .count(),
+        1
+    );
+
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn real_sealed_rewards_are_compared_and_audited_deterministically() {
+    let root = root("decision");
+    let (mut runtime, digest) = prepare_v4_runtime(&root);
+    let evidence = [EvidenceId::from_u64(1)];
+    let candidates: [&[u8]; 2] = [b"alpha memory", b"omega memory"];
+    let strong = CognoProposalView {
+        schema_version: 1,
+        action: ProposalAction::ClassifyFeedback,
+        category: RuleCategory::Behavior,
+        scope: RuleScope::Session,
+        confidence_bps: 7_000,
+        evidence_ids: &evidence,
+        payload: b"strong clean payload",
+    };
+    let weak = CognoProposalView {
+        schema_version: 1,
+        action: ProposalAction::ClassifyFeedback,
+        category: RuleCategory::Behavior,
+        scope: RuleScope::Session,
+        confidence_bps: 2_000,
+        evidence_ids: &evidence,
+        payload: b"weak clean payload",
+    };
+
+    let strong_reward = runtime
+        .run_pipeline_with_cognitive_soft_reward(
+            pipeline_params(strong, DataClassification::Internal),
+            cognitive_input(&candidates),
+            CognitiveSoftAdjustmentPolicy::default(),
+            targets(),
+        )
+        .expect("strong reward");
+    let weak_reward = runtime
+        .run_pipeline_with_cognitive_soft_reward(
+            pipeline_params(weak, DataClassification::Internal),
+            cognitive_input(&candidates),
+            CognitiveSoftAdjustmentPolicy::default(),
+            targets(),
+        )
+        .expect("weak reward");
+    assert!(strong_reward.final_score() > weak_reward.final_score());
+
+    let decision = runtime
+        .decide_with_cognitive_rewards(&[
+            CognitiveDecisionCandidate {
+                candidate_id: 20,
+                applied: &strong_reward,
+            },
+            CognitiveDecisionCandidate {
+                candidate_id: 10,
+                applied: &weak_reward,
+            },
+        ])
+        .expect("cognitive decision");
+
+    assert_eq!(decision.selected_candidate_id, 20);
+    assert_eq!(decision.selected_final_score, strong_reward.final_score());
+    assert_eq!(decision.model_generation, 1);
+    assert_eq!(decision.model_artifact_sha256, digest);
+    assert_eq!(decision.meta_candidate_digest, digest);
+    assert!(decision.hard_constraints_preserved);
+    assert_eq!(
+        decision
+            .candidates
+            .iter()
+            .map(|trace| trace.candidate_id)
+            .collect::<Vec<_>>(),
+        vec![10, 20]
+    );
+
+    let decision_audit = runtime
+        .audit
+        .records
+        .iter()
+        .filter_map(|record| record.cognitive_decision.as_ref())
+        .next_back()
+        .expect("cognitive decision audit");
+    assert_eq!(decision_audit, &decision);
+    assert_eq!(
+        runtime
+            .audit
+            .records
+            .iter()
+            .filter(|record| record.decision == "cognitive_decision")
             .count(),
         1
     );
