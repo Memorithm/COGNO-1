@@ -1,4 +1,6 @@
-use cogno_core::{EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy};
+use cogno_core::{
+    DataClassification, EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy,
+};
 use cogno_model::{
     review_sequence_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample,
     SequenceMetaReviewConfig, SequenceMetaReviewPolicy, SplitKind,
@@ -36,12 +38,17 @@ fn reviewed_sequence_candidate() -> cogno_model::EligibleSequenceMetaModelReview
         (Label(0), b"alpha test"),
         (Label(1), b"omega test"),
     ] {
-        assert!(corpus.add(LabeledExample::new(
-            label,
-            payload.to_vec(),
-            InputOrigin::ExplicitUserInstruction,
-            EvidenceOrigin::ExplicitUserApproval,
-        )));
+        assert!(corpus
+            .add_classified(
+                LabeledExample::new(
+                    label,
+                    payload.to_vec(),
+                    InputOrigin::ExplicitUserInstruction,
+                    EvidenceOrigin::ExplicitUserApproval,
+                ),
+                DataClassification::Internal,
+            )
+            .expect("classified training data"));
     }
     let train = CorpusSplit {
         kind: SplitKind::Train,

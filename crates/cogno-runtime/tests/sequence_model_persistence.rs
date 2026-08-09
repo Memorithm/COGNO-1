@@ -1,4 +1,4 @@
-use cogno_core::{EvidenceOrigin, InputOrigin};
+use cogno_core::{DataClassification, EvidenceOrigin, InputOrigin};
 use cogno_model::{
     review_sequence_model_for_meta, Corpus, CorpusSplit, Label, LabeledExample, LoadedNeuralModel,
     SequenceMetaReviewConfig, SequenceMetaReviewPolicy, SplitKind,
@@ -34,12 +34,17 @@ fn reviewed_sequence() -> cogno_model::EligibleSequenceMetaModelReview {
         (Label(0), b"alpha test"),
         (Label(1), b"omega test"),
     ] {
-        assert!(corpus.add(LabeledExample::new(
-            label,
-            payload.to_vec(),
-            InputOrigin::ExplicitUserInstruction,
-            EvidenceOrigin::ExplicitUserApproval,
-        )));
+        assert!(corpus
+            .add_classified(
+                LabeledExample::new(
+                    label,
+                    payload.to_vec(),
+                    InputOrigin::ExplicitUserInstruction,
+                    EvidenceOrigin::ExplicitUserApproval,
+                ),
+                DataClassification::Internal,
+            )
+            .expect("classified training data"));
     }
     let mut config = SequenceMetaReviewConfig::default();
     config.classifier.encoder.max_tokens = 64;

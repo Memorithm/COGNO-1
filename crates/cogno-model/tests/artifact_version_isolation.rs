@@ -1,4 +1,4 @@
-use cogno_core::{EvidenceOrigin, InputOrigin};
+use cogno_core::{DataClassification, EvidenceOrigin, InputOrigin};
 use cogno_model::{
     encode_mlp_neural_artifact, encode_neural_artifact, load_mlp_neural_artifact,
     load_neural_artifact, Corpus, CorpusSplit, Label, LabeledExample, MlpNeuralArtifactError,
@@ -13,16 +13,21 @@ fn corpus() -> (Corpus, CorpusSplit) {
         (Label(1), b"omega-one"),
         (Label(1), b"omega-two"),
     ] {
-        assert!(corpus.add(LabeledExample::new(
-            label,
-            payload.to_vec(),
-            InputOrigin::ExplicitUserInstruction,
-            EvidenceOrigin::ExplicitUserApproval,
-        )));
+        assert!(corpus
+            .add_classified(
+                LabeledExample::new(
+                    label,
+                    payload.to_vec(),
+                    InputOrigin::ExplicitUserInstruction,
+                    EvidenceOrigin::ExplicitUserApproval,
+                ),
+                DataClassification::Internal,
+            )
+            .expect("classified training data"));
     }
     let split = CorpusSplit {
         kind: SplitKind::Train,
-        indices: (0..corpus.examples.len()).collect(),
+        indices: (0..corpus.len()).collect(),
     };
     (corpus, split)
 }
