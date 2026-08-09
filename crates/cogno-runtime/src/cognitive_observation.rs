@@ -45,6 +45,7 @@ pub struct CognitiveObservation {
     pub symbolic_satisfaction_bps: Vec<u16>,
     pub contradiction_bps: u16,
     pub retrieval_selected_index: usize,
+    pub retrieval_candidate_count: usize,
     pub authoritative: bool,
 }
 
@@ -55,6 +56,7 @@ pub enum CognitiveObservationError {
     MissingGenerationBinding,
     MissingArtifactBinding,
     InvalidProbability,
+    InvalidRetrievalSelection,
     Model(SequenceCognitiveModelError),
 }
 
@@ -83,6 +85,7 @@ impl Runtime {
         let artifact_sha256 = self
             .cognitive_model_artifact_sha256()
             .ok_or(CognitiveObservationError::MissingArtifactBinding)?;
+        let retrieval_candidate_count = input.retrieval_candidates.len();
 
         let (
             classification_class,
@@ -138,6 +141,9 @@ impl Runtime {
             let retrieval_selected_index = model
                 .model
                 .retrieval_select_best(input.retrieval_query, input.retrieval_candidates)?;
+            if retrieval_selected_index >= retrieval_candidate_count {
+                return Err(CognitiveObservationError::InvalidRetrievalSelection);
+            }
             (
                 classification_class,
                 classification_confidence_bps,
@@ -159,6 +165,7 @@ impl Runtime {
             symbolic_satisfaction_bps,
             contradiction_bps,
             retrieval_selected_index,
+            retrieval_candidate_count,
             authoritative: false,
         };
         self.audit.cognitive_observation(&observation);

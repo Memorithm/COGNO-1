@@ -1,20 +1,19 @@
-//! Sealed post-hard-gate context for future cognitive soft scoring.
+//! Sealed post-hard-gate context for cognitive soft scoring.
 //!
-//! This module does not alter `Reward`. It proves the ordering needed before a
-//! later bounded soft adjustment can exist: the ordinary deterministic pipeline
-//! must first return `Eligible`, controlled Meta must already be active, and the
-//! Meta candidate digest must equal the exact persisted V4 artifact installed in
-//! the runtime. Only then is a non-authoritative cognitive observation produced.
+//! The ordinary deterministic pipeline must first return `Eligible`, controlled
+//! Meta must already be active, and the Meta candidate digest must equal the
+//! exact persisted V4 artifact installed in the runtime. Only then is a
+//! non-authoritative cognitive observation produced.
 
 use crate::cognitive_observation::{
     CognitiveObservation, CognitiveObservationError, CognitiveObservationInput,
 };
 use crate::pipeline::{PipelineOutcome, PipelineParams};
 use crate::runtime::Runtime;
-use cogno_core::{CandidateScore, RejectReason, RejectStage};
+use cogno_core::{CandidateScore, RejectReason};
 
 /// Non-forgeable runtime context proving hard-gate success and model/Meta
-/// identity before any future neural soft factor may be derived.
+/// identity before any neural soft factor may be derived.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HardGatedCognitiveContext {
     base_score: CandidateScore,
@@ -44,7 +43,7 @@ impl HardGatedCognitiveContext {
 #[derive(Clone, Debug, PartialEq)]
 pub enum CognitivePostHardGateError {
     PipelineRejected {
-        stage: RejectStage,
+        stage: &'static str,
         reason: RejectReason,
     },
     MetaInactive,
@@ -69,9 +68,7 @@ impl Runtime {
     /// context only when Meta is active for the exact installed artifact.
     ///
     /// A rejected proposal never invokes the model. An eligible proposal with
-    /// inactive/mismatched Meta also never invokes the model. `Reward` is left
-    /// untouched; callers can only inspect the original base score and the
-    /// sealed, non-authoritative observation.
+    /// inactive or mismatched Meta also never invokes the model.
     pub fn run_pipeline_for_cognitive_soft_context(
         &mut self,
         params: PipelineParams<'_>,
@@ -81,7 +78,7 @@ impl Runtime {
             PipelineOutcome::Rejected { stage, reason } => {
                 return Err(CognitivePostHardGateError::PipelineRejected { stage, reason });
             }
-            PipelineOutcome::Eligible { score, .. } => score,
+            PipelineOutcome::Eligible { score } => score,
         };
 
         if !self.meta_is_active() {
@@ -104,8 +101,12 @@ impl Runtime {
         }
 
         let observation = self.observe_cognitive(cognitive)?;
-        debug_assert!(!observation.authoritative);
-        debug_assert_eq!(observation.model_artifact_sha256, meta_candidate_digest);
+        if observation.authoritative || observation.model_artifact_sha256 != meta_candidate_digest {
+            return Err(CognitivePostHardGateError::MetaModelDigestMismatch {
+                meta_candidate_digest,
+                installed_artifact_digest: observation.model_artifact_sha256,
+            });
+        }
         Ok(HardGatedCognitiveContext {
             base_score,
             observation,
