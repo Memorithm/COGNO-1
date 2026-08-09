@@ -160,11 +160,11 @@ fn validate_data_classification(
     match data_class {
         DataClassification::Public | DataClassification::Internal => Ok(()),
         DataClassification::Confidential if allow_confidential => Ok(()),
-        DataClassification::Confidential => {
-            Err(SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
+        DataClassification::Confidential => Err(
+            SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
                 index,
-            })
-        }
+            },
+        ),
         DataClassification::Secret => {
             Err(SequenceCognitiveDataReviewError::SecretTrainingData { index })
         }
@@ -210,10 +210,7 @@ mod tests {
     #[test]
     fn public_and_internal_are_admitted_by_default() {
         let mut corpus = SequenceCognitiveReviewCorpus::with_seed(1);
-        assert_eq!(
-            corpus.add(example(1), DataClassification::Public),
-            Ok(true)
-        );
+        assert_eq!(corpus.add(example(1), DataClassification::Public), Ok(true));
         assert_eq!(
             corpus.add(example(2), DataClassification::Internal),
             Ok(true)
