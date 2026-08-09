@@ -38,6 +38,7 @@ pub mod dialogue_store;
 pub mod executor;
 pub mod kv_controller;
 pub mod meta_activation;
+pub mod model_controlled_restart;
 pub mod model_generation;
 // Legacy items in this internal module retain `pub` so sibling modules can use
 // them, but the module itself is intentionally not reachable outside the crate.
@@ -80,6 +81,10 @@ pub use meta_activation::{
     ControlledMetaActivationError, HostMetaAttestation, MetaActivationAuthority,
     MetaActivationReceipt,
 };
+pub use model_controlled_restart::{
+    ControlledRestartModelAuthority, ControlledRestartModelError,
+    GenerationBoundControlledRestartCognitiveModel, HostModelRestartActivationAttestation,
+};
 pub use model_generation::{
     ModelGenerationChain, ModelGenerationError, ModelGenerationManifest,
     MODEL_GENERATION_MANIFEST_BYTES, MODEL_GENESIS_DIGEST,
@@ -93,7 +98,10 @@ pub use model_persistence_interlock::commit_reviewed_model_generation;
 pub use path::{ResolvedPath, RootError, RootPolicy};
 pub use pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 pub use queue::{BoundedQueue, QueueError, QueueStats};
-pub use runtime::{QueueItem, Runtime, RuntimeConfig, RuntimeReport, RuntimeTasteProfileError};
+pub use runtime::{
+    QueueItem, Runtime, RuntimeConfig, RuntimeModelInstallError, RuntimeReport,
+    RuntimeTasteProfileError,
+};
 pub use scientific_exchange::{
     classify_scientific_exchange, ScientificExchangeDisposition, ScientificExchangeError,
     ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
