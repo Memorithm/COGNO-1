@@ -40,8 +40,16 @@ fn runtime() -> Runtime {
 
 fn observation(index: u8, class: usize, contradicts: bool) -> SequenceCognitiveReviewExample {
     let alpha = class == 0;
-    let positive = if alpha { b"alpha memory" } else { b"omega memory" };
-    let negative = if alpha { b"omega memory" } else { b"alpha memory" };
+    let positive = if alpha {
+        b"alpha memory"
+    } else {
+        b"omega memory"
+    };
+    let negative = if alpha {
+        b"omega memory"
+    } else {
+        b"alpha memory"
+    };
     SequenceCognitiveReviewExample::new(
         SequenceCognitiveExample {
             classification_payload: format!("class-{class}-sample-{index}").into_bytes(),
@@ -53,7 +61,11 @@ fn observation(index: u8, class: usize, contradicts: bool) -> SequenceCognitiveR
             contradiction_left: format!("claim-{index}").into_bytes(),
             contradiction_right: format!("counter-{index}").into_bytes(),
             contradicts,
-            retrieval_query: if alpha { b"alpha".to_vec() } else { b"omega".to_vec() },
+            retrieval_query: if alpha {
+                b"alpha".to_vec()
+            } else {
+                b"omega".to_vec()
+            },
             retrieval_candidates: vec![positive.to_vec(), negative.to_vec()],
             retrieval_positive_idx: 0,
         },
@@ -65,14 +77,29 @@ fn observation(index: u8, class: usize, contradicts: bool) -> SequenceCognitiveR
 fn reviewed_v4() -> cogno_model::EligibleSequenceCognitiveMetaModelReview {
     let mut corpus = SequenceCognitiveReviewCorpus::with_seed(2401);
     for (index, class, contradiction) in [
-        (0, 0, false), (1, 1, true), (2, 0, true), (3, 1, false),
-        (4, 0, false), (5, 1, true), (6, 0, true), (7, 1, false),
+        (0, 0, false),
+        (1, 1, true),
+        (2, 0, true),
+        (3, 1, false),
+        (4, 0, false),
+        (5, 1, true),
+        (6, 0, true),
+        (7, 1, false),
     ] {
         assert!(corpus.add(observation(index, class, contradiction)));
     }
-    let train = cogno_model::CorpusSplit { kind: SplitKind::Train, indices: vec![0, 1, 2, 3] };
-    let validation = cogno_model::CorpusSplit { kind: SplitKind::Validation, indices: vec![4, 5] };
-    let test = cogno_model::CorpusSplit { kind: SplitKind::Test, indices: vec![6, 7] };
+    let train = cogno_model::CorpusSplit {
+        kind: SplitKind::Train,
+        indices: vec![0, 1, 2, 3],
+    };
+    let validation = cogno_model::CorpusSplit {
+        kind: SplitKind::Validation,
+        indices: vec![4, 5],
+    };
+    let test = cogno_model::CorpusSplit {
+        kind: SplitKind::Test,
+        indices: vec![6, 7],
+    };
     let mut config = SequenceCognitiveMetaReviewConfig::default();
     config.model.epochs = 2;
     config.model.cognitive.encoder.max_tokens = 64;
@@ -120,7 +147,10 @@ fn persisted_v4_is_generation_bound_and_installed_only_once() {
 
     assert_eq!(first.generation(), 1);
     assert_eq!(first.artifact_sha256(), commit.artifact_sha256);
-    assert_eq!(first.authority(), ControlledRestartModelAuthority::RestartInitializationOnly);
+    assert_eq!(
+        first.authority(),
+        ControlledRestartModelAuthority::RestartInitializationOnly
+    );
     assert!(!first.model().capabilities.is_empty());
 
     let mut runtime = runtime();
@@ -128,7 +158,10 @@ fn persisted_v4_is_generation_bound_and_installed_only_once() {
         .install_controlled_restart_cognitive_model(first)
         .expect("one-shot V4 install");
     assert_eq!(runtime.cognitive_model_generation(), Some(1));
-    assert_eq!(runtime.cognitive_model_artifact_sha256(), Some(commit.artifact_sha256));
+    assert_eq!(
+        runtime.cognitive_model_artifact_sha256(),
+        Some(commit.artifact_sha256)
+    );
     assert!(runtime.cognitive_model().is_some());
     assert!(!runtime.tools.tools_enabled);
     assert_eq!(
