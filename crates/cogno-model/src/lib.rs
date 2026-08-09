@@ -73,6 +73,7 @@ pub mod neural;
 pub mod readonly;
 pub mod sequence_artifact;
 pub mod sequence_cognitive;
+mod sequence_cognitive_activation;
 pub mod sequence_cognitive_artifact;
 pub mod sequence_cognitive_meta_review;
 pub mod sequence_contradiction;
