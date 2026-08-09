@@ -14,6 +14,12 @@ on:
   pull_request:
     branches: [main]
 
+# Keep only the newest CI run for a pull request or branch. This prevents stale
+# six-job matrices from consuming runners after a PR head moves.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
