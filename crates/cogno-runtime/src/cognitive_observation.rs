@@ -99,7 +99,9 @@ impl Runtime {
                     .total_cmp(right.1)
                     .then_with(|| right.0.cmp(&left.0))
             })
-            .map(|(index, probability)| Ok((index, probability_to_bps(*probability)?)))
+            .map(|(index, probability)| {
+                Ok((index, probability_to_bps(*probability)?))
+            })
             .transpose()?
             .ok_or(CognitiveObservationError::InvalidProbability)?;
 
