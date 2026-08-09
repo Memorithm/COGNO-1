@@ -84,6 +84,17 @@ impl SequenceCognitiveReviewCorpus {
         true
     }
 
+    /// Produce the deterministic train/validation/test split while preserving
+    /// the exact index order used by the internal weakest-link review engine.
+    #[must_use]
+    pub fn split(
+        &self,
+        train_ratio: f32,
+        validation_ratio: f32,
+    ) -> (CorpusSplit, CorpusSplit, CorpusSplit) {
+        self.inner.split(train_ratio, validation_ratio)
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.data_classes.len()
