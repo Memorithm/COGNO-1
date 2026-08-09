@@ -1,4 +1,6 @@
-use cogno_core::{EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy};
+use cogno_core::{
+    DataClassification, EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy,
+};
 use cogno_model::{
     review_sequence_cognitive_model_for_meta, SequenceCognitiveExample,
     SequenceCognitiveMetaReviewConfig, SequenceCognitiveMetaReviewPolicy,
@@ -89,7 +91,10 @@ fn install_v4(runtime: &mut Runtime, root: &PathBuf) -> [u8; 32] {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(corpus.add(example(index, class, contradiction)));
+        assert!(corpus.add(
+            example(index, class, contradiction),
+            DataClassification::Internal,
+        ));
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,
