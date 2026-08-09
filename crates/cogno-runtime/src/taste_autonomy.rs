@@ -146,7 +146,7 @@ mod tests {
         assert_eq!(report.accepted_validations, 1);
         assert_eq!(
             report.cycle.outcomes[0].state,
-            OrchestratedTasteState::Active
+            OrchestratedTasteState::Candidate
         );
         assert_eq!(history.len(), 1);
     }
