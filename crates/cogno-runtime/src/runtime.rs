@@ -14,6 +14,7 @@ use crate::meta_activation::{
     prepare_controlled_meta_activation, ControlledMetaActivationError, HostMetaAttestation,
     MetaActivationReceipt,
 };
+use crate::model_controlled_restart::GenerationBoundControlledRestartCognitiveModel;
 use crate::pipeline::{Pipeline, PipelineOutcome, PipelineParams};
 use crate::queue::{BoundedQueue, QueueError};
 use crate::taste_controlled_restart::GenerationBoundControlledRestartTasteProfile;
@@ -24,7 +25,7 @@ use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfil
 use cogno_core::{
     ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
 };
-use cogno_model::MetaReviewedCandidate;
+use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 
 /// Runtime configuration (validated by the construction).
 #[derive(Clone, Debug)]
@@ -57,6 +58,13 @@ pub enum RuntimeTasteProfileError {
     AlreadyInstalled,
 }
 
+/// Failure while installing a generation-bound read-only cognitive model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeModelInstallError {
+    /// A model was already installed; live replacement is forbidden.
+    AlreadyInstalled,
+}
+
 /// The runtime. Holds the validated budget, KV controller, queue, tool
 /// executor, audit buffer, the §3 pipeline and the §4 meta-objective. Every
 /// field is borrowed/Copy on the hot path; no allocation happens per request.
@@ -75,6 +83,7 @@ pub struct Runtime {
     pub rejections: u64,
     pub truncations: u64,
     taste_profile: Option<VerifiedTasteProfile>,
+    cognitive_model: Option<GenerationBoundControlledRestartCognitiveModel>,
     meta_candidate_digest: Option<[u8; 32]>,
 }
 
@@ -107,6 +116,7 @@ impl Runtime {
             rejections: 0,
             truncations: 0,
             taste_profile: None,
+            cognitive_model: None,
             meta_candidate_digest: None,
         })
     }
@@ -138,6 +148,46 @@ impl Runtime {
         }
         self.taste_profile = Some(profile);
         Ok(())
+    }
+
+    /// Install one generation-bound V4 model during controlled restart.
+    ///
+    /// The consuming seal preserves the selected generation and artifact digest
+    /// inside the runtime. A second installation is always rejected, so this
+    /// path cannot be used as a live hot-swap primitive.
+    pub fn install_controlled_restart_cognitive_model(
+        &mut self,
+        model: GenerationBoundControlledRestartCognitiveModel,
+    ) -> Result<(), RuntimeModelInstallError> {
+        if self.cognitive_model.is_some() {
+            return Err(RuntimeModelInstallError::AlreadyInstalled);
+        }
+        self.cognitive_model = Some(model);
+        Ok(())
+    }
+
+    /// Return the installed V4 facade as a read-only runtime view.
+    #[must_use]
+    pub fn cognitive_model(&self) -> Option<&SciRustSequenceCognitiveReadOnlyModel> {
+        self.cognitive_model
+            .as_ref()
+            .map(GenerationBoundControlledRestartCognitiveModel::model)
+    }
+
+    /// Selected persisted generation bound to the installed V4 model.
+    #[must_use]
+    pub fn cognitive_model_generation(&self) -> Option<u64> {
+        self.cognitive_model
+            .as_ref()
+            .map(GenerationBoundControlledRestartCognitiveModel::generation)
+    }
+
+    /// Artifact digest bound to the installed V4 model.
+    #[must_use]
+    pub fn cognitive_model_artifact_sha256(&self) -> Option<[u8; 32]> {
+        self.cognitive_model
+            .as_ref()
+            .map(GenerationBoundControlledRestartCognitiveModel::artifact_sha256)
     }
 
     /// Return the complete verified profile as a read-only runtime view.

@@ -136,7 +136,7 @@ pub struct SequenceCognitiveModel {
 }
 
 impl SequenceCognitiveModel {
-    fn from_heads(
+    pub(crate) fn from_heads(
         heads: SequenceCognitiveHeads,
         max_retrieval_candidates: usize,
     ) -> Result<Self, SequenceCognitiveModelError> {
