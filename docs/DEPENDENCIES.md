@@ -4,16 +4,17 @@ Conformément à COGNO-1 V2 §24 (chaîne d'approvisionnement).
 
 ## Vue d'ensemble
 
-Le noyau `cogno-core` reste intentionnellement sans dépendance externe. Les
-crates d'intégration utilisent un ensemble réduit et verrouillé de dépendances
-pour la sérialisation déterministe des artefacts et le calcul de leurs
-empreintes cryptographiques.
+Le noyau `cogno-core` et le moteur différentiable propriétaire `cogno-scirust`
+restent intentionnellement sans dépendance externe. Les couches modèle, runtime
+et CLI utilisent un ensemble réduit et verrouillé de dépendances pour les
+empreintes cryptographiques et la sérialisation de contrôle.
 
 | Crate | Dépendances externes directes | Dépendances internes |
 |-------|-------------------------------|----------------------|
 | `cogno-core` | 0 | 0 |
-| `cogno-runtime` | `serde`, `serde_json`, `sha2` | `cogno-core` |
-| `cogno-model` | 0 | `cogno-core` |
+| `cogno-scirust` | 0 | `cogno-core` |
+| `cogno-model` | `sha2` | `cogno-core`, `cogno-scirust` |
+| `cogno-runtime` | `serde`, `serde_json`, `sha2` | `cogno-core`, `cogno-model` |
 | `cogno-cli` | `serde`, `serde_json`, `sha2` | `cogno-core`, `cogno-runtime`, `cogno-model` |
 
 ## Justification des dépendances directes
@@ -21,7 +22,7 @@ empreintes cryptographiques.
 ### `serde` 1.x
 
 - usage : structures sérialisables et désérialisables pour les profils,
-  validations et rapports vérifiés ;
+  validations, enveloppes d'observation et rapports vérifiés ;
 - feature activée : `derive` ;
 - licence : MIT OR Apache-2.0 ;
 - proc-macro transitif : `serde_derive` ;
@@ -30,20 +31,25 @@ empreintes cryptographiques.
 
 ### `serde_json` 1.x
 
-- usage : lecture et écriture déterministes des artefacts JSON de contrôle ;
+- usage : lecture et écriture déterministes des artefacts JSON de contrôle et
+  ingestion des enveloppes JSONL ;
 - features activées : défaut uniquement ;
 - licence : MIT OR Apache-2.0 ;
-- les octets persistés sont ensuite liés à leurs empreintes SHA-256 et revérifiés
-  avant exposition au runtime.
+- les octets persistés sont liés à leurs empreintes et revérifiés avant leur
+  exposition au runtime lorsqu'ils participent à un état persistant vérifié.
 
 ### `sha2` 0.10.x
 
-- usage : empreintes SHA-256 des journaux, rapports, profils et manifests de
-  génération ;
+- usage dans `cogno-model` : hash du tokenizer, empreintes de corpus/revue et
+  SHA-256 des artefacts neuronaux hostiles ;
+- usage dans `cogno-runtime` : manifests et chaînes de génération, profils et
+  état persisté vérifié ;
+- usage dans `cogno-cli` : contrôles/empreintes nécessaires aux flux exposés par
+  le binaire ;
 - features activées : défaut uniquement ;
 - licence : MIT OR Apache-2.0 ;
-- la fonction de hachage sert à l'intégrité et à la provenance, pas à créer une
-  autorité ou une preuve de confiance autonome.
+- le hash sert à l'intégrité et à la provenance, jamais à créer à lui seul une
+  autorité ou une preuve de confiance.
 
 ## Inventaire verrouillé transitif
 
@@ -98,8 +104,10 @@ grep -E '^name = "' Cargo.lock \
 - **Aucun script de build propriétaire**.
 - **Aucun `unsafe` propriétaire** : chaque crate COGNO conserve
   `#![forbid(unsafe_code)]`.
-- **Dépendances minimales et justifiées** : `cogno-core` reste sans dépendance ;
-  les dépendances externes sont confinées aux couches runtime/CLI.
+- **Dépendances minimales et justifiées** : `cogno-core` et `cogno-scirust`
+  restent sans dépendance externe ; `sha2` est utilisé par la couche modèle et
+  les dépendances de sérialisation/hachage restent confinées aux couches qui en
+  ont explicitement besoin.
 - **Vulnérabilités connues** : l'inventaire doit être audité lors de chaque
   changement de version ou ajout de crate.
 
