@@ -23,8 +23,9 @@
 //! - **Phase 1**: [`simulator::SimBackend`] — deterministic scripted proposals.
 //! - **Phase 2**: [`readonly`] — frozen read-only inference over the historical
 //!   integer baseline.
-//! - **Phase 3**: [`training`] — provenance-aware corpus/splits plus the integer
-//!   perceptron baseline retained for regression/oracle comparisons.
+//! - **Phase 3**: [`training`] — provenance-aware, data-classified corpus/splits
+//!   plus the integer perceptron baseline retained for regression/oracle
+//!   comparisons. [`training_data_policy`] centralizes the §20 admission gate.
 //! - **Phase 4 foundation**: [`neural`] retains the canonical v1 bounded linear
 //!   differentiable classifier, while [`mlp`] adds a genuinely nonlinear
 //!   one-hidden-layer model trained through `cogno-scirust`. Both freeze behind
@@ -89,6 +90,7 @@ pub mod sequence_symbolic;
 pub mod simulator;
 pub mod tokenizer;
 pub mod training;
+pub mod training_data_policy;
 pub mod versioned_artifact;
 
 pub use artifact::{
@@ -182,6 +184,7 @@ pub use tokenizer::{
 pub use training::{
     Corpus, CorpusSplit, Label, LabeledExample, Provenance, SplitKind, ToyTrainer, TrainedModel,
 };
+pub use training_data_policy::TrainingDataGovernanceError;
 pub use versioned_artifact::{
     load_versioned_neural_artifact, LoadedNeuralModel, VersionedNeuralArtifactError,
 };
