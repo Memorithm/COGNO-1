@@ -77,8 +77,10 @@ fn campaign_is_deterministic_and_model_non_authoritative() {
         first.autonomous_reports[1].quarantined_model_observations,
         1
     );
-    assert_eq!(first.autonomous_reports[0].accepted_validations, 2);
-    assert_eq!(first.autonomous_reports[1].accepted_validations, 2);
+    assert_eq!(first.autonomous_reports[0].runtime_observations, 1);
+    assert_eq!(first.autonomous_reports[1].runtime_observations, 1);
+    assert_eq!(first.autonomous_reports[0].accepted_validations, 1);
+    assert_eq!(first.autonomous_reports[1].accepted_validations, 1);
     assert_eq!(first.longitudinal_statuses.len(), 1);
     assert_eq!(
         first.longitudinal_statuses[0].drift,

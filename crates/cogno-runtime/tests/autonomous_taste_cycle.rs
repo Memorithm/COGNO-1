@@ -54,10 +54,13 @@ fn two_generations_are_deterministic_and_track_strengthening() {
     .expect("first generation");
 
     assert_eq!(first.quarantined_model_observations, 1);
-    assert_eq!(first.accepted_validations, 2);
+    assert_eq!(first.runtime_observations, 1);
+    assert_eq!(first.accepted_validations, 1);
+    assert_eq!(first.cycle.outcomes[0].confirmations, 1);
+    assert_eq!(first.cycle.outcomes[0].confidence_bps, 7_000);
     assert_eq!(
         first.cycle.outcomes[0].state,
-        OrchestratedTasteState::Active
+        OrchestratedTasteState::Candidate
     );
     assert!(first.benchmark.non_regressive());
 
@@ -77,7 +80,14 @@ fn two_generations_are_deterministic_and_track_strengthening() {
     )
     .expect("second generation");
 
+    assert_eq!(second.runtime_observations, 1);
+    assert_eq!(second.accepted_validations, 1);
+    assert_eq!(second.cycle.outcomes[0].confirmations, 1);
     assert_eq!(second.cycle.outcomes[0].confidence_bps, 9_000);
+    assert_eq!(
+        second.cycle.outcomes[0].state,
+        OrchestratedTasteState::Candidate
+    );
     assert_eq!(
         longitudinal.status(42, 2).map(|status| status.drift),
         Some(TasteDriftState::Strengthening)

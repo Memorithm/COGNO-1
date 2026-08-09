@@ -139,10 +139,14 @@ mod tests {
         )
         .expect("autonomous pass");
         assert_eq!(report.quarantined_model_observations, 1);
-        assert_eq!(report.accepted_validations, 2);
+        // The unauthenticated batch path must not promote a caller-supplied
+        // SciRust deterministic origin. Only the explicit user action is a
+        // validation here; attested runtime evidence uses the dedicated boundary.
+        assert_eq!(report.runtime_observations, 1);
+        assert_eq!(report.accepted_validations, 1);
         assert_eq!(
             report.cycle.outcomes[0].state,
-            OrchestratedTasteState::Active
+            OrchestratedTasteState::Candidate
         );
         assert_eq!(history.len(), 1);
     }
