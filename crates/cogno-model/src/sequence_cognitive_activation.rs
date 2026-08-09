@@ -7,8 +7,7 @@
 //! facade from verified state.
 
 use crate::{
-    SciRustSequenceCognitiveReadOnlyModel, SequenceCognitiveArtifactState,
-    SequenceCognitiveModel, SequenceCognitiveModelError,
+    SciRustSequenceCognitiveReadOnlyModel, SequenceCognitiveArtifactState, SequenceCognitiveModel,
 };
 
 impl SequenceCognitiveArtifactState {
@@ -16,7 +15,7 @@ impl SequenceCognitiveArtifactState {
     /// byte-tokenized facade. This grants no runtime installation authority.
     pub fn into_read_only_model(
         self,
-    ) -> Result<SciRustSequenceCognitiveReadOnlyModel, SequenceCognitiveModelError> {
+    ) -> Result<SciRustSequenceCognitiveReadOnlyModel, crate::SequenceCognitiveModelError> {
         let (heads, max_retrieval_candidates) = self.into_parts();
         let model = SequenceCognitiveModel::from_heads(heads, max_retrieval_candidates)?;
         Ok(SciRustSequenceCognitiveReadOnlyModel::from_trained(model))
