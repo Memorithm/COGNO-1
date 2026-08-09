@@ -49,7 +49,7 @@ impl From<&TasteDecision> for TasteDecisionAudit {
                     candidate_id: influence.candidate_id,
                     confidence_bps: influence.confidence_bps,
                     requested_weight_bps: influence.requested_weight_bps,
-                    applied_weight_bps,
+                    applied_weight_bps: influence.applied_weight_bps,
                     score_delta: influence.score_delta,
                 })
                 .collect(),
