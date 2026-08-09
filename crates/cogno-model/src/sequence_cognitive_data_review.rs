@@ -1,10 +1,10 @@
 //! Data-classified public entry point for the V4 cognitive Meta review.
 //!
 //! The underlying weakest-link review engine remains internal. Public callers
-//! must attach a [`DataClassification`] to every review example before any
-//! training can occur. `Secret` is unconditionally forbidden; `Confidential`
-//! requires an explicit host attestation. `Public` and `Internal` are admitted
-//! by default, mirroring `cogno-core` §20.
+//! must attach a [`DataClassification`] to every review example. `Secret` is
+//! rejected before corpus storage; `Confidential` requires an explicit host
+//! attestation before storage. `Public` and `Internal` are admitted by default,
+//! mirroring `cogno-core` §20.
 
 use crate::sequence_cognitive_meta_review as inner;
 use crate::training::CorpusSplit;
@@ -34,9 +34,10 @@ impl HostConfidentialTrainingAttestation {
 
 /// Public V4 review corpus with one explicit data classification per example.
 ///
-/// The canonical anti-poisoning fingerprint remains based on example content
-/// and targets rather than classification metadata, so the same payload cannot
-/// bypass duplicate detection by being relabelled with a different class.
+/// Classification is validated before the example is stored. The canonical
+/// anti-poisoning fingerprint remains based on example content and targets
+/// rather than classification metadata, so the same payload cannot bypass
+/// duplicate detection by being relabelled with a different class.
 #[derive(Clone, Debug)]
 pub struct SequenceCognitiveReviewCorpus {
     inner: inner::SequenceCognitiveReviewCorpus,
@@ -69,19 +70,23 @@ impl SequenceCognitiveReviewCorpus {
         }
     }
 
-    /// Add one review example together with its host-owned classification.
-    /// Duplicate canonical examples are rejected by the underlying corpus and
-    /// do not advance the classification vector.
+    /// Validate classification and then add one review example.
+    ///
+    /// `Secret` and unauthorized `Confidential` data fail before the inner
+    /// corpus sees the example. Canonical duplicates return `Ok(false)` and do
+    /// not advance the classification vector.
     pub fn add(
         &mut self,
         example: SequenceCognitiveReviewExample,
         data_class: DataClassification,
-    ) -> bool {
+    ) -> Result<bool, SequenceCognitiveDataReviewError> {
+        let index = self.data_classes.len();
+        validate_data_classification(data_class, self.allow_confidential, index)?;
         if !self.inner.add(example) {
-            return false;
+            return Ok(false);
         }
         self.data_classes.push(data_class);
-        true
+        Ok(true)
     }
 
     /// Produce the deterministic train/validation/test split while preserving
@@ -125,8 +130,9 @@ impl From<SequenceCognitiveMetaReviewError> for SequenceCognitiveDataReviewError
 
 /// Run the V4 weakest-link Meta review only after data governance has passed.
 ///
-/// Classification is checked before delegating to the internal review engine,
-/// therefore before tokenizer preflight, optimizer construction or training.
+/// The corpus is revalidated defensively before delegating to the internal
+/// review engine, therefore before tokenizer preflight, optimizer construction
+/// or training.
 pub fn review_sequence_cognitive_model_for_meta(
     corpus: &SequenceCognitiveReviewCorpus,
     train: &CorpusSplit,
@@ -146,24 +152,30 @@ pub fn review_sequence_cognitive_model_for_meta(
     )?)
 }
 
+fn validate_data_classification(
+    data_class: DataClassification,
+    allow_confidential: bool,
+    index: usize,
+) -> Result<(), SequenceCognitiveDataReviewError> {
+    match data_class {
+        DataClassification::Public | DataClassification::Internal => Ok(()),
+        DataClassification::Confidential if allow_confidential => Ok(()),
+        DataClassification::Confidential => {
+            Err(SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
+                index,
+            })
+        }
+        DataClassification::Secret => {
+            Err(SequenceCognitiveDataReviewError::SecretTrainingData { index })
+        }
+    }
+}
+
 fn validate_data_classifications(
     corpus: &SequenceCognitiveReviewCorpus,
 ) -> Result<(), SequenceCognitiveDataReviewError> {
     for (index, data_class) in corpus.data_classes.iter().copied().enumerate() {
-        match data_class {
-            DataClassification::Public | DataClassification::Internal => {}
-            DataClassification::Confidential if corpus.allow_confidential => {}
-            DataClassification::Confidential => {
-                return Err(
-                    SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
-                        index,
-                    },
-                );
-            }
-            DataClassification::Secret => {
-                return Err(SequenceCognitiveDataReviewError::SecretTrainingData { index });
-            }
-        }
+        validate_data_classification(data_class, corpus.allow_confidential, index)?;
     }
     Ok(())
 }
@@ -198,28 +210,40 @@ mod tests {
     #[test]
     fn public_and_internal_are_admitted_by_default() {
         let mut corpus = SequenceCognitiveReviewCorpus::with_seed(1);
-        assert!(corpus.add(example(1), DataClassification::Public));
-        assert!(corpus.add(example(2), DataClassification::Internal));
+        assert_eq!(
+            corpus.add(example(1), DataClassification::Public),
+            Ok(true)
+        );
+        assert_eq!(
+            corpus.add(example(2), DataClassification::Internal),
+            Ok(true)
+        );
+        assert_eq!(corpus.len(), 2);
         assert_eq!(validate_data_classifications(&corpus), Ok(()));
     }
 
     #[test]
-    fn secret_is_forbidden_even_with_confidential_authorization() {
+    fn secret_is_rejected_before_storage_even_with_confidential_authorization() {
         let mut corpus = SequenceCognitiveReviewCorpus::with_seed_and_confidential_authorization(
             2,
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
         );
-        assert!(corpus.add(example(1), DataClassification::Secret));
         assert_eq!(
-            validate_data_classifications(&corpus),
+            corpus.add(example(1), DataClassification::Secret),
             Err(SequenceCognitiveDataReviewError::SecretTrainingData { index: 0 })
         );
+        assert!(corpus.is_empty());
     }
 
     #[test]
-    fn public_review_rejects_secret_before_inner_validation() {
-        let mut corpus = SequenceCognitiveReviewCorpus::with_seed(5);
-        assert!(corpus.add(example(1), DataClassification::Secret));
+    fn defensive_review_rejects_secret_before_inner_validation() {
+        let mut inner = inner::SequenceCognitiveReviewCorpus::with_seed(5);
+        assert!(inner.add(example(1)));
+        let corpus = SequenceCognitiveReviewCorpus {
+            inner,
+            data_classes: vec![DataClassification::Secret],
+            allow_confidential: false,
+        };
         let train = CorpusSplit {
             kind: SplitKind::Train,
             indices: Vec::new(),
@@ -246,23 +270,27 @@ mod tests {
     }
 
     #[test]
-    fn confidential_requires_explicit_host_attestation() {
+    fn confidential_requires_explicit_host_attestation_before_storage() {
         let mut denied = SequenceCognitiveReviewCorpus::with_seed(3);
-        assert!(denied.add(example(1), DataClassification::Confidential));
         assert_eq!(
-            validate_data_classifications(&denied),
+            denied.add(example(1), DataClassification::Confidential),
             Err(
                 SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
                     index: 0,
                 }
             )
         );
+        assert!(denied.is_empty());
 
         let mut allowed = SequenceCognitiveReviewCorpus::with_seed_and_confidential_authorization(
             4,
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
         );
-        assert!(allowed.add(example(1), DataClassification::Confidential));
+        assert_eq!(
+            allowed.add(example(1), DataClassification::Confidential),
+            Ok(true)
+        );
+        assert_eq!(allowed.len(), 1);
         assert_eq!(validate_data_classifications(&allowed), Ok(()));
     }
 }
