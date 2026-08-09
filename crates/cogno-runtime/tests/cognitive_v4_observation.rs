@@ -6,8 +6,9 @@ use cogno_model::{
 };
 use cogno_runtime::{
     commit_reviewed_model_generation, load_persisted_model_generation_selection,
-    CognitiveObservationError, CognitiveObservationInput, GenerationBoundControlledRestartCognitiveModel,
-    HostModelPromotionAttestation, HostModelRestartActivationAttestation, Runtime, RuntimeConfig,
+    CognitiveObservationError, CognitiveObservationInput,
+    GenerationBoundControlledRestartCognitiveModel, HostModelPromotionAttestation,
+    HostModelRestartActivationAttestation, Runtime, RuntimeConfig,
 };
 use std::fs;
 use std::path::PathBuf;
