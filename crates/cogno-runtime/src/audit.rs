@@ -193,6 +193,7 @@ mod tests {
             symbolic_satisfaction_bps: vec![9_000, 2_000],
             contradiction_bps: 8_000,
             retrieval_selected_index: 1,
+            retrieval_candidate_count: 2,
             authoritative: false,
         };
         let mut audit = Audit::default();
@@ -203,6 +204,7 @@ mod tests {
             .expect("cognitive trace");
         assert_eq!(trace.model_generation, 7);
         assert_eq!(trace.model_artifact_sha256, [9; 32]);
+        assert_eq!(trace.retrieval_candidate_count, 2);
         assert!(!trace.authoritative);
         assert!(audit.records[0].taste.is_none());
     }
