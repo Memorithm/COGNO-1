@@ -33,6 +33,8 @@
 pub mod admission;
 pub mod audit;
 pub mod cognitive_observation;
+pub mod cognitive_post_hard_gate;
+pub mod cognitive_soft_adjustment;
 pub mod dialogue_candidates;
 pub mod dialogue_snapshot;
 pub mod dialogue_store;
@@ -73,6 +75,12 @@ pub use audit::{Audit, TasteDecisionAudit, TasteInfluenceAudit};
 pub use cognitive_observation::{
     CognitiveObservation, CognitiveObservationError, CognitiveObservationInput,
     CognitivePreferenceRelation,
+};
+pub use cognitive_post_hard_gate::{CognitivePostHardGateError, HardGatedCognitiveContext};
+pub use cognitive_soft_adjustment::{
+    CognitiveSoftAdjustment, CognitiveSoftAdjustmentError, CognitiveSoftAdjustmentPolicy,
+    CognitiveSoftTargets, CognitiveSoftWeights, MAX_COGNITIVE_SOFT_DELTA,
+    MAX_COGNITIVE_SOFT_WEIGHT,
 };
 pub use dialogue_candidates::{
     CandidateOrigin, DialogueCandidateError, DialogueCandidateReport,
