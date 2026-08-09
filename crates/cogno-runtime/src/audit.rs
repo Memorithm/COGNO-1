@@ -1,10 +1,11 @@
 //! Audit log for the runtime (COGNO-1 V2 §3 last step, S6).
 //!
-//! Every decision (admit/reject), truncation and taste-influenced soft choice
-//! is recorded. Scientific taste never carries authority: the audit records
-//! which verified preferences influenced a decision and whether the runtime
-//! abstained, while hard safety remains lexicographically prior.
+//! Every decision (admit/reject), truncation, taste-influenced soft choice and
+//! explicit cognitive observation is recorded. Scientific taste and neural
+//! observations never carry authority; hard safety remains lexicographically
+//! prior.
 
+use crate::cognitive_observation::CognitiveObservation;
 use crate::taste_decision::TasteDecision;
 use cogno_core::{ContextReport, RejectReason};
 
@@ -55,14 +56,15 @@ impl From<&TasteDecision> for TasteDecisionAudit {
 }
 
 /// One audit record. Pure data; no allocation on hot paths beyond pushing
-/// the record itself (audit happens after the decision, never in the critical
-/// pre-decision path).
+/// the record itself (audit happens after the decision/observation, never in
+/// the critical hard-gate path).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuditRecord {
     pub decision: &'static str,
     pub reason: Option<RejectReason>,
     pub note: Option<String>,
     pub taste: Option<TasteDecisionAudit>,
+    pub cognitive: Option<CognitiveObservation>,
 }
 
 /// In-memory audit buffer (bounded by the Phase 0 budget; a real runtime uses
@@ -80,6 +82,7 @@ impl Audit {
             reason: Some(reason),
             note,
             taste: None,
+            cognitive: None,
         });
     }
 
@@ -91,6 +94,7 @@ impl Audit {
             reason: None,
             note,
             taste: None,
+            cognitive: None,
         });
     }
 
@@ -105,6 +109,19 @@ impl Audit {
             reason: None,
             note: None,
             taste: Some(TasteDecisionAudit::from(decision)),
+            cognitive: None,
+        });
+    }
+
+    /// Record an integer-only V4 observation. The snapshot is explicitly
+    /// non-authoritative and carries its exact persisted model provenance.
+    pub fn cognitive_observation(&mut self, observation: &CognitiveObservation) {
+        self.records.push(AuditRecord {
+            decision: "cognitive_observation",
+            reason: None,
+            note: None,
+            taste: None,
+            cognitive: Some(observation.clone()),
         });
     }
 
@@ -118,6 +135,7 @@ impl Audit {
                 report.dropped_tokens, report.requested_tokens, report.policy
             )),
             taste: None,
+            cognitive: None,
         });
     }
 
@@ -135,6 +153,7 @@ impl Audit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CognitivePreferenceRelation;
 
     #[test]
     fn taste_trace_preserves_before_after_and_provenance() {
@@ -159,5 +178,32 @@ mod tests {
         assert_eq!(trace.selected_final_score, Some(18));
         assert!(trace.hard_constraints_preserved);
         assert_eq!(trace.influences[0].preference_id, 7);
+        assert!(audit.records[0].cognitive.is_none());
+    }
+
+    #[test]
+    fn cognitive_trace_preserves_generation_digest_and_non_authority() {
+        let observation = CognitiveObservation {
+            model_generation: 7,
+            model_artifact_sha256: [9; 32],
+            classification_class: 2,
+            classification_confidence_bps: 7_500,
+            classification_probabilities_bps: vec![1_000, 1_500, 7_500],
+            preference: CognitivePreferenceRelation::Left,
+            symbolic_satisfaction_bps: vec![9_000, 2_000],
+            contradiction_bps: 8_000,
+            retrieval_selected_index: 1,
+            authoritative: false,
+        };
+        let mut audit = Audit::default();
+        audit.cognitive_observation(&observation);
+        let trace = audit.records[0]
+            .cognitive
+            .as_ref()
+            .expect("cognitive trace");
+        assert_eq!(trace.model_generation, 7);
+        assert_eq!(trace.model_artifact_sha256, [9; 32]);
+        assert!(!trace.authoritative);
+        assert!(audit.records[0].taste.is_none());
     }
 }
