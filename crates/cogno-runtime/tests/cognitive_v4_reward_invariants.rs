@@ -1,7 +1,7 @@
 use cogno_core::{
     CognoProposalView, DataClassification, EvidenceId, EvidenceOrigin, InputOrigin, KvCachePolicy,
-    MemoryBudget, ProposalAction, QueueFullPolicy, RejectReason, Reward, RewardParams, RuleCategory,
-    RuleScope, SafetyPolicy, TrustClass,
+    MemoryBudget, ProposalAction, QueueFullPolicy, RejectReason, Reward, RewardParams,
+    RuleCategory, RuleScope, SafetyPolicy, TrustClass,
 };
 use cogno_model::{
     review_sequence_cognitive_model_for_meta, SequenceCognitiveExample,
@@ -155,7 +155,10 @@ fn prepare_v4_runtime(root: &Path) -> (Runtime, [u8; 32]) {
     runtime
         .install_controlled_restart_cognitive_model(seal)
         .expect("install");
-    assert_eq!(runtime.meta_candidate_digest(), Some(commit.artifact_sha256));
+    assert_eq!(
+        runtime.meta_candidate_digest(),
+        Some(commit.artifact_sha256)
+    );
     assert_eq!(
         runtime.cognitive_model_artifact_sha256(),
         Some(commit.artifact_sha256)
