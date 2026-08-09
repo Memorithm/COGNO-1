@@ -76,6 +76,10 @@ pub mod sequence_cognitive;
 mod sequence_cognitive_activation;
 pub mod sequence_cognitive_artifact;
 pub mod sequence_cognitive_data_review;
+#[allow(
+    unreachable_pub,
+    reason = "the original V4 weakest-link engine is intentionally private; its public-shaped types/functions are re-exported only through the classified facade"
+)]
 mod sequence_cognitive_meta_review;
 pub mod sequence_contradiction;
 pub mod sequence_meta_review;
