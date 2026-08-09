@@ -88,10 +88,14 @@ fn reviewed_v4() -> cogno_model::EligibleSequenceCognitiveMetaModelReview {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(corpus.add(
-            observation(index, class, contradiction),
-            DataClassification::Internal,
-        ));
+        assert!(
+            corpus
+                .add(
+                    observation(index, class, contradiction),
+                    DataClassification::Internal,
+                )
+                .expect("classified V4 review data")
+        );
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,
