@@ -104,9 +104,11 @@ mod tests {
     fn confidential_requires_explicit_host_authorization() {
         assert_eq!(
             TrainingDataAdmissionPolicy::DEFAULT.validate(DataClassification::Confidential, 7),
-            Err(TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
-                index: 7,
-            })
+            Err(
+                TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
+                    index: 7,
+                }
+            )
         );
         let authorized = TrainingDataAdmissionPolicy::with_confidential_authorization(
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
