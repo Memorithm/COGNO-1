@@ -4,8 +4,8 @@
 //! produced an exchange, but a replayed attested message must not become a new
 //! independent confirmation. This store therefore persists fixed-width hashes
 //! of the authenticated message/provenance envelope together with the resulting
-//! validation and rejects conflicting reuse of validation, message, or evidence
-//! identities across restarts.
+//! validation and rejects conflicting reuse of validation, message, evidence,
+//! or canonical scientific payload identities across restarts.
 
 use crate::scientific_exchange::ScientificExchangeDisposition;
 use crate::scirust_runtime_bridge::{SciRustExchangeBridgeReceipt, SciRustRuntimeKind};
@@ -47,6 +47,7 @@ pub enum SciRustValidationReceiptStoreError {
     DuplicateValidationConflict(u64),
     DuplicateMessageConflict,
     DuplicateEvidenceConflict(u64),
+    DuplicatePayloadConflict,
 }
 
 impl From<io::Error> for SciRustValidationReceiptStoreError {
@@ -71,6 +72,7 @@ struct ReplayedReceiptIndexes {
     by_validation_id: BTreeMap<u64, PersistedSciRustValidationReceipt>,
     by_message_id: BTreeMap<[u8; 32], u64>,
     by_evidence_id: BTreeMap<u64, u64>,
+    by_payload_sha256: BTreeMap<[u8; 32], u64>,
 }
 
 /// Persistent replay firewall for authenticated SciRust deterministic evidence.
@@ -80,6 +82,7 @@ pub struct PersistentSciRustValidationReceiptStore {
     by_validation_id: BTreeMap<u64, PersistedSciRustValidationReceipt>,
     by_message_id: BTreeMap<[u8; 32], u64>,
     by_evidence_id: BTreeMap<u64, u64>,
+    by_payload_sha256: BTreeMap<[u8; 32], u64>,
 }
 
 impl PersistentSciRustValidationReceiptStore {
@@ -98,6 +101,7 @@ impl PersistentSciRustValidationReceiptStore {
             by_validation_id: indexes.by_validation_id,
             by_message_id: indexes.by_message_id,
             by_evidence_id: indexes.by_evidence_id,
+            by_payload_sha256: indexes.by_payload_sha256,
         })
     }
 
@@ -132,6 +136,9 @@ impl PersistentSciRustValidationReceiptStore {
                 ),
             );
         }
+        if self.by_payload_sha256.contains_key(&record.payload_sha256) {
+            return Err(SciRustValidationReceiptStoreError::DuplicatePayloadConflict);
+        }
 
         let encoded = encode(record);
         let mut file = OpenOptions::new().append(true).open(&self.path)?;
@@ -143,6 +150,8 @@ impl PersistentSciRustValidationReceiptStore {
             record.validation.evidence_id,
             record.validation.validation_id,
         );
+        self.by_payload_sha256
+            .insert(record.payload_sha256, record.validation.validation_id);
         self.by_validation_id
             .insert(record.validation.validation_id, record);
         Ok(SciRustValidationReceiptAppendOutcome::Appended)
@@ -308,6 +317,13 @@ fn replay(path: &Path) -> Result<ReplayedReceiptIndexes, SciRustValidationReceip
                 ),
             );
         }
+        if let Some(existing_validation_id) = indexes
+            .by_payload_sha256
+            .insert(record.payload_sha256, record.validation.validation_id)
+            && existing_validation_id != record.validation.validation_id
+        {
+            return Err(SciRustValidationReceiptStoreError::DuplicatePayloadConflict);
+        }
         offset += RECORD_BYTES;
     }
     Ok(indexes)
@@ -371,11 +387,12 @@ mod tests {
         ))
     }
 
-    fn message(
+    fn message_with_payload(
         message_id: &str,
         observation_id: u64,
         evidence_id: u64,
         confidence_bps: u16,
+        canonical_payload: &[u8],
     ) -> Vec<u8> {
         serde_json::to_vec(&json!({
             "schema_version": 1,
@@ -395,7 +412,7 @@ mod tests {
                 "evidence_id": evidence_id,
                 "verdict": "confirmed",
                 "confidence_bps": confidence_bps,
-                "canonical_payload": [100, 101, 116, 101, 114, 109, 105, 110, 105, 115, 116, 105, 99]
+                "canonical_payload": canonical_payload
             },
             "requested_capabilities": [],
             "execution_attestation": {
@@ -418,6 +435,21 @@ mod tests {
             }
         }))
         .expect("message fixture")
+    }
+
+    fn message(
+        message_id: &str,
+        observation_id: u64,
+        evidence_id: u64,
+        confidence_bps: u16,
+    ) -> Vec<u8> {
+        message_with_payload(
+            message_id,
+            observation_id,
+            evidence_id,
+            confidence_bps,
+            b"deterministic",
+        )
     }
 
     fn receipt(message: &[u8]) -> SciRustExchangeBridgeReceipt {
@@ -451,7 +483,13 @@ mod tests {
     fn reused_validation_id_with_changed_provenance_fails_closed() {
         let root = root("validation-conflict");
         let first = receipt(&message("m-1", 17, 117, 8_500));
-        let changed = receipt(&message("m-2", 17, 118, 9_000));
+        let changed = receipt(&message_with_payload(
+            "m-2",
+            17,
+            118,
+            9_000,
+            b"changed-deterministic",
+        ));
         let mut store = PersistentSciRustValidationReceiptStore::open(&root).expect("store");
         store.append(&first).expect("first");
         assert!(matches!(
@@ -465,7 +503,13 @@ mod tests {
     fn reused_message_id_for_new_validation_fails_closed() {
         let root = root("message-conflict");
         let first = receipt(&message("m-1", 17, 117, 8_500));
-        let replay = receipt(&message("m-1", 18, 118, 8_500));
+        let replay = receipt(&message_with_payload(
+            "m-1",
+            18,
+            118,
+            8_500,
+            b"other-deterministic",
+        ));
         let mut store = PersistentSciRustValidationReceiptStore::open(&root).expect("store");
         store.append(&first).expect("first");
         assert!(matches!(
@@ -479,12 +523,32 @@ mod tests {
     fn reused_evidence_id_for_new_validation_fails_closed() {
         let root = root("evidence-conflict");
         let first = receipt(&message("m-1", 17, 117, 8_500));
-        let replay = receipt(&message("m-2", 18, 117, 8_500));
+        let replay = receipt(&message_with_payload(
+            "m-2",
+            18,
+            117,
+            8_500,
+            b"other-deterministic",
+        ));
         let mut store = PersistentSciRustValidationReceiptStore::open(&root).expect("store");
         store.append(&first).expect("first");
         assert!(matches!(
             store.append(&replay),
             Err(SciRustValidationReceiptStoreError::DuplicateEvidenceConflict(117))
+        ));
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn renumbered_identical_payload_fails_closed() {
+        let root = root("payload-conflict");
+        let first = receipt(&message("m-1", 17, 117, 8_500));
+        let replay = receipt(&message("m-2", 18, 118, 8_500));
+        let mut store = PersistentSciRustValidationReceiptStore::open(&root).expect("store");
+        store.append(&first).expect("first");
+        assert!(matches!(
+            store.append(&replay),
+            Err(SciRustValidationReceiptStoreError::DuplicatePayloadConflict)
         ));
         fs::remove_dir_all(root).expect("cleanup");
     }
