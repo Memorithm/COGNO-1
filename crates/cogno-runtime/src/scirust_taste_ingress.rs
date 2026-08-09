@@ -16,16 +16,16 @@
 
 use crate::scientific_exchange::ScientificExchangeDisposition;
 use crate::scirust_runtime_bridge::{
-    HostAuthenticatedSciRustSender, SciRustRuntimeBridgeError,
-    bridge_authenticated_scirust_exchange,
+    bridge_authenticated_scirust_exchange, HostAuthenticatedSciRustSender,
+    SciRustRuntimeBridgeError,
 };
 use crate::scirust_validation_receipt_store::{
     PersistentSciRustValidationReceiptStore, SciRustValidationReceiptAppendOutcome,
     SciRustValidationReceiptStoreError,
 };
 use crate::taste_orchestrator::{
-    OrchestratedTasteCandidate, ScientificTasteCycleReport, ScientificTasteOrchestratorError,
-    orchestrate_scientific_taste_cycle,
+    orchestrate_scientific_taste_cycle, OrchestratedTasteCandidate, ScientificTasteCycleReport,
+    ScientificTasteOrchestratorError,
 };
 use crate::taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
@@ -210,9 +210,7 @@ impl PersistentSciRustTasteIngress {
             .validation_store
             .records()
             .copied()
-            .filter(|validation| {
-                validation.origin == StoredValidationOrigin::ExplicitUserAction
-            })
+            .filter(|validation| validation.origin == StoredValidationOrigin::ExplicitUserAction)
             .collect();
         validations.extend(self.receipt_store.validations());
         validations.sort_unstable_by_key(|validation| validation.validation_id);
@@ -267,13 +265,12 @@ fn ensure_unique_evidence(
 mod tests {
     use super::*;
     use crate::{OrchestratedTasteState, StoredValidationVerdict};
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    const PROFILE_SHA256: &str =
-        "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
+    const PROFILE_SHA256: &str = "c984c0151e84300875c2aead5764d018f9ef5d09d218ab8f8f1ea9ab7157bec8";
 
     fn root(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
@@ -337,8 +334,7 @@ mod tests {
     }
 
     fn sender() -> HostAuthenticatedSciRustSender {
-        HostAuthenticatedSciRustSender::deterministic_kernel("cuda-decode-local")
-            .expect("sender")
+        HostAuthenticatedSciRustSender::deterministic_kernel("cuda-decode-local").expect("sender")
     }
 
     #[test]
@@ -355,7 +351,9 @@ mod tests {
             }
         );
         assert_eq!(
-            ingress.ingest(&encoded, &sender(), "cogno").expect("replay"),
+            ingress
+                .ingest(&encoded, &sender(), "cogno")
+                .expect("replay"),
             SciRustTasteIngressOutcome::Validation {
                 validation_id: 17,
                 receipt: SciRustValidationReceiptAppendOutcome::Duplicate,
@@ -401,8 +399,8 @@ mod tests {
     fn startup_reconciles_receipt_written_before_validation_store() {
         let root = root("recovery");
         let encoded = message("m-1", 17, 117, 8_500, b"deterministic-a");
-        let receipt = bridge_authenticated_scirust_exchange(&encoded, &sender(), "cogno")
-            .expect("bridge");
+        let receipt =
+            bridge_authenticated_scirust_exchange(&encoded, &sender(), "cogno").expect("bridge");
         let mut receipts = PersistentSciRustValidationReceiptStore::open(&root).expect("receipts");
         receipts.append(&receipt).expect("append receipt");
         drop(receipts);
@@ -449,7 +447,10 @@ mod tests {
         let trusted = ingress.trusted_validations().expect("trusted");
         assert_eq!(trusted.len(), 1);
         assert_eq!(trusted[0].validation_id, 91);
-        assert_eq!(trusted[0].origin, StoredValidationOrigin::ExplicitUserAction);
+        assert_eq!(
+            trusted[0].origin,
+            StoredValidationOrigin::ExplicitUserAction
+        );
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -518,19 +519,16 @@ mod tests {
     #[test]
     fn inconclusive_exchange_does_not_enter_either_store() {
         let root = root("inconclusive");
-        let mut value: Value = serde_json::from_slice(&message(
-            "m-1",
-            17,
-            117,
-            8_500,
-            b"deterministic-a",
-        ))
-        .expect("fixture");
+        let mut value: Value =
+            serde_json::from_slice(&message("m-1", 17, 117, 8_500, b"deterministic-a"))
+                .expect("fixture");
         value["payload"]["verdict"] = json!("inconclusive");
         let encoded = serde_json::to_vec(&value).expect("encoded");
         let mut ingress = PersistentSciRustTasteIngress::open(&root).expect("ingress");
         assert_eq!(
-            ingress.ingest(&encoded, &sender(), "cogno").expect("ingest"),
+            ingress
+                .ingest(&encoded, &sender(), "cogno")
+                .expect("ingest"),
             SciRustTasteIngressOutcome::Inconclusive
         );
         assert_eq!(ingress.attested_validation_count(), 0);
