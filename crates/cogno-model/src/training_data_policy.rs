@@ -3,6 +3,7 @@
 //! This module owns the classification policy only. It grants no model,
 //! persistence, Meta, tool or runtime authority.
 
+use crate::training::Corpus;
 use cogno_core::DataClassification;
 
 /// Explicit host authority required before `Confidential` data may enter a
@@ -33,6 +34,15 @@ pub enum TrainingDataGovernanceError {
         examples: usize,
         classifications: usize,
     },
+}
+
+/// Defensively revalidate every stored training-data classification.
+///
+/// Public corpus admission already enforces §20 before storage. This function
+/// exists for review/trainer boundaries that want to reassert that invariant
+/// before allocating tokenizer/optimizer/training state.
+pub fn validate_training_corpus(corpus: &Corpus) -> Result<(), TrainingDataGovernanceError> {
+    corpus.validate_data_classifications()
 }
 
 /// Crate-owned admission policy shared by every model training corpus.
