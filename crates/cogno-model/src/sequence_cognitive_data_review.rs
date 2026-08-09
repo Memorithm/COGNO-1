@@ -105,6 +105,11 @@ pub enum SequenceCognitiveDataReviewError {
     SecretTrainingData { index: usize },
     /// `Confidential` requires the explicit host attestation constructor.
     ConfidentialTrainingDataRequiresAuthorization { index: usize },
+    /// Internal example/classification storage lost its one-to-one invariant.
+    ClassificationStateMismatch {
+        examples: usize,
+        classifications: usize,
+    },
     /// Existing weakest-link review validation/training error.
     Review(SequenceCognitiveMetaReviewError),
 }
@@ -118,6 +123,13 @@ impl From<TrainingDataGovernanceError> for SequenceCognitiveDataReviewError {
             TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
                 index,
             } => Self::ConfidentialTrainingDataRequiresAuthorization { index },
+            TrainingDataGovernanceError::ClassificationStateMismatch {
+                examples,
+                classifications,
+            } => Self::ClassificationStateMismatch {
+                examples,
+                classifications,
+            },
         }
     }
 }
