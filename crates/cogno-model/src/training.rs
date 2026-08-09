@@ -8,9 +8,10 @@
 //! `ReadOnlyModel` a non-trivial, deterministic classifier to load.
 //!
 //! Guarantees honored from the spec:
-//!  - examples carry provenance (§9, S6) and explicit data classification (§20);
+//!  - examples carry provenance (§9, S6);
+//!  - every public corpus insertion carries explicit data classification (§20);
 //!  - `Secret` and unauthorized `Confidential` data are rejected before storage;
-//!  - stored examples are exposed read-only outside `cogno-model`;
+//!  - stored examples and classifications are externally read-only;
 //!  - splits are deterministic (train/val/test, seeded shuffle);
 //!  - the trainer accepts contradictory, adversarial, malformed and negative
 //!    examples so downstream tests can poison it deterministically;
@@ -44,28 +45,27 @@ pub struct Provenance {
     pub fingerprint: cogno_core::Fingerprint,
 }
 
-/// A labeled training example with explicit §20 data classification.
+/// A labeled candidate example. Data classification is attached only when the
+/// example crosses the public [`Corpus::add_classified`] training boundary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LabeledExample {
     pub label: Label,
     pub payload: Vec<u8>,
     pub provenance: Provenance,
-    data_class: DataClassification,
 }
 
 impl LabeledExample {
-    /// Convenience constructor that computes the canonical fingerprint from the
-    /// payload and label while requiring an explicit data classification.
+    /// Compute the canonical fingerprint from payload and label.
     ///
-    /// Classification intentionally does not alter the fingerprint, so an
-    /// identical example cannot bypass duplicate detection by being relabelled.
+    /// Classification is deliberately not part of this object or fingerprint:
+    /// the host must supply it independently at corpus admission, and relabeling
+    /// cannot make duplicate content appear new.
     #[must_use]
     pub fn new(
         label: Label,
         payload: Vec<u8>,
         origin: cogno_core::InputOrigin,
         evidence_origin: cogno_core::EvidenceOrigin,
-        data_class: DataClassification,
     ) -> Self {
         let mut h = DefaultHasher::new();
         h.write_u16(label.0);
@@ -81,14 +81,7 @@ impl LabeledExample {
                 evidence_origin,
                 fingerprint: cogno_core::Fingerprint(fp),
             },
-            data_class,
         }
-    }
-
-    /// Host-owned §20 classification attached before corpus insertion.
-    #[must_use]
-    pub const fn data_class(&self) -> DataClassification {
-        self.data_class
     }
 }
 
@@ -107,14 +100,16 @@ pub struct CorpusSplit {
     pub indices: Vec<usize>,
 }
 
-/// In-memory corpus carrying provenance and classification per example.
+/// In-memory corpus carrying provenance and §20 classification per example.
 ///
-/// The public insertion boundary validates §20 before the example reaches the
-/// corpus and then deduplicates by canonical fingerprint (§9). Stored examples
-/// cannot be mutated by external crates after admission.
+/// External callers can only insert via [`Corpus::add_classified`], which
+/// validates classification before storage. The crate-private `add` exists only
+/// for trusted internal derivations whose source data already crossed a public
+/// classified boundary; it assigns `Internal` to that derived record.
 #[derive(Debug)]
 pub struct Corpus {
     pub(crate) examples: Vec<LabeledExample>,
+    data_classes: Vec<DataClassification>,
     seen: std::collections::HashSet<cogno_core::Fingerprint>,
     pub seed: u64,
     policy: TrainingDataAdmissionPolicy,
@@ -128,11 +123,12 @@ impl Default for Corpus {
 
 impl Corpus {
     /// Construct with a deterministic seed. Only `Public` and `Internal` data
-    /// are admitted by default.
+    /// are admitted by the public boundary by default.
     #[must_use]
     pub fn with_seed(seed: u64) -> Self {
         Self {
             examples: Vec::new(),
+            data_classes: Vec::new(),
             seen: std::collections::HashSet::new(),
             seed,
             policy: TrainingDataAdmissionPolicy::DEFAULT,
@@ -148,24 +144,50 @@ impl Corpus {
     ) -> Self {
         Self {
             examples: Vec::new(),
+            data_classes: Vec::new(),
             seen: std::collections::HashSet::new(),
             seed,
             policy: TrainingDataAdmissionPolicy::with_confidential_authorization(attestation),
         }
     }
 
-    /// Validate classification before storage, then deduplicate by fingerprint.
+    /// Public §20 admission boundary.
     ///
     /// Governance rejection is an `Err`; a canonical duplicate is `Ok(false)`;
-    /// a newly stored example is `Ok(true)`.
-    pub fn add(&mut self, ex: LabeledExample) -> Result<bool, TrainingDataGovernanceError> {
+    /// a newly stored example is `Ok(true)`. Classification is validated before
+    /// either the example or its classification enters the corpus.
+    pub fn add_classified(
+        &mut self,
+        ex: LabeledExample,
+        data_class: DataClassification,
+    ) -> Result<bool, TrainingDataGovernanceError> {
         let index = self.examples.len();
-        self.policy.validate(ex.data_class(), index)?;
+        self.policy.validate(data_class, index)?;
         if !self.seen.insert(ex.provenance.fingerprint) {
             return Ok(false);
         }
         self.examples.push(ex);
+        self.data_classes.push(data_class);
         Ok(true)
+    }
+
+    /// Crate-private admission for data derived inside a model review after the
+    /// source corpus has already passed its public classification boundary.
+    pub(crate) fn add(&mut self, ex: LabeledExample) -> bool {
+        let index = self.examples.len();
+        if self
+            .policy
+            .validate(DataClassification::Internal, index)
+            .is_err()
+        {
+            return false;
+        }
+        if !self.seen.insert(ex.provenance.fingerprint) {
+            return false;
+        }
+        self.examples.push(ex);
+        self.data_classes.push(DataClassification::Internal);
+        true
     }
 
     /// Read-only view of admitted examples.
@@ -187,8 +209,14 @@ impl Corpus {
     pub(crate) fn validate_data_classifications(
         &self,
     ) -> Result<(), TrainingDataGovernanceError> {
-        for (index, example) in self.examples.iter().enumerate() {
-            self.policy.validate(example.data_class(), index)?;
+        if self.examples.len() != self.data_classes.len() {
+            return Err(TrainingDataGovernanceError::ClassificationStateMismatch {
+                examples: self.examples.len(),
+                classifications: self.data_classes.len(),
+            });
+        }
+        for (index, data_class) in self.data_classes.iter().copied().enumerate() {
+            self.policy.validate(data_class, index)?;
         }
         Ok(())
     }
@@ -376,13 +404,12 @@ mod tests {
     use super::*;
     use cogno_core::{EvidenceOrigin, InputOrigin};
 
-    fn example(data_class: DataClassification) -> LabeledExample {
+    fn example() -> LabeledExample {
         LabeledExample::new(
             Label::from_u16(0),
             b"classified training payload".to_vec(),
             InputOrigin::TrainingCorpus,
             EvidenceOrigin::TestResult,
-            data_class,
         )
     }
 
@@ -393,7 +420,7 @@ mod tests {
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
         );
         assert_eq!(
-            corpus.add(example(DataClassification::Secret)),
+            corpus.add_classified(example(), DataClassification::Secret),
             Err(TrainingDataGovernanceError::SecretTrainingData { index: 0 })
         );
         assert!(corpus.is_empty());
@@ -403,7 +430,7 @@ mod tests {
     fn confidential_requires_attestation_before_storage() {
         let mut denied = Corpus::with_seed(2);
         assert_eq!(
-            denied.add(example(DataClassification::Confidential)),
+            denied.add_classified(example(), DataClassification::Confidential),
             Err(TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
                 index: 0,
             })
@@ -415,7 +442,7 @@ mod tests {
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
         );
         assert_eq!(
-            allowed.add(example(DataClassification::Confidential)),
+            allowed.add_classified(example(), DataClassification::Confidential),
             Ok(true)
         );
         assert_eq!(allowed.len(), 1);
@@ -427,22 +454,31 @@ mod tests {
             4,
             HostConfidentialTrainingAttestation::authorize_confidential_training_data(),
         );
-        assert_eq!(corpus.add(example(DataClassification::Internal)), Ok(true));
         assert_eq!(
-            corpus.add(example(DataClassification::Confidential)),
+            corpus.add_classified(example(), DataClassification::Internal),
+            Ok(true)
+        );
+        assert_eq!(
+            corpus.add_classified(example(), DataClassification::Confidential),
             Ok(false)
         );
         assert_eq!(corpus.len(), 1);
     }
 
     #[test]
-    fn defensive_revalidation_detects_internal_post_storage_tampering() {
+    fn defensive_revalidation_detects_internal_state_mismatch() {
         let mut corpus = Corpus::with_seed(5);
-        assert_eq!(corpus.add(example(DataClassification::Internal)), Ok(true));
-        corpus.examples[0].data_class = DataClassification::Secret;
+        assert_eq!(
+            corpus.add_classified(example(), DataClassification::Internal),
+            Ok(true)
+        );
+        corpus.data_classes.clear();
         assert_eq!(
             corpus.validate_data_classifications(),
-            Err(TrainingDataGovernanceError::SecretTrainingData { index: 0 })
+            Err(TrainingDataGovernanceError::ClassificationStateMismatch {
+                examples: 1,
+                classifications: 0,
+            })
         );
     }
 }
