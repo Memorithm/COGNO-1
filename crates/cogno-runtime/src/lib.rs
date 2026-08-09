@@ -123,7 +123,8 @@ pub use runtime::{
     RuntimeTasteProfileError,
 };
 pub use scientific_exchange::{
-    classify_scientific_exchange, ScientificExchangeDisposition, ScientificExchangeError,
+    classify_attested_scientific_exchange, classify_scientific_exchange,
+    HostSciRustExecutionAttestation, ScientificExchangeDisposition, ScientificExchangeError,
     ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
     MAX_SCIENTIFIC_EXCHANGE_PAYLOAD_BYTES,
 };
