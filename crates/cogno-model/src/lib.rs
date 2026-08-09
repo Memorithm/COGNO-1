@@ -42,11 +42,11 @@
 //!   five-tensor sequence-classifier format, and [`sequence_cognitive_artifact`]
 //!   defines the V4 eleven-tensor shared-cognitive state. All byte-sequence
 //!   formats bind to the deterministic byte tokenizer. [`versioned_artifact`]
-//!   dispatches without reinterpreting versions. [`meta_review`] retains the
-//!   historical v1 held-out proof, [`sequence_meta_review`] provides the sealed
-//!   v3 review, and [`sequence_cognitive_data_review`] exposes the data-classified
-//!   V4 weakest-link review boundary across all five cognitive signals.
-//!   [`meta_candidate`] exposes all COGNO-minted proofs through one
+//!   dispatches without reinterpreting versions. [`meta_review`] and
+//!   [`sequence_meta_review`] expose data-governed V1/V3 held-out review
+//!   boundaries, while [`sequence_cognitive_data_review`] exposes the
+//!   data-classified V4 weakest-link review boundary across all five cognitive
+//!   signals. [`meta_candidate`] exposes all COGNO-minted proofs through one
 //!   architecture-neutral but externally non-implementable surface.
 //! - **Phase 5**: tools are added only after specific audit and remain behind
 //!   an explicit capability gate in `cogno-runtime`.
@@ -63,6 +63,13 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_candidate;
+#[allow(
+    unreachable_pub,
+    reason = "the original V1 held-out review engine is intentionally private; public review passes through the data-governed facade"
+)]
+#[path = "meta_review.rs"]
+mod meta_review_engine;
+#[path = "meta_data_review.rs"]
 pub mod meta_review;
 #[allow(
     clippy::too_many_arguments,
@@ -83,6 +90,13 @@ pub mod sequence_cognitive_data_review;
 )]
 mod sequence_cognitive_meta_review;
 pub mod sequence_contradiction;
+#[allow(
+    unreachable_pub,
+    reason = "the original V3 held-out review engine is intentionally private; public review passes through the data-governed facade"
+)]
+#[path = "sequence_meta_review.rs"]
+mod sequence_meta_review_engine;
+#[path = "sequence_data_review.rs"]
 pub mod sequence_meta_review;
 pub mod sequence_preference;
 pub mod sequence_retrieval;
@@ -102,9 +116,9 @@ pub use artifact::{
 pub use backend::{BackendError, BackendInfo, ModelBackend, OwnedProposal};
 pub use meta_candidate::MetaReviewedCandidate;
 pub use meta_review::{
-    review_neural_model_for_meta, EligibleMetaModelReview, HeldOutMetrics, MetaEligibilityError,
-    MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy, MetaNeuralReviewReport,
-    MetaPromotionAuthority, MetaPromotionBlocker, MetaPromotionDisposition,
+    review_neural_model_for_meta, EligibleMetaModelReview, HeldOutMetrics, MetaDataReviewError,
+    MetaEligibilityError, MetaModelEvidence, MetaNeuralReviewError, MetaNeuralReviewPolicy,
+    MetaNeuralReviewReport, MetaPromotionAuthority, MetaPromotionBlocker, MetaPromotionDisposition,
     DEFAULT_META_MAX_REGRESSION_BPS, DEFAULT_META_MIN_ACCURACY_BPS, MAX_META_REVIEW_EXAMPLES,
 };
 pub use mlp::{
@@ -157,9 +171,9 @@ pub use sequence_contradiction::{
     SEQUENCE_CONTRADICTION_CLASSES, SEQUENCE_CONTRADICTION_CLEAR_CLASS,
 };
 pub use sequence_meta_review::{
-    review_sequence_model_for_meta, EligibleSequenceMetaModelReview, SequenceMetaEligibilityError,
-    SequenceMetaReviewConfig, SequenceMetaReviewError, SequenceMetaReviewPolicy,
-    SequenceMetaReviewReport,
+    review_sequence_model_for_meta, EligibleSequenceMetaModelReview, SequenceDataReviewError,
+    SequenceMetaEligibilityError, SequenceMetaReviewConfig, SequenceMetaReviewError,
+    SequenceMetaReviewPolicy, SequenceMetaReviewReport,
 };
 pub use sequence_preference::{
     SciRustSequencePreferenceReadOnlyModel, SequencePreferenceConfig, SequencePreferenceError,
