@@ -121,6 +121,7 @@ jobs:
           memchr
           proc-macro2
           quote
+          scirust-agent-protocol
           serde
           serde_core
           serde_derive
