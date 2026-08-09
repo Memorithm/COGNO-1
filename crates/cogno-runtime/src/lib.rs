@@ -67,6 +67,7 @@ pub mod taste_controlled_restart;
 pub mod taste_cycle;
 pub mod taste_decision;
 pub mod taste_generation;
+pub mod taste_generation_v2;
 pub mod taste_longitudinal;
 pub mod taste_orchestrator;
 pub mod taste_persisted_chain;
@@ -173,6 +174,11 @@ pub use taste_decision::{
 };
 pub use taste_generation::{
     TasteGenerationChain, TasteGenerationError, TasteGenerationManifest, GENESIS_DIGEST,
+};
+pub use taste_generation_v2::{
+    TasteGenerationManifestV2, TasteGenerationV2Error, VersionedTasteGenerationChain,
+    VersionedTasteGenerationManifest, TASTE_GENERATION_V2_MAGIC,
+    TASTE_GENERATION_V2_MANIFEST_BYTES, TASTE_GENERATION_V2_SCHEMA_VERSION,
 };
 pub use taste_longitudinal::{
     TasteDriftState, TasteHistoryObservation, TasteLongitudinalError, TasteLongitudinalStatus,
