@@ -5,6 +5,7 @@
 //! observations never carry authority; hard safety remains lexicographically
 //! prior.
 
+use crate::cognitive_decision::CognitiveRewardDecision;
 use crate::cognitive_observation::CognitiveObservation;
 use crate::cognitive_reward::AppliedCognitiveReward;
 use crate::taste_decision::TasteDecision;
@@ -93,6 +94,7 @@ pub struct AuditRecord {
     pub taste: Option<TasteDecisionAudit>,
     pub cognitive: Option<CognitiveObservation>,
     pub cognitive_reward: Option<CognitiveRewardAudit>,
+    pub cognitive_decision: Option<CognitiveRewardDecision>,
 }
 
 /// In-memory audit buffer (bounded by the Phase 0 budget; a real runtime uses
@@ -112,6 +114,7 @@ impl Audit {
             taste: None,
             cognitive: None,
             cognitive_reward: None,
+            cognitive_decision: None,
         });
     }
 
@@ -125,6 +128,7 @@ impl Audit {
             taste: None,
             cognitive: None,
             cognitive_reward: None,
+            cognitive_decision: None,
         });
     }
 
@@ -141,6 +145,7 @@ impl Audit {
             taste: Some(TasteDecisionAudit::from(decision)),
             cognitive: None,
             cognitive_reward: None,
+            cognitive_decision: None,
         });
     }
 
@@ -154,6 +159,7 @@ impl Audit {
             taste: None,
             cognitive: Some(observation.clone()),
             cognitive_reward: None,
+            cognitive_decision: None,
         });
     }
 
@@ -167,6 +173,20 @@ impl Audit {
             taste: None,
             cognitive: None,
             cognitive_reward: Some(CognitiveRewardAudit::from(applied)),
+            cognitive_decision: None,
+        });
+    }
+
+    /// Record a deterministic comparison among sealed post-hard V4 rewards.
+    pub fn cognitive_decision(&mut self, decision: &CognitiveRewardDecision) {
+        self.records.push(AuditRecord {
+            decision: "cognitive_decision",
+            reason: None,
+            note: None,
+            taste: None,
+            cognitive: None,
+            cognitive_reward: None,
+            cognitive_decision: Some(decision.clone()),
         });
     }
 
@@ -182,6 +202,7 @@ impl Audit {
             taste: None,
             cognitive: None,
             cognitive_reward: None,
+            cognitive_decision: None,
         });
     }
 
@@ -226,6 +247,7 @@ mod tests {
         assert_eq!(trace.influences[0].preference_id, 7);
         assert!(audit.records[0].cognitive.is_none());
         assert!(audit.records[0].cognitive_reward.is_none());
+        assert!(audit.records[0].cognitive_decision.is_none());
     }
 
     #[test]
@@ -255,5 +277,6 @@ mod tests {
         assert!(!trace.authoritative);
         assert!(audit.records[0].taste.is_none());
         assert!(audit.records[0].cognitive_reward.is_none());
+        assert!(audit.records[0].cognitive_decision.is_none());
     }
 }
