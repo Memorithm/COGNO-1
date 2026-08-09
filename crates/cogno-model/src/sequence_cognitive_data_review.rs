@@ -8,29 +8,16 @@
 
 use crate::sequence_cognitive_meta_review as inner;
 use crate::training::CorpusSplit;
+use crate::training_data_policy::{TrainingDataAdmissionPolicy, TrainingDataGovernanceError};
 use cogno_core::DataClassification;
 
+pub use crate::training_data_policy::HostConfidentialTrainingAttestation;
 pub use inner::{
     EligibleSequenceCognitiveMetaModelReview, SequenceCognitiveHeldOutMetrics,
     SequenceCognitiveMetaEligibilityError, SequenceCognitiveMetaReviewConfig,
     SequenceCognitiveMetaReviewError, SequenceCognitiveMetaReviewPolicy,
     SequenceCognitiveMetaReviewReport, SequenceCognitiveReviewExample,
 };
-
-/// Explicit host authority required before `Confidential` review data may be
-/// supplied to the neural training/review path. This token never authorizes
-/// `Secret`, which is forbidden unconditionally.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HostConfidentialTrainingAttestation {
-    _private: (),
-}
-
-impl HostConfidentialTrainingAttestation {
-    #[must_use]
-    pub const fn authorize_confidential_training_data() -> Self {
-        Self { _private: () }
-    }
-}
 
 /// Public V4 review corpus with one explicit data classification per example.
 ///
@@ -42,7 +29,7 @@ impl HostConfidentialTrainingAttestation {
 pub struct SequenceCognitiveReviewCorpus {
     inner: inner::SequenceCognitiveReviewCorpus,
     data_classes: Vec<DataClassification>,
-    allow_confidential: bool,
+    policy: TrainingDataAdmissionPolicy,
 }
 
 impl SequenceCognitiveReviewCorpus {
@@ -52,7 +39,7 @@ impl SequenceCognitiveReviewCorpus {
         Self {
             inner: inner::SequenceCognitiveReviewCorpus::with_seed(seed),
             data_classes: Vec::new(),
-            allow_confidential: false,
+            policy: TrainingDataAdmissionPolicy::DEFAULT,
         }
     }
 
@@ -61,12 +48,12 @@ impl SequenceCognitiveReviewCorpus {
     #[must_use]
     pub fn with_seed_and_confidential_authorization(
         seed: u64,
-        _attestation: HostConfidentialTrainingAttestation,
+        attestation: HostConfidentialTrainingAttestation,
     ) -> Self {
         Self {
             inner: inner::SequenceCognitiveReviewCorpus::with_seed(seed),
             data_classes: Vec::new(),
-            allow_confidential: true,
+            policy: TrainingDataAdmissionPolicy::with_confidential_authorization(attestation),
         }
     }
 
@@ -81,7 +68,7 @@ impl SequenceCognitiveReviewCorpus {
         data_class: DataClassification,
     ) -> Result<bool, SequenceCognitiveDataReviewError> {
         let index = self.data_classes.len();
-        validate_data_classification(data_class, self.allow_confidential, index)?;
+        self.policy.validate(data_class, index)?;
         if !self.inner.add(example) {
             return Ok(false);
         }
@@ -111,7 +98,7 @@ impl SequenceCognitiveReviewCorpus {
     }
 }
 
-/// Fail-closed errors added by the public data-classification boundary.
+/// Fail-closed errors added by the public V4 data-classification boundary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SequenceCognitiveDataReviewError {
     /// `Secret` may never enter prompts, traces, reports or training sets.
@@ -120,6 +107,19 @@ pub enum SequenceCognitiveDataReviewError {
     ConfidentialTrainingDataRequiresAuthorization { index: usize },
     /// Existing weakest-link review validation/training error.
     Review(SequenceCognitiveMetaReviewError),
+}
+
+impl From<TrainingDataGovernanceError> for SequenceCognitiveDataReviewError {
+    fn from(error: TrainingDataGovernanceError) -> Self {
+        match error {
+            TrainingDataGovernanceError::SecretTrainingData { index } => {
+                Self::SecretTrainingData { index }
+            }
+            TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
+                index,
+            } => Self::ConfidentialTrainingDataRequiresAuthorization { index },
+        }
+    }
 }
 
 impl From<SequenceCognitiveMetaReviewError> for SequenceCognitiveDataReviewError {
@@ -152,30 +152,11 @@ pub fn review_sequence_cognitive_model_for_meta(
     )?)
 }
 
-fn validate_data_classification(
-    data_class: DataClassification,
-    allow_confidential: bool,
-    index: usize,
-) -> Result<(), SequenceCognitiveDataReviewError> {
-    match data_class {
-        DataClassification::Public | DataClassification::Internal => Ok(()),
-        DataClassification::Confidential if allow_confidential => Ok(()),
-        DataClassification::Confidential => Err(
-            SequenceCognitiveDataReviewError::ConfidentialTrainingDataRequiresAuthorization {
-                index,
-            },
-        ),
-        DataClassification::Secret => {
-            Err(SequenceCognitiveDataReviewError::SecretTrainingData { index })
-        }
-    }
-}
-
 fn validate_data_classifications(
     corpus: &SequenceCognitiveReviewCorpus,
 ) -> Result<(), SequenceCognitiveDataReviewError> {
     for (index, data_class) in corpus.data_classes.iter().copied().enumerate() {
-        validate_data_classification(data_class, corpus.allow_confidential, index)?;
+        corpus.policy.validate(data_class, index)?;
     }
     Ok(())
 }
@@ -239,7 +220,7 @@ mod tests {
         let corpus = SequenceCognitiveReviewCorpus {
             inner,
             data_classes: vec![DataClassification::Secret],
-            allow_confidential: false,
+            policy: TrainingDataAdmissionPolicy::DEFAULT,
         };
         let train = CorpusSplit {
             kind: SplitKind::Train,
