@@ -163,6 +163,16 @@ fn prepare_v4_runtime(root: &Path) -> (Runtime, [u8; 32]) {
         runtime.cognitive_model_artifact_sha256(),
         Some(commit.artifact_sha256)
     );
+    let report = runtime.report();
+    assert!(report.meta_active);
+    assert_eq!(report.meta_candidate_digest, Some(commit.artifact_sha256));
+    assert!(report.cognitive_model_loaded);
+    assert_eq!(report.cognitive_model_generation, Some(1));
+    assert_eq!(
+        report.cognitive_model_artifact_sha256,
+        Some(commit.artifact_sha256)
+    );
+    assert!(report.cognitive_model_meta_bound);
     (runtime, commit.artifact_sha256)
 }
 
@@ -201,6 +211,18 @@ fn pipeline_params<'a>(
         reward_signal: Reward::ZERO,
         proposal: Some(proposal),
     }
+}
+
+#[test]
+fn report_fails_closed_without_cognitive_v4_state() {
+    let runtime = runtime();
+    let report = runtime.report();
+    assert!(!report.meta_active);
+    assert_eq!(report.meta_candidate_digest, None);
+    assert!(!report.cognitive_model_loaded);
+    assert_eq!(report.cognitive_model_generation, None);
+    assert_eq!(report.cognitive_model_artifact_sha256, None);
+    assert!(!report.cognitive_model_meta_bound);
 }
 
 #[test]
