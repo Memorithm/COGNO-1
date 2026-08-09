@@ -5,9 +5,7 @@
 //! derivation is available only from [`crate::HardGatedCognitiveContext`], so a
 //! raw model observation cannot be converted into a decision influence.
 
-use crate::{
-    CognitiveObservation, CognitivePreferenceRelation, HardGatedCognitiveContext,
-};
+use crate::{CognitiveObservation, CognitivePreferenceRelation, HardGatedCognitiveContext};
 use cogno_core::CandidateScore;
 
 /// Maximum absolute scalar delta one cognitive soft adjustment may request.
@@ -235,11 +233,7 @@ fn derive_adjustment(
             return Err(CognitiveSoftAdjustmentError::SymbolicTargetLengthMismatch);
         }
         let mut aligned_sum = 0i64;
-        for (&probability, &target) in observation
-            .symbolic_satisfaction_bps
-            .iter()
-            .zip(targets)
-        {
+        for (&probability, &target) in observation.symbolic_satisfaction_bps.iter().zip(targets) {
             let aligned_probability = if target {
                 probability
             } else {
