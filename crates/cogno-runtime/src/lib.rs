@@ -56,6 +56,7 @@ pub mod pipeline;
 pub mod queue;
 pub mod runtime;
 pub mod scientific_exchange;
+pub mod scirust_protocol_bridge;
 pub mod scirust_runtime_bridge;
 pub mod taste_autonomy;
 pub mod taste_benchmark;
@@ -128,6 +129,9 @@ pub use scientific_exchange::{
     HostSciRustExecutionAttestation, ScientificExchangeDisposition, ScientificExchangeError,
     ScientificExchangeOrigin, ScientificExchangeRecord, ScientificExchangeVerdict,
     MAX_SCIENTIFIC_EXCHANGE_PAYLOAD_BYTES,
+};
+pub use scirust_protocol_bridge::{
+    attest_authenticated_scirust_message, SciRustProtocolBridgeError,
 };
 pub use scirust_runtime_bridge::{
     bridge_authenticated_scirust_exchange, HostAuthenticatedSciRustSender,
