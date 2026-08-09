@@ -16,6 +16,7 @@ use cogno_core::{
 use cogno_model::{ModelBackend, OwnedProposal, SimBackend};
 use cogno_runtime::{PersistentDialogueStore, Pipeline, PipelineParams, Runtime, RuntimeConfig};
 use serde::Deserialize;
+use std::fmt::Write as _;
 use std::io::{self, BufRead};
 use std::path::Path;
 
@@ -85,8 +86,8 @@ fn print_help() {
     println!("cogno — COGNO-1 command line");
     println!();
     println!("Commands:");
-    println!("  phase                    Show implementation phase and meta-objective state");
-    println!("  doctor                   Validate budget, KV controller, queue and tool gate");
+    println!("  phase                    Show implementation, Meta and cognitive V4 state");
+    println!("  doctor                   Validate runtime gates including cognitive V4 binding");
     println!("  validate <n>             Validate scripted proposals against the strict schema");
     println!("  simulate                 Run the deterministic proposal simulator");
     println!("  demo-pipeline            Run a proposal through the full deterministic pipeline");
@@ -215,6 +216,25 @@ fn cmd_phase() {
     let report = runtime.report();
     println!("Phase: {}", report.phase);
     println!("Meta-objective active: {}", report.meta_active);
+    println!(
+        "Meta candidate SHA-256: {}",
+        format_optional_digest(report.meta_candidate_digest)
+    );
+    println!("Cognitive V4 loaded: {}", report.cognitive_model_loaded);
+    println!(
+        "Cognitive V4 generation: {}",
+        report
+            .cognitive_model_generation
+            .map_or_else(|| "none".to_string(), |generation| generation.to_string())
+    );
+    println!(
+        "Cognitive V4 artifact SHA-256: {}",
+        format_optional_digest(report.cognitive_model_artifact_sha256)
+    );
+    println!(
+        "Cognitive V4 Meta-bound: {}",
+        report.cognitive_model_meta_bound
+    );
     println!("Tools enabled: {}", report.tools_enabled);
     println!("Admissions: {}", report.admissions);
     println!("Rejections: {}", report.rejections);
@@ -224,8 +244,20 @@ fn cmd_phase() {
 fn cmd_doctor() {
     let runtime = runtime_or_die();
     let report = runtime.report();
-    let ok = !report.tools_enabled && !report.meta_active;
-    println!("doctor: budget ok | kv ok | queue ok | tools gated | meta gated");
+    let ok = !report.tools_enabled && !report.meta_active && !report.cognitive_model_loaded;
+    println!("doctor: budget ok | kv ok | queue ok | tools gated");
+    println!(
+        "meta_active={} cognitive_v4_loaded={} cognitive_v4_meta_bound={}",
+        report.meta_active, report.cognitive_model_loaded, report.cognitive_model_meta_bound
+    );
+    println!(
+        "meta_sha256={} cognitive_v4_generation={} cognitive_v4_sha256={}",
+        format_optional_digest(report.meta_candidate_digest),
+        report
+            .cognitive_model_generation
+            .map_or_else(|| "none".to_string(), |generation| generation.to_string()),
+        format_optional_digest(report.cognitive_model_artifact_sha256)
+    );
     println!(
         "admissions={} rejections={} truncations={}",
         report.admissions, report.rejections, report.truncations
@@ -235,6 +267,17 @@ fn cmd_doctor() {
     } else {
         println!("status: non-MVP configuration present — review before release");
     }
+}
+
+fn format_optional_digest(digest: Option<[u8; 32]>) -> String {
+    let Some(digest) = digest else {
+        return "none".to_string();
+    };
+    let mut output = String::with_capacity(64);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing into a String cannot fail");
+    }
+    output
 }
 
 fn cmd_validate(n_arg: Option<&String>) {
@@ -429,5 +472,25 @@ mod tests {
         let mut item = envelope();
         item.sender_class = "unknown".to_string();
         assert!(validate_observation_envelope(&item).is_err());
+    }
+
+    #[test]
+    fn digest_format_is_exact_lowercase_hex_or_none() {
+        assert_eq!(format_optional_digest(None), "none");
+        assert_eq!(
+            format_optional_digest(Some([0xab; 32])),
+            "abababababababababababababababababababababababababababababababab"
+        );
+    }
+
+    #[test]
+    fn default_cli_runtime_keeps_cognitive_v4_gated() {
+        let report = runtime_or_die().report();
+        assert!(!report.meta_active);
+        assert_eq!(report.meta_candidate_digest, None);
+        assert!(!report.cognitive_model_loaded);
+        assert_eq!(report.cognitive_model_generation, None);
+        assert_eq!(report.cognitive_model_artifact_sha256, None);
+        assert!(!report.cognitive_model_meta_bound);
     }
 }
