@@ -206,9 +206,7 @@ impl Corpus {
         self.examples.is_empty()
     }
 
-    pub(crate) fn validate_data_classifications(
-        &self,
-    ) -> Result<(), TrainingDataGovernanceError> {
+    pub(crate) fn validate_data_classifications(&self) -> Result<(), TrainingDataGovernanceError> {
         if self.examples.len() != self.data_classes.len() {
             return Err(TrainingDataGovernanceError::ClassificationStateMismatch {
                 examples: self.examples.len(),
@@ -431,9 +429,11 @@ mod tests {
         let mut denied = Corpus::with_seed(2);
         assert_eq!(
             denied.add_classified(example(), DataClassification::Confidential),
-            Err(TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
-                index: 0,
-            })
+            Err(
+                TrainingDataGovernanceError::ConfidentialTrainingDataRequiresAuthorization {
+                    index: 0,
+                }
+            )
         );
         assert!(denied.is_empty());
 
