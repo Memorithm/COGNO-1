@@ -1,36 +1,50 @@
 # Architecture — COGNO-1
 
 COGNO-1 est un système générique de personnalisation neuro-symbolique composé de
-deux éléments **strictement séparés** :
+deux domaines **strictement séparés** :
 
-1. un **petit modèle d'assistance** — non fiable par construction ; il propose,
-   classe, extrait, explique, signale ;
+1. un **petit modèle neuronal d'assistance** — non fiable par construction ;
 2. un **noyau déterministe Rust** — seule autorité pour la sûreté, la mémoire,
-   les formats, la provenance, les décisions d'adoption, les effets de bord.
+   les formats, la provenance, les décisions d'adoption, la persistance et les
+   effets de bord.
 
-Le modèle n'est jamais une source fiable. Toute sortie du modèle est de la
-**donnée non fiable** : parsée → bornée → validée → confrontée aux politiques →
-éventuellement rejetée → auditée avant utilisation. L'indépendance annoncée
-(§1) couvre le fournisseur du modèle, le tokenizer, le moteur tensoriel, le
-format de poids, le matériel, le système d'exploitation et le projet hôte.
+Le modèle n'est jamais une source d'autorité. Toute sortie neuronale reste une
+donnée soft : bornée, validée, liée à une provenance et utilisable seulement à
+l'endroit explicitement prévu par le runtime.
+
+L'indépendance couvre le fournisseur du modèle, le tokenizer, le moteur
+tensoriel, le format de poids, le matériel, le système d'exploitation et le
+projet hôte.
 
 ## 1. Pipeline obligatoire (§3)
 
-Aucun effet de bord ne se produit avant la fin de la chaîne :
+Le chemin d'autorité respecte l'ordre suivant :
 
-```
+```text
 entrée externe
-  ↓ classification de confiance        (TrustClass, InputOrigin)
-  ↓ contrôle des tailles              (checked arithmetic, MemoryBudget)
-  ↓ parsing strict                    (schéma versionné, rejet des champs inconnus/dupliqués)
-  ↓ validation structurelle           (admissibilité)
-  ↓ validation symbolique             (validateurs formels)
-  ↓ application des règles de sécurité (contraintes dures)
-  ↓ évaluation neuro-symbolique       (reward engine)
-  ↓ décision déterministe             (lexicographique, fail-closed)
-  ↓ audit                             (journal append-only + provenance)
-  ↓ effet de bord éventuel            (derrière capacités explicites)
+  ↓ classification de confiance
+  ↓ contrôle des tailles
+  ↓ parsing strict
+  ↓ validation structurelle
+  ↓ validation symbolique déterministe
+  ↓ règles de sécurité / confidentialité       ← hard gates
+  ↓ reward scalaire déterministe de base
+  ↓ décision d'admissibilité
+  ├─ rejet : fin, aucun signal V4
+  └─ Eligible
+       ↓ vérification Meta + digest V4 exact
+       ↓ observation cognitive V4 non autoritaire
+       ↓ cibles sémantiques explicites de l'hôte
+       ↓ ajustement soft borné
+       ↓ addition entière checked
+       ↓ classement déterministe des candidats admissibles
+       ↓ audit complet
+       ↓ effet de bord éventuel derrière capacités explicites
 ```
+
+Le contexte nécessaire au reward cognitif **n'existe pas** avant
+`PipelineOutcome::Eligible`. Une contrainte dure ne peut donc pas être
+compensée numériquement.
 
 ## 2. Autorité du noyau Rust (§3)
 
@@ -38,135 +52,163 @@ Le noyau est l'unique autorité pour : les règles de sûreté ; les politiques
 d'accès ; les limites mémoire ; les formats acceptés ; la provenance ; les
 décisions d'adoption ; les effets de bord ; les outils ; les écritures ; les
 suppressions ; les migrations ; les mises à jour du profil ; les promotions de
-modèle.
+modèle ; l'activation Meta ; l'installation d'un modèle persisté.
 
-Le modèle ne produit jamais une ligne de shell directement exécutée. Dans le
-MVP, **aucun outil n'est exécuté** (§7).
+Le modèle ne produit jamais une ligne de shell directement exécutée. Dans la
+configuration par défaut, **aucun outil n'est exécuté** (§7).
 
 ## 3. Décision lexicographique (§8)
 
-La sûreté n'est **pas** une simple composante numérique du score. L'ordre est :
+La sûreté n'est **pas** une composante numérique compensable. L'ordre est :
 
 1. admissibilité structurelle ;
-2. conformité aux contraintes dures ;
-3. conformité aux capacités ;
-4. conformité aux politiques de confidentialité ;
-5. score neuro-symbolique ;
-6. classement des candidats admissibles ;
-7. tie-break déterministe.
+2. conformité symbolique dure ;
+3. conformité aux contraintes de sécurité ;
+4. conformité aux capacités et à la confidentialité ;
+5. score scalaire de base ;
+6. éventuellement, signal V4 soft borné pour un candidat déjà admissible ;
+7. classement des candidats admissibles ;
+8. tie-break déterministe.
 
-```rust
-if !candidate.is_structurally_valid() {
-    return Decision::Reject(RejectReason::Malformed);
-}
-if hard_validators.reject(candidate) {
-    return Decision::Reject(RejectReason::HardConstraint);
-}
-if !capability_policy.allows(candidate) {
-    return Decision::Reject(RejectReason::Unauthorized);
-}
-let score = reward_engine.score(candidate)?;
-Decision::Eligible(score)
-```
-
-Une pénalité de sécurité ne peut pas être annulée par une meilleure note de
-style, un score utilisateur positif, une meilleure performance, une récompense
-du modèle ou un gain de vitesse.
+Le delta cognitif actuel est plafonné globalement à `±100` points et appliqué
+par arithmétique entière checked. Cette borne n'est pas la protection primaire
+contre la compensation d'une violation dure : la protection primaire est que
+le delta n'est calculable **qu'après** les hard gates.
 
 ## 4. Origine typée et classe de confiance (§6)
 
-Toute entrée porte une `InputOrigin` et une `TrustClass` indépendantes :
+Toute entrée porte une origine et une classe de confiance indépendantes. Une
+chaîne de caractères ne contient jamais implicitement son niveau de privilège.
+Instructions système, données récupérées, résultats d'outils et sorties du
+modèle restent dans des champs distincts jusqu'à leur consommation par une API
+typée.
 
-```rust
-pub enum InputOrigin {
-    SystemPolicy,
-    ExplicitUserInstruction,
-    UserData,
-    RetrievedDocument,
-    ToolOutput,
-    ModelOutput,
-    ImportedProfile,
-    TrainingCorpus,
-}
+Il est interdit de construire une autorité en concaténant simplement une donnée
+externe à une instruction privilégiée. Une délimitation textuelle seule n'est
+pas une frontière de sécurité.
 
-pub enum TrustClass {
-    TrustedPolicy,
-    AuthenticatedUser,
-    ValidatedLocalData,
-    UntrustedExternalData,
-    UntrustedModelData,
-}
-```
+## 5. Architecture cognitive V4
 
-Une chaîne de caractères ne contient jamais implicitement son niveau de
-privilège. Les instructions système, données récupérées, résultats d'outils et
-sorties du modèle restent dans des **champs distincts** jusqu'à l'inférence. Il
-est **interdit** de construire un unique prompt par simple concaténation non
-typée de toutes les sources. Une délimitation structurelle contrôlée par le
-runtime précède les données externes, mais **n'est pas** à elle seule une
-protection suffisante (S3).
+Le V4 utilise un `SequenceEncoder` borné partagé par plusieurs heads :
 
-## 5. Propositions du modèle (§2, §7)
+- classification ;
+- préférence pairwise ;
+- satisfaction symbolique soft ;
+- contradiction binaire ;
+- retrieval contrastif sur la représentation partagée.
 
-Le modèle émet uniquement des propositions structurées et versionnées. Schéma
-de référence (Vue ; forme à durée de vie bornée) :
+Le modèle n'est pas un Transformer et n'utilise pas d'attention. L'encodeur
+utilise des embeddings token+position, une projection/mélange, ReLU et pooling.
 
-```rust
-pub struct CognoProposalView<'a> {
-    pub schema_version: u16,
-    pub action: ProposalAction,
-    pub category: RuleCategory,
-    pub scope: RuleScope,
-    pub confidence_bps: u16,         // 0..=10_000 ; >10_000 -> rejet
-    pub evidence_ids: &'a [EvidenceId],
-    pub payload: &'a [u8],
-}
+Le tokenizer est déterministe : octets `0..255`, `BOS=256`, `EOS=257`,
+`SEP=258`, vocabulaire `259`, maximum global `512` tokens.
 
-pub struct ToolProposalView<'a> {
-    pub tool_id: ToolId,
-    pub capability_id: CapabilityId,
-    pub arguments: &'a [TypedArgument<'a>],
-    pub justification_code: ReasonCode,
-}
-```
+## 6. Objectif joint et frontière symbolique
 
-`confidence_bps` est en points de base : `0` = confiance nulle,
-`10_000` = confiance maximale. Toute valeur supérieure est rejetée. Les champs
-inconnus, dupliqués ou hors limites provoquent un rejet explicite.
+Les cinq tâches participent à un objectif différentiable joint dans
+`cogno-scirust`. Les gradients de chaque vue sont accumulés vers le même
+encodeur avant une mise à jour AdamW.
 
-## 6. Responsabilités des crates
+La satisfaction symbolique neuronale reste un **signal soft**. Les vérités de
+règles utilisées pour la supervision sont fournies par l'hôte ; les règles
+dures et validateurs symboliques du core restent hors du graphe différentiable.
 
-| Crate | Rôle | Phase | contraintes clés |
-|-------|------|-------|------------------|
-| `cogno-core` | Types, validateurs, reward, budgets mémoire, journal, profil, sécurité | 0 | sans réseau, sans process, sans FS, sans `unsafe` propriétaire, déterministe, hors-ligne |
-| `cogno-runtime` | Admission mémoire, KV cache, queues/backpressure, pipeline, exécuteur d'outils (Phase 5) | 0→ | orchestre le pipeline ; MVP n'exécute aucun outil |
-| `cogno-model` | Backend modèle (poids/tokenizers hostiles), simulateur Phase 1, modèle Phase 2 | 1→ | validation manifeste ; pas d'exécution de code au chargement |
-| `cogno-cli` | Binaire `cogno` | 0→ | point d'entrée ; capacités derrière autorisation hôte |
+Le coût runtime/mémoire reste une mesure déterministe et n'est pas transformé
+en prédiction neuronale.
 
-### Contraintes de `cogno-core`
+## 7. Revue Meta et activation
 
-`cogno-core` **doit** rester : sans réseau ; sans exécution de processus ;
-sans accès implicite au système de fichiers ; sans backend neuronal obligatoire
-; sans `unsafe` propriétaire ; déterministe ; testable hors ligne.
+Un candidat V4 doit passer une revue held-out multi-signal avant de devenir un
+`MetaReviewedCandidate` scellé. Les cinq tâches sont mesurées séparément et la
+métrique retenue suit une logique **weakest-link** : un head fort ne peut pas
+masquer un autre head insuffisant.
 
-## 7. État des phases (§27)
+L'activation Meta exige ensuite :
 
-- **Phase 0 — actuelle.** Noyau déterministe. Aucun modèle, aucun outil, aucun
-  effet de bord. Le code présent est un squelette : le workspace compile, les
-  directives de lint (`forbid(unsafe_code)`, `deny(warnings, ...)`) sont en
-  place, les documents d'architecture, de menace et de mémoire existent.
-- **Phase 1 — Simulateur.** Backend déterministe renvoyant des propositions
-  scriptées.
-- **Phase 2 — Modèle en lecture seule.** Classifier, extraire, classer,
-  expliquer ; aucune modification directe d'état.
-- **Phase 3 — Apprentissage supervisé.** Corpus avec provenance ; splits ;
-  cas contradictoires, adversariaux, injections, sorties malformées, négatifs.
-- **Phase 4 — Objectif Meta-NeuroSymbolic.** Activé uniquement sous garde-fous
-  (moteur scalaire validé, politique figée, log-probabilités disponibles,
-  backend différentiable, tests held-out, anti-empoisonnement).
-- **Phase 5 — Outils.** Après audit spécifique, derrière capacités explicites.
+- moteur scalaire validé ;
+- politique de référence figée ;
+- backend différentiable ;
+- log-probabilités/signaux nécessaires disponibles ;
+- tests held-out en place ;
+- anti-empoisonnement attesté.
 
-## 8. Politique de Rust (§23)
+Le runtime conserve le digest du candidat ayant activé Meta. Avant toute
+observation V4 post-hard, ce digest doit être exactement égal au digest de
+l'artefact installé.
+
+## 8. Artefacts, persistance et redémarrage
+
+Les formats neuronaux sont versionnés. V4 (`COG4`) sérialise exactement
+`11` tenseurs : encodeur `(3)`, classification `(2)`, préférence `(2)`,
+symbolique `(2)` et contradiction `(2)`. Le retrieval n'a pas de tenseur propre.
+
+Le hostile loader vérifie le manifeste, la version, l'architecture, le hash du
+tokenizer, les dimensions, le nombre de paramètres, la taille exacte, le
+SHA-256 de l'artefact et la finitude des poids.
+
+Les modèles revus sont persistés sous forme de générations immuables. Le replay
+revalide la chaîne jusqu'à `MODEL_CURRENT`. L'installation V4 est one-shot et
+nécessite un sceau de redémarrage contrôlé ; elle n'est pas un hot-swap.
+
+## 9. Reward cognitif et décision multi-candidats
+
+Après `Eligible`, le runtime peut produire une observation V4 liée à :
+
+- la génération persistée ;
+- le SHA-256 de l'artefact ;
+- le digest du candidat Meta actif.
+
+Les probabilités sont quantifiées en points de base avant audit. Pour convertir
+ces observations en influence soft, l'hôte fournit explicitement les cibles
+attendues pour les tâches pondérées. Le modèle ne décide donc pas de la
+sémantique des identifiants de classe, règles ou slots de retrieval.
+
+Un `AppliedCognitiveReward` est scellé par le chemin post-hard. La décision
+multi-candidats n'accepte que ces valeurs scellées, refuse les IDs dupliqués et
+exige la même génération, le même artefact et le même digest Meta pour tous les
+candidats. Le score final entier le plus élevé gagne ; une égalité exacte est
+départagée par le plus petit ID candidat stable.
+
+## 10. Responsabilités des crates
+
+| Crate | Rôle | Contraintes clés |
+|-------|------|------------------|
+| `cogno-core` | Types, hard validators, reward entier, budgets, mémoire, sécurité | déterministe, sans backend neuronal obligatoire, sans `unsafe` propriétaire |
+| `cogno-scirust` | autograd borné, optimisateurs, encodeur partagé, heads et objectif joint | Rust sûr, bornes strictes, erreurs fallibles |
+| `cogno-model` | tokenizer, bridges d'entraînement, revue Meta, artefacts hostiles | aucune exécution de code au chargement, provenance contrôlée |
+| `cogno-runtime` | admission, pipeline, audit, persistance/replay, activation, reward/decision V4 | hard-before-soft, fail-closed, installation one-shot |
+| `cogno-cli` | binaire `cogno`, observabilité et ingestion explicite | aucune autorité implicite, outils gated |
+
+## 11. État des phases (§27)
+
+Les briques des phases 0→5 coexistent désormais dans le dépôt, mais leurs
+**autorités restent gated** :
+
+- **Phase 0 — noyau déterministe :** active ;
+- **Phase 1 — simulateur :** disponible ;
+- **Phase 2 — modèles read-only :** disponibles ;
+- **Phase 3 — apprentissage supervisé :** disponible avec provenance et splits ;
+- **Phase 4 — Meta-NeuroSymbolic :** implémenté, activation contrôlée et inactif
+  par défaut ;
+- **Phase 5 — outils :** surface présente, refusée par défaut et soumise à des
+  capacités explicites.
+
+Le CLI par défaut construit un runtime sans V4 installé, Meta inactif et outils
+désactivés.
+
+## 12. Observabilité
+
+`RuntimeReport` expose l'état Meta/V4 : digest Meta, présence du modèle,
+génération, digest de l'artefact et liaison exacte entre Meta et V4.
+
+`cognitive_model_meta_bound` ne peut être vrai que si Meta est actif, qu'un V4
+est réellement installé et que les deux digests concordent. Deux absences ne
+forment jamais une liaison valide.
+
+Les commandes `phase` et `doctor` rendent ces informations visibles sans
+charger ni activer un modèle.
+
+## 13. Politique Rust (§23)
 
 Pour tout le code propriétaire :
 
@@ -175,27 +217,22 @@ Pour tout le code propriétaire :
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 ```
 
-`forbid` est préféré à `deny` car il ne peut être abaissé par un module enfant.
-Les dépendances externes peuvent contenir du `unsafe` : chaque dépendance est
-donc minimisée, documentée, épinglée (Cargo.lock conservé, CI en `--locked`),
-ses features contrôlées, ses scripts de build et proc-macros audités. Aucune
-dépendance Git non épinglée n'est autorisée (§24).
+Les dépendances externes sont minimisées, documentées et verrouillées. La CI
+utilise Rust `1.97.1`, `Cargo.lock`, `--locked`, et un build release `--frozen`.
 
-## 9. Critères d'acceptation (§28 extraits)
+## 14. Gates permanents
 
-- Le modèle ne possède aucune autorité directe.
-- Toute sortie du modèle est traitée comme non fiable.
-- Les contraintes dures sont appliquées **avant** la récompense ; elles ne
-  peuvent pas être compensées.
-- Aucun outil n'est exécuté par le MVP ; toute capacité est refusée par défaut.
-- Instructions et données restent séparées.
-- Toutes les tailles influencées par l'extérieur sont bornées et calculées en
-  arithmétique contrôlée.
-- Budget mémoire global défini ; contrôle d'admission par requête ; KV cache à
-  limite stricte ; files bornées ; backpressure testée.
-- Aucun secret enregistré ; modèles/tokenizers vérifiés avant chargement ;
-  format de poids incapable d'exécuter du code.
-- Les règles inférées commencent en quarantaine ; une inférence du modèle ne
-  crée jamais une règledure ; contradictions conservées ; provenance obligatoire
-  ; état persistant reconstructible ; modifications réversibles.
-- Chaque menace possède un test. Dépendances verrouillées et auditées.
+Chaque PR doit fermer :
+
+```text
+cargo test --all-targets --locked
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo doc --no-deps --locked
+cargo build --release --frozen --all-targets
+inventaire documenté des dépendances externes (§24)
+```
+
+Des tests end-to-end couvrent notamment le rejet hard avant toute observation
+V4, le reward cognitif borné, la persistance/replay, le redémarrage contrôlé,
+la liaison digest Meta↔artefact et la décision multi-candidats réelle.

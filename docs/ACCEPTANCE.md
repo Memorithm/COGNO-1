@@ -1,110 +1,216 @@
 # Critères d'acceptation — COGNO-1 (§28)
 
-État au commit courant. Chaque item pointe vers le test ou le module qui le
-démontre. Un item **refusé par défaut** signifie que la valeur sûre est la
-valeur initiale ; toute activation demande un acte explicite de l'hôte.
+État au commit courant. Un item **refusé par défaut** signifie que la valeur
+sûre est la valeur initiale et que toute activation demande un acte explicite
+de l'hôte.
 
-## Sécurité & autorité
+## 1. Sécurité et autorité
 
-- [x] Le modèle ne possède aucune autorité directe.
-      `cogno_model::{SimBackend, ReadOnlyModel}` ne peut que proposer/classer ;
-      la décision est `cogno_core::decide` (§8) exécutée par le noyau.
-- [x] Toute sortie du modèle est traitée comme non fiable.
-      `cogno_core::validate_proposal` ; `TrustClass::UntrustedModelData` pour
-      `InputOrigin::ModelOutput` (test `direct_prompt_injection_is_untrusted`,
-      `t04_tool_output_never_elevated_to_policy`).
-- [x] Les contraintes dures sont appliquées avant la récompense.
-      `cogno_runtime::Pipeline::run` : `hard` avant `reward` (§8).
-- [x] Une violation dure ne peut pas être compensée.
-      Test `lexicographic_decision_rejects_hard_before_reward`,
-      `pipeline_rejects_secret_at_hard_stage_ignoring_reward` (reward=1_000_000
-      ne sauve pas un `Secret`).
-- [x] Aucun outil n'est exécuté par le MVP.
-      `ToolExecutor::mvp()` ; test `mvp_tool_executor_refuses_everything`.
-- [x] Toute capacité est refusée par défaut.
-      `SafetyPolicy::MVP` ; `MVP_TOOLS_ENABLED = false` ; `QueueFullPolicy` par
-      défaut `RejectNewest` ; `MetaObjective::new()` désactivé.
-- [x] Les instructions et les données restent séparées.
-      `InputOrigin`/`TrustClass` typés (§6) ;
-      `t03_kb_injection_retrieved_document_is_untrusted_and_distinct_from_policy`.
-- [x] Toutes les tailles influencées par l'extérieur sont bornées.
-      `MAX_EVIDENCE_IDS`, `MAX_PAYLOAD_BYTES`, `MAX_CONFIDENCE_BPS`,
-      `MemoryBudget.max_*`, `BoundedVec`, `BoundedQueue`, `KvController.capacity`.
-- [x] Toutes les opérations de taille utilisent une arithmétique contrôlée.
-      `checked_kv_cache_bytes`, `MemoryBudget::validate`,
-      `RequestEstimate::try_new` ; tests `kv_cache_arithmetic_overflow_detected`,
-      `kv_cache_ok_for_small_dims`.
-- [x] Un budget mémoire global est défini.
-      `MemoryBudget::try_new` ; test `valid_budget`,
-      `budget_subbudget_sum_exceeds_hard_rejected`.
-- [x] Chaque requête passe par un contrôle d'admission.
-      `cogno_runtime::Admission::admit` ; `Runtime::admit`.
-- [x] Le KV cache possède une limite stricte.
-      `KvController` ; `KvCachePolicy::RejectOnOverflow` par défaut dans le CLI.
-- [x] Les files de messages sont bornées.
-      `BoundedQueue::try_new` (capacité 0 rejetée) ;
-      `queue_zero_capacity_rejected`.
-- [x] La backpressure est testée.
-      `queue_rejects_newest_when_full`, `queue_reject_oldest_drops_oldest_not_silently`,
-      `queue_block_with_deadline_refuses_synchronously`,
-      `runtime_enqueue_applies_backpressure_and_counts_rejections`.
-- [x] Les allocations du régime stable sont nulles.
-      `Pipeline::run` n'alloue pas entre la classification de confiance et la
-      décision ; `RequestScratch` est emprunté. `admission_latency_is_constant_time_in_budget_fields`.
-- [x] Les échecs d'allocation sont testés.
-      `init_allocation_impossible_when_budget_invalid`,
-      `buffer_grow_impossible_past_max_len`,
-      `kv_reservation_impossible_on_overflow`,
-      `snapshot_payload_above_limit_is_skipped_during_derivation`,
-      `queue_saturated_returns_structured_error_no_partial_state`.
-- [x] Aucun secret n'est enregistré.
-      `DataClassification::Secret` interdit partout (§20) ;
-      `secret_data_rejected_by_policy`, `pipeline_rejects_secret_at_hard_stage_ignoring_reward`.
-- [x] Les modèles et tokenizers sont vérifiés avant chargement.
-      `ModelManifest::validate` ; `manifest_*` tests ; `t09_tokenizer_hash_mismatch_rejected`.
-- [x] Le format de poids ne peut pas exécuter de code.
-      Aucun format de poids n'est chargé en Phase 0–3 (simulateur + perceptron
-      entier). Le chargeur réel (Phase 2+) appliquera `ModelManifest` + hash +
-      dimensions avant allocation ; aucune exécution de code pendant le
-      chargement (§21).
-- [x] Les règles inférées commencent en quarantaine.
-      `Profile::derive` met `Quarantined` par défaut ; test
-      `model_only_rule_stays_quarantined_and_never_hard`.
-- [x] Une inférence du modèle ne crée jamais une règle dure.
-      `EvidenceOrigin::can_create_hard_rule` exclut `ModelInference` ;
-      même test.
-- [x] Les contradictions restent conservées.
-      `Profile` conserver toutes les règles ; `RuleState::Conflicted` est un
-      état terminal non supprimé (§9). Test authentique :
-      `t06_profile_poisoning_contradictory_evidence_becomes_conflicted` (un
-      `UserRejection` contre un `UserApproval` existant -> `Conflicted`,
-      jamais `Active`, les 3 preuves restent dans le journal). Le profil dérivé
-      ne supprime pas silencieusement.
-- [x] Toute règle possède une provenance.
-      `JournalEvent` porte `origin`/`evidence_origin`/`evidence_id` (S6).
-- [x] Tout état persistant est reconstructible.
-      `Profile::derive(&Journal, …)` est pure ; `cmd_replay` ;
-      `trainer_accuracy_is_finite_and_deterministic`.
-- [x] Toutes les modifications sont réversibles.
-      Le journal est append-only ; `RuleState::Revoked`/`Disabled` sont des
-      transitions reversibles ; aucune suppression silencieuse de preuve.
-- [x] Chaque menace possède un test.
-      Voir `tests/adversarial/README.md` (mapping T01–T26 → tests).
-- [x] Les dépendances sont verrouillées et auditées.
-      `Cargo.lock` committé ; CI `--locked` + `--frozen` ;
-      `docs/DEPENDENCIES.md` ; zéro dépendance externe aujourd'hui.
+- [x] **Le modèle ne possède aucune autorité directe.**
+      Les façades neuronales sont read-only ; hard validators, politiques,
+      persistance, activation Meta, outils et effets de bord restent dans le
+      core/runtime.
+- [x] **Toute sortie du modèle est traitée comme non fiable.**
+      `InputOrigin::ModelOutput` reste non privilégiée ; une observation V4
+      est explicitement `authoritative: false`.
+- [x] **Les contraintes dures sont appliquées avant toute influence neuronale.**
+      `Pipeline::run` valide structure, symbolique et sécurité avant
+      `PipelineOutcome::Eligible`.
+- [x] **Une violation dure ne peut pas être compensée.**
+      Le contexte cognitif V4 ne peut être minté qu'après `Eligible`. Le test
+      end-to-end `hard_rejection_never_mints_cognitive_observation_or_reward`
+      vérifie qu'un `Secret` produit uniquement un rejet, sans observation ni
+      reward cognitif.
+- [x] **Les capacités et outils sont refusés par défaut.**
+      `SafetyPolicy::MVP`, `ToolExecutor::mvp()` et Meta inactif au démarrage.
+- [x] **Instructions et données restent typées séparément.**
+      `InputOrigin`, `EvidenceOrigin`, `TrustClass` et les types de proposition
+      empêchent qu'une simple concaténation de texte ne crée un privilège.
+- [x] **Les tailles influencées par l'extérieur sont bornées.**
+      Propositions, buffers, queues, KV, tokenizer, dimensions neuronales,
+      candidats retrieval, corpus et artefacts ont des caps explicites.
+- [x] **L'arithmétique critique est contrôlée.**
+      Budgets, tailles d'artefact, nombre de paramètres, tape autograd et reward
+      utilisent des opérations checked/fallibles.
+- [x] **La backpressure et les dépassements échouent en mode fermé.**
+      Queue, KV, admission mémoire, tokenizer et graph/tape refusent les caps
+      dépassés sans état partiel silencieux.
+- [x] **Les secrets sont rejetés par le hard gate runtime.**
+      `DataClassification::Secret` est rejeté avant reward et avant V4.
+- [x] **Les règles inférées ne deviennent pas des règles dures par le modèle.**
+      `EvidenceOrigin::ModelInference` ne peut pas créer l'autorité requise pour
+      une règle hard.
+- [x] **Les contradictions et preuves restent reconstructibles.**
+      Le journal conserve la provenance et `Profile::derive` reconstruit l'état.
+- [x] **Le code propriétaire interdit `unsafe`.**
+      Les crates appliquent `#![forbid(unsafe_code)]` et des warnings stricts.
 
-## Critère supplémentaire de Phase 4 (gated)
+## 2. Backend différentiable et tokenizer
 
-- [x] L'objectif Meta-NeuroSymbolic n'est activé qu'avec les 6 préconditions
-      attestées par l'hôte. `MetaObjective::activate` ;
-      `runtime_meta_objective_refuses_without_preconditions`,
-      `runtime_meta_objective_activates_with_all_preconditions`.
+- [x] **Un backend différentiable réel existe.**
+      `cogno-scirust` fournit un tape reverse-mode borné, des opérations
+      connectées, AdamW/AMSGrad et les gradients exacts utilisés par les bridges
+      séquence.
+- [x] **Le tokenizer est déterministe et versionné.**
+      Octets `0..255`, `BOS=256`, `EOS=257`, `SEP=258`, vocabulaire `259`, cap
+      global `512`.
+- [x] **Les entrées pairwise ont un framing explicite.**
+      `[BOS] left [SEP] right [EOS]` ; dépassement de capacité → erreur.
+- [x] **Le hash tokenizer est vérifié dans les artefacts.**
+      Un manifeste avec tokenizer incompatible est rejeté avant activation.
 
-## Critère supplémentaire de Phase 5 (gated)
+## 3. Modèle cognitif V4 partagé
 
-- [x] Les outils ne s'exécutent qu'après audit et derrière une liste positive.
-      `ToolExecutor::phase5(true, positive_tools)` ;
-      `phase5_executor_when_enabled_still_rejects_shell_shape`,
-      `phase5_executor_when_enabled_authorizes_known_non_shell`,
-      `phase5_executor_rejects_unknown_tool_even_when_enabled`.
+- [x] **Une seule représentation est partagée.**
+      `SequenceCognitiveHeads` possède un seul `SequenceEncoder` utilisé par
+      classification, préférence, symbolique, contradiction et retrieval.
+- [x] **Les cinq pertes sont réellement connectées au graphe.**
+      L'objectif joint effectue une backward pass pondérée et accumule les
+      gradients de toutes les vues vers le même encodeur.
+- [x] **La supervision symbolique reste host-owned.**
+      Les vérités de règles deviennent des cibles `0/1` uniquement à la
+      frontière numérique ; le réseau ne devient pas autorité symbolique.
+- [x] **Le coût runtime reste déterministe.**
+      Il n'est pas remplacé par une prédiction neuronale compensable.
+- [x] **Les configurations hostiles échouent avant update.**
+      Classes, règles, longueurs, candidats retrieval et indices positifs sont
+      prévalidés avant construction/utilisation de l'optimiseur.
+
+## 4. Artefact hostile V4
+
+- [x] **Le V4 est versionné et sélectionné par architecture.**
+      `COG4`, version binaire `4` ; les loaders V1/V2/V3 restent distincts.
+- [x] **Le V4 contient exactement 11 tenseurs.**
+      Encodeur `(3)` + classification `(2)` + préférence `(2)` + symbolique
+      `(2)` + contradiction `(2)` ; retrieval réutilise l'encodeur.
+- [x] **Le loader vérifie avant activation.**
+      Manifeste, magic, version, architecture, tensor count, dimensions, cap
+      retrieval, parameter count, taille exacte, tokenizer hash, SHA-256 et
+      finitude des poids.
+- [x] **Le format de poids n'exécute aucun code.**
+      Le loader décode uniquement des métadonnées et scalaires `f32` bornés.
+- [x] **Le décodage ne confère pas d'autorité.**
+      Il produit un `SequenceCognitiveArtifactState`; installation runtime et
+      activation Meta restent des étapes séparées et attestées.
+
+## 5. Revue Meta V4
+
+- [x] **Train/validation/test sont distincts et validés.**
+      Mauvais type de split, chevauchement ou index invalide → rejet.
+- [x] **Le corpus rejette les doublons canoniques.**
+      L'empreinte SHA-256 couvre les cinq tâches et leurs cibles.
+- [x] **La provenance de revue est contrôlée.**
+      Les exemples portent `InputOrigin` et `EvidenceOrigin`; une provenance
+      non admise provoque `UntrustedReviewProvenance`.
+- [x] **Les cinq tâches sont évaluées held-out.**
+      Classification, préférence, symbolique, contradiction et retrieval.
+- [x] **La promotion est weakest-link.**
+      La métrique persistée est le minimum des cinq accuracies ; un head fort ne
+      peut pas masquer un head faible.
+- [x] **La classification est comparée à une référence figée.**
+      La politique borne explicitement la régression autorisée.
+- [x] **L'éligibilité produit un proof scellé.**
+      Un fichier de poids seul ne peut pas prétendre avoir passé la revue.
+
+## 6. Persistance, replay et redémarrage contrôlé
+
+- [x] **Seul un candidat revu peut être persisté.**
+      `commit_reviewed_model_generation` exige `MetaReviewedCandidate` et une
+      attestation hôte explicite.
+- [x] **Les générations sont immuables et chaînées.**
+      Chaque génération contient manifests + artefact et `MODEL_CURRENT` avance
+      atomiquement.
+- [x] **Le replay revalide la chaîne complète.**
+      Liens de génération, digests, manifests et hostile loader sont vérifiés
+      jusqu'à la sélection courante.
+- [x] **L'installation V4 est one-shot au redémarrage.**
+      Un second install est refusé ; aucun hot-swap implicite.
+- [x] **La génération et le digest restent attachés au modèle installé.**
+      Le runtime expose ces bindings en lecture seule.
+
+## 7. Activation Meta et identité du modèle
+
+- [x] **Meta reste inactif par défaut.**
+      `MetaObjective::new()` est quarantiné.
+- [x] **Les six préconditions sont requises.**
+      Moteur scalaire validé, politique figée, signaux requis, backend
+      différentiable, held-out et anti-empoisonnement.
+- [x] **Le candidat Meta est lié par digest.**
+      Le runtime conserve le SHA-256 du candidat ayant activé Meta.
+- [x] **Le V4 utilisé doit être exactement ce candidat.**
+      Avant observation post-hard : `meta_candidate_digest ==
+      cognitive_model_artifact_sha256`.
+- [x] **Une absence de modèle n'est jamais interprétée comme une liaison.**
+      `RuntimeReport::cognitive_model_meta_bound` exige Meta actif, artefact
+      présent et digests égaux ; `None == None` ne suffit pas.
+
+## 8. Observation et reward cognitif
+
+- [x] **Une observation V4 est generation-bound et non autoritaire.**
+      Elle contient génération + digest et quantifie les probabilités en basis
+      points `0..=10_000` avant audit.
+- [x] **Les cibles sémantiques sont fournies par l'hôte.**
+      Classe, préférence, vérités symboliques, contradiction et cible retrieval
+      ne sont pas inventées par le réseau.
+- [x] **Le delta est normalisé et borné.**
+      `MAX_COGNITIVE_SOFT_DELTA = 100` ; les poids relatifs ne peuvent pas
+      contourner ce cap global.
+- [x] **Le reward final utilise une addition entière checked.**
+      Overflow → `CognitiveRewardError::ArithmeticOverflow`.
+- [x] **L'audit conserve base, final, delta et provenance.**
+      Aucun ajustement ne devient invisible après application.
+
+## 9. Décision multi-candidats
+
+- [x] **Seuls des rewards post-hard scellés sont comparables.**
+      L'API publique prend des références à `AppliedCognitiveReward`, pas un
+      booléen `hard_ok` fourni par l'appelant.
+- [x] **Le nombre de candidats est borné.**
+      Maximum `256`, liste vide et IDs dupliqués rejetés.
+- [x] **La provenance doit être identique.**
+      Même génération, même digest d'artefact et même digest Meta pour tous les
+      candidats.
+- [x] **Le classement est déterministe.**
+      Score final entier maximum ; égalité exacte → plus petit ID candidat.
+- [x] **Le chemin réel est testé end-to-end.**
+      Deux propositions passent pipeline+V4, obtiennent des rewards scellés,
+      sont comparées puis auditées.
+
+## 10. Outils Phase 5
+
+- [x] **Les outils restent refusés par défaut.**
+      `ToolExecutor::mvp()`.
+- [x] **Une surface Phase 5 positive existe derrière un gate explicite.**
+      Les tests refusent les formes shell et les outils inconnus même lorsque
+      la phase est activée.
+- [x] **Le modèle ne peut pas activer Phase 5.**
+      L'autorité d'outil reste une décision hôte/runtime séparée.
+
+## 11. Observabilité opérationnelle
+
+- [x] `RuntimeReport` expose Meta actif, digest Meta, V4 chargé, génération,
+      digest V4 et état de liaison exacte.
+- [x] `phase` affiche ces informations sans charger de modèle.
+- [x] `doctor` conserve un état MVP sûr lorsque Meta/V4/outils sont absents et
+      signale une configuration non-MVP sinon.
+
+## 12. Dépendances et gates CI
+
+- [x] **Les dépendances externes sont verrouillées et documentées.**
+      `Cargo.lock`, `docs/DEPENDENCIES.md` et gate §24. Le projet n'affirme pas
+      qu'il n'existe aucune dépendance externe.
+- [x] **Rust est figé par le dépôt.**
+      CI sur Rust `1.97.1`.
+- [x] **Chaque PR doit fermer six gates.**
+
+```text
+cargo test --all-targets --locked
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo doc --no-deps --locked
+cargo build --release --frozen --all-targets
+inventaire documenté des dépendances externes (§24)
+```
+
+Aucune PR ne doit être considérée validée simplement parce que son code a été
+poussé : le head final doit fermer ces six gates.
