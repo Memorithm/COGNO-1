@@ -63,14 +63,14 @@
 pub mod artifact;
 pub mod backend;
 pub mod meta_candidate;
+#[path = "meta_data_review.rs"]
+pub mod meta_review;
 #[allow(
     unreachable_pub,
     reason = "the original V1 held-out review engine is intentionally private; public review passes through the data-governed facade"
 )]
 #[path = "meta_review.rs"]
 mod meta_review_engine;
-#[path = "meta_data_review.rs"]
-pub mod meta_review;
 #[allow(
     clippy::too_many_arguments,
     reason = "the crate-private verified MLP reconstruction boundary names canonical shape metadata and all four persisted tensors explicitly"
@@ -90,14 +90,14 @@ pub mod sequence_cognitive_data_review;
 )]
 mod sequence_cognitive_meta_review;
 pub mod sequence_contradiction;
+#[path = "sequence_data_review.rs"]
+pub mod sequence_meta_review;
 #[allow(
     unreachable_pub,
     reason = "the original V3 held-out review engine is intentionally private; public review passes through the data-governed facade"
 )]
 #[path = "sequence_meta_review.rs"]
 mod sequence_meta_review_engine;
-#[path = "sequence_data_review.rs"]
-pub mod sequence_meta_review;
 pub mod sequence_preference;
 pub mod sequence_retrieval;
 pub mod sequence_symbolic;
