@@ -1,8 +1,9 @@
 //! Bounded exchange boundary for SCIAGENT / SciRust scientific-taste evidence.
 //!
 //! External model output may propose observations but can never become a
-//! promotion validation. Only deterministic evaluator output or an explicit
-//! user action can cross into the persistent validation format.
+//! promotion validation. Only an explicitly host-attested deterministic SciRust
+//! evaluation or an explicit user action can cross into the persistent
+//! validation format.
 
 use crate::taste_validation_store::{
     StoredTasteValidation, StoredValidationOrigin, StoredValidationVerdict,
@@ -41,6 +42,36 @@ pub struct ScientificExchangeRecord {
     pub canonical_payload: Vec<u8>,
 }
 
+/// Host assertion that a SciRust deterministic-evaluator message has already
+/// crossed the authenticated execution boundary.
+///
+/// The digest binds the assertion to the exact verified execution profile. As
+/// with the runtime's other `Host*Attestation` tokens, untrusted model wire data
+/// cannot manufacture this Rust value by setting an origin field in a payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HostSciRustExecutionAttestation {
+    execution_profile_sha256: [u8; 32],
+    _private: (),
+}
+
+impl HostSciRustExecutionAttestation {
+    /// Mint a host-side token only after the SciRust agent protocol has verified
+    /// both the authenticated runtime sender and its execution attestation.
+    #[must_use]
+    pub const fn attest_verified_execution(execution_profile_sha256: [u8; 32]) -> Self {
+        Self {
+            execution_profile_sha256,
+            _private: (),
+        }
+    }
+
+    /// Exact verified execution-profile identity carried by this host token.
+    #[must_use]
+    pub const fn execution_profile_sha256(self) -> [u8; 32] {
+        self.execution_profile_sha256
+    }
+}
+
 /// Result of classifying one exchange record at the trust boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScientificExchangeDisposition {
@@ -69,7 +100,12 @@ impl ScientificExchangeRecord {
     }
 }
 
-/// Classify one SCIAGENT/SciRust record without granting model authority.
+/// Classify one unauthenticated SCIAGENT/SciRust record without granting model
+/// or caller-supplied origin fields deterministic-evaluator authority.
+///
+/// A record claiming [`ScientificExchangeOrigin::SciRustDeterministicEvaluator`]
+/// is deliberately downgraded to `RuntimeObservationOnly`. Promotion requires
+/// [`classify_attested_scientific_exchange`].
 pub fn classify_scientific_exchange(
     record: &ScientificExchangeRecord,
 ) -> Result<ScientificExchangeDisposition, ScientificExchangeError> {
@@ -83,14 +119,9 @@ pub fn classify_scientific_exchange(
         ScientificExchangeOrigin::SciAgentModel => {
             Ok(ScientificExchangeDisposition::QuarantinedModelObservation)
         }
-        ScientificExchangeOrigin::RuntimeObservation => {
+        ScientificExchangeOrigin::RuntimeObservation
+        | ScientificExchangeOrigin::SciRustDeterministicEvaluator => {
             Ok(ScientificExchangeDisposition::RuntimeObservationOnly)
-        }
-        ScientificExchangeOrigin::SciRustDeterministicEvaluator => {
-            Ok(ScientificExchangeDisposition::Validation(to_validation(
-                record,
-                StoredValidationOrigin::DeterministicEvaluation,
-            )))
         }
         ScientificExchangeOrigin::ExplicitUserAction => {
             Ok(ScientificExchangeDisposition::Validation(to_validation(
@@ -99,6 +130,34 @@ pub fn classify_scientific_exchange(
             )))
         }
     }
+}
+
+/// Classify a record after the host has independently verified a SciRust
+/// execution attestation and authenticated runtime sender.
+///
+/// The host token does not upgrade model or generic runtime observations. It
+/// only unlocks the deterministic-evaluator origin, preserving least authority.
+pub fn classify_attested_scientific_exchange(
+    record: &ScientificExchangeRecord,
+    _host_attestation: HostSciRustExecutionAttestation,
+) -> Result<ScientificExchangeDisposition, ScientificExchangeError> {
+    validate_record(record)?;
+
+    if matches!(record.verdict, ScientificExchangeVerdict::Inconclusive) {
+        return Ok(ScientificExchangeDisposition::Inconclusive);
+    }
+
+    if matches!(
+        record.origin,
+        ScientificExchangeOrigin::SciRustDeterministicEvaluator
+    ) {
+        return Ok(ScientificExchangeDisposition::Validation(to_validation(
+            record,
+            StoredValidationOrigin::DeterministicEvaluation,
+        )));
+    }
+
+    classify_scientific_exchange(record)
 }
 
 fn validate_record(record: &ScientificExchangeRecord) -> Result<(), ScientificExchangeError> {
@@ -168,10 +227,23 @@ mod tests {
     }
 
     #[test]
-    fn scirust_deterministic_evaluation_can_become_validation() {
-        let disposition = classify_scientific_exchange(&record(
-            ScientificExchangeOrigin::SciRustDeterministicEvaluator,
-        ))
+    fn self_claimed_scirust_deterministic_origin_is_not_authoritative() {
+        assert_eq!(
+            classify_scientific_exchange(&record(
+                ScientificExchangeOrigin::SciRustDeterministicEvaluator,
+            )),
+            Ok(ScientificExchangeDisposition::RuntimeObservationOnly)
+        );
+    }
+
+    #[test]
+    fn host_attested_scirust_evaluation_can_become_validation() {
+        let attestation = HostSciRustExecutionAttestation::attest_verified_execution([0x42; 32]);
+        assert_eq!(attestation.execution_profile_sha256(), [0x42; 32]);
+        let disposition = classify_attested_scientific_exchange(
+            &record(ScientificExchangeOrigin::SciRustDeterministicEvaluator),
+            attestation,
+        )
         .expect("classification");
         assert!(matches!(
             disposition,
@@ -180,6 +252,18 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn host_attestation_cannot_upgrade_model_output() {
+        let attestation = HostSciRustExecutionAttestation::attest_verified_execution([0x24; 32]);
+        assert_eq!(
+            classify_attested_scientific_exchange(
+                &record(ScientificExchangeOrigin::SciAgentModel),
+                attestation,
+            ),
+            Ok(ScientificExchangeDisposition::QuarantinedModelObservation)
+        );
     }
 
     #[test]
