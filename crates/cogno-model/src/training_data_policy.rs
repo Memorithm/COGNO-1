@@ -21,13 +21,18 @@ impl HostConfidentialTrainingAttestation {
     }
 }
 
-/// Fail-closed classification errors raised before training-corpus storage.
+/// Fail-closed errors for model-training data governance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrainingDataGovernanceError {
     /// `Secret` is forbidden in model training sets.
     SecretTrainingData { index: usize },
     /// `Confidential` requires an explicit host attestation.
     ConfidentialTrainingDataRequiresAuthorization { index: usize },
+    /// Internal example/classification storage lost its one-to-one invariant.
+    ClassificationStateMismatch {
+        examples: usize,
+        classifications: usize,
+    },
 }
 
 /// Crate-owned admission policy shared by every model training corpus.
