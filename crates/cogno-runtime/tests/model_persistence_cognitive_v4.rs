@@ -1,4 +1,4 @@
-use cogno_core::{EvidenceOrigin, InputOrigin};
+use cogno_core::{DataClassification, EvidenceOrigin, InputOrigin};
 use cogno_model::{
     review_sequence_cognitive_model_for_meta, LoadedNeuralModel, SequenceCognitiveExample,
     SequenceCognitiveMetaReviewConfig, SequenceCognitiveMetaReviewPolicy,
@@ -72,7 +72,12 @@ fn reviewed_cognitive_v4_commits_and_replays_exact_architecture() {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(corpus.add(observation(index, class, contradiction)));
+        assert!(corpus
+            .add(
+                observation(index, class, contradiction),
+                DataClassification::Internal,
+            )
+            .expect("classified V4 review data"));
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,

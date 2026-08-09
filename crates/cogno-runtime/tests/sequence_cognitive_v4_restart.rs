@@ -1,4 +1,6 @@
-use cogno_core::{EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy};
+use cogno_core::{
+    DataClassification, EvidenceOrigin, InputOrigin, KvCachePolicy, MemoryBudget, QueueFullPolicy,
+};
 use cogno_model::{
     review_sequence_cognitive_model_for_meta, SequenceCognitiveExample,
     SequenceCognitiveMetaReviewConfig, SequenceCognitiveMetaReviewPolicy,
@@ -86,7 +88,12 @@ fn reviewed_v4() -> cogno_model::EligibleSequenceCognitiveMetaModelReview {
         (6, 0, true),
         (7, 1, false),
     ] {
-        assert!(corpus.add(observation(index, class, contradiction)));
+        assert!(corpus
+            .add(
+                observation(index, class, contradiction),
+                DataClassification::Internal,
+            )
+            .expect("classified V4 review data"));
     }
     let train = cogno_model::CorpusSplit {
         kind: SplitKind::Train,
