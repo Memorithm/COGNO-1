@@ -130,10 +130,11 @@ impl Runtime {
             for probability in symbolic {
                 symbolic_satisfaction_bps.push(probability_to_bps(probability)?);
             }
-            let contradiction_bps = probability_to_bps(model.model.contradiction_probability(
-                input.contradiction_left,
-                input.contradiction_right,
-            )?)?;
+            let contradiction_bps =
+                probability_to_bps(model.model.contradiction_probability(
+                    input.contradiction_left,
+                    input.contradiction_right,
+                )?)?;
             let retrieval_selected_index = model
                 .model
                 .retrieval_select_best(input.retrieval_query, input.retrieval_candidates)?;
