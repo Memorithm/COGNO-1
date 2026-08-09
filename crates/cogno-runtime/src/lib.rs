@@ -72,9 +72,7 @@ pub mod taste_validation_store;
 pub mod verified_taste_profile;
 
 pub use admission::{Admission, AdmissionError};
-pub use audit::{
-    Audit, CognitiveRewardAudit, TasteDecisionAudit, TasteInfluenceAudit,
-};
+pub use audit::{Audit, CognitiveRewardAudit, TasteDecisionAudit, TasteInfluenceAudit};
 pub use cognitive_observation::{
     CognitiveObservation, CognitiveObservationError, CognitiveObservationInput,
     CognitivePreferenceRelation,
