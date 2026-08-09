@@ -6,6 +6,7 @@
 //! prior.
 
 use crate::cognitive_observation::CognitiveObservation;
+use crate::cognitive_reward::AppliedCognitiveReward;
 use crate::taste_decision::TasteDecision;
 use cogno_core::{ContextReport, RejectReason};
 
@@ -55,6 +56,32 @@ impl From<&TasteDecision> for TasteDecisionAudit {
     }
 }
 
+/// Integer-only trace of one bounded V4 reward application.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CognitiveRewardAudit {
+    pub base_score: i64,
+    pub final_score: i64,
+    pub delta: i64,
+    pub model_generation: u64,
+    pub model_artifact_sha256: [u8; 32],
+    pub meta_candidate_digest: [u8; 32],
+    pub hard_constraints_preserved: bool,
+}
+
+impl From<&AppliedCognitiveReward> for CognitiveRewardAudit {
+    fn from(applied: &AppliedCognitiveReward) -> Self {
+        Self {
+            base_score: applied.base_score().points,
+            final_score: applied.final_score().points,
+            delta: applied.delta(),
+            model_generation: applied.model_generation(),
+            model_artifact_sha256: applied.model_artifact_sha256(),
+            meta_candidate_digest: applied.meta_candidate_digest(),
+            hard_constraints_preserved: applied.hard_constraints_preserved(),
+        }
+    }
+}
+
 /// One audit record. Pure data; no allocation on hot paths beyond pushing
 /// the record itself (audit happens after the decision/observation, never in
 /// the critical hard-gate path).
@@ -65,6 +92,7 @@ pub struct AuditRecord {
     pub note: Option<String>,
     pub taste: Option<TasteDecisionAudit>,
     pub cognitive: Option<CognitiveObservation>,
+    pub cognitive_reward: Option<CognitiveRewardAudit>,
 }
 
 /// In-memory audit buffer (bounded by the Phase 0 budget; a real runtime uses
@@ -83,6 +111,7 @@ impl Audit {
             note,
             taste: None,
             cognitive: None,
+            cognitive_reward: None,
         });
     }
 
@@ -95,6 +124,7 @@ impl Audit {
             note,
             taste: None,
             cognitive: None,
+            cognitive_reward: None,
         });
     }
 
@@ -110,6 +140,7 @@ impl Audit {
             note: None,
             taste: Some(TasteDecisionAudit::from(decision)),
             cognitive: None,
+            cognitive_reward: None,
         });
     }
 
@@ -122,6 +153,20 @@ impl Audit {
             note: None,
             taste: None,
             cognitive: Some(observation.clone()),
+            cognitive_reward: None,
+        });
+    }
+
+    /// Record the checked bounded V4 score delta after the hard-gated context
+    /// has been sealed. No raw model output is interpreted here.
+    pub fn cognitive_reward(&mut self, applied: &AppliedCognitiveReward) {
+        self.records.push(AuditRecord {
+            decision: "cognitive_reward",
+            reason: None,
+            note: None,
+            taste: None,
+            cognitive: None,
+            cognitive_reward: Some(CognitiveRewardAudit::from(applied)),
         });
     }
 
@@ -136,6 +181,7 @@ impl Audit {
             )),
             taste: None,
             cognitive: None,
+            cognitive_reward: None,
         });
     }
 
@@ -179,6 +225,7 @@ mod tests {
         assert!(trace.hard_constraints_preserved);
         assert_eq!(trace.influences[0].preference_id, 7);
         assert!(audit.records[0].cognitive.is_none());
+        assert!(audit.records[0].cognitive_reward.is_none());
     }
 
     #[test]
@@ -207,5 +254,6 @@ mod tests {
         assert_eq!(trace.retrieval_candidate_count, 2);
         assert!(!trace.authoritative);
         assert!(audit.records[0].taste.is_none());
+        assert!(audit.records[0].cognitive_reward.is_none());
     }
 }
