@@ -318,7 +318,9 @@ mod tests {
             .expect("v2");
         assert!(chain.v2_started());
         assert_eq!(chain.latest().map(|item| item.generation()), Some(2));
-        assert!(chain.latest().is_some_and(|item| item.has_scirust_provenance()));
+        assert!(chain
+            .latest()
+            .is_some_and(|item| item.has_scirust_provenance()));
     }
 
     #[test]
