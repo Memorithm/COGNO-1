@@ -48,6 +48,7 @@ version = "0.0.1"
 dependencies = [
  "cogno-core",
  "cogno-model",
+ "scirust-agent-protocol",
  "serde",
  "serde_json",
  "sha2",
@@ -58,6 +59,15 @@ name = "cogno-scirust"
 version = "0.0.1"
 dependencies = [
  "cogno-core",
+]
+
+[[package]]
+name = "scirust-agent-protocol"
+version = "0.1.0"
+source = "git+https://github.com/Memorithm/scirust?rev=154e61677511c859086c39141933103b4a844c64#154e61677511c859086c39141933103b4a844c64"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

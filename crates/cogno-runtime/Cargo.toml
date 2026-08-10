@@ -18,5 +18,6 @@ cogno-model = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
+scirust-agent-protocol = { git = "https://github.com/Memorithm/scirust", rev = "154e61677511c859086c39141933103b4a844c64" }
 
 # Lint policy is declared at the top of src/lib.rs.

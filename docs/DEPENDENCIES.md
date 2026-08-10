@@ -14,7 +14,7 @@ empreintes cryptographiques et la sérialisation de contrôle.
 | `cogno-core` | 0 | 0 |
 | `cogno-scirust` | 0 | `cogno-core` |
 | `cogno-model` | `sha2` | `cogno-core`, `cogno-scirust` |
-| `cogno-runtime` | `serde`, `serde_json`, `sha2` | `cogno-core`, `cogno-model` |
+| `cogno-runtime` | `serde`, `serde_json`, `sha2`, `scirust-agent-protocol` | `cogno-core`, `cogno-model` |
 | `cogno-cli` | `serde`, `serde_json`, `sha2` | `cogno-core`, `cogno-runtime`, `cogno-model` |
 
 ## Justification des dépendances directes
@@ -51,6 +51,20 @@ empreintes cryptographiques et la sérialisation de contrôle.
 - le hash sert à l'intégrité et à la provenance, jamais à créer à lui seul une
   autorité ou une preuve de confiance.
 
+### `scirust-agent-protocol` 0.1.0
+
+- usage dans `cogno-runtime` : validation d'un `AgentMessage` contre l'identité
+  de l'émetteur authentifiée par le transport et vérification canonique de
+  `ExecutionAttestation` avant création de l'autorité hôte COGNO ;
+- source : dépôt `Memorithm/scirust`, révision exacte
+  `154e61677511c859086c39141933103b4a844c64`, verrouillée dans `Cargo.lock` ;
+- dépendances propres : `serde` et `serde_json`, déjà présentes dans l'inventaire ;
+- aucune confiance n'est accordée à une identité, un booléen ou un digest fourni
+  librement par l'appelant : l'API protocolaire vérifie l'identité authentifiée
+  et recalcule l'empreinte du profil d'exécution ;
+- toute modification de la révision nécessite une revue explicite de ce document
+  et du lockfile.
+
 ## Inventaire verrouillé transitif
 
 La CI compare l'ensemble exact des crates externes présentes dans `Cargo.lock`
@@ -68,6 +82,7 @@ libc
 memchr
 proc-macro2
 quote
+scirust-agent-protocol
 serde
 serde_core
 serde_derive
@@ -98,9 +113,11 @@ grep -E '^name = "' Cargo.lock \
 
 - **Cargo.lock conservé** dans le dépôt.
 - **CI en `--locked`** pour les tests, Clippy et la documentation.
-- **Build hors réseau en `--frozen`** pour la construction release.
-- **Aucune dépendance Git** : toutes les dépendances externes viennent du
-  registre crates.io et sont verrouillées par checksum.
+- **Build hors réseau en `--frozen`** après préchargement des dépendances
+  verrouillées.
+- **Dépendances Git interdites par défaut** ; l'unique exception actuelle est
+  `scirust-agent-protocol`, épinglée sur une révision SciRust exacte et utilisée
+  uniquement pour le contrat de transport/attestation entre les deux projets.
 - **Aucun script de build propriétaire**.
 - **Aucun `unsafe` propriétaire** : chaque crate COGNO conserve
   `#![forbid(unsafe_code)]`.
