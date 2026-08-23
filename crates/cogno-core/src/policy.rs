@@ -48,11 +48,16 @@ impl SafetyPolicy {
 
     /// Check a tool proposal. The MVP rejects **all** tool proposals (§7). A
     /// non-MVP policy still enforces a positive tool list and capability gate
-    /// elsewhere; this is the fail-closed first gate.
+    /// elsewhere; this is the fail-closed first gate. Even when tools are
+    /// enabled, the forbidden `sh -c <text>` shape stays a hard constraint:
+    /// flipping the enable flag can never reopen a shell-shaped proposal.
     #[must_use]
-    pub fn check_tool(&self, _p: &ToolProposalView) -> HardVerdict {
+    pub fn check_tool(&self, p: &ToolProposalView) -> HardVerdict {
         if !self.tools_enabled {
             return HardVerdict::Reject(crate::RejectReason::Unauthorized);
+        }
+        if crate::looks_like_shell_invocation(p) {
+            return HardVerdict::Reject(crate::RejectReason::HardConstraint);
         }
         HardVerdict::Allow
     }
@@ -82,6 +87,10 @@ impl PathPolicy {
     /// but not sufficient (§22): `canonicalize` consults the FS; the runtime
     /// enforces the full root policy. The core's lexical check fails fast on
     /// obvious parent-component attacks so the hot path stays allocation-free.
+    ///
+    /// The root match is a **component-boundary** match: `/app/root` must not
+    /// authorize the sibling subtree `/app/rootkit/...`. An empty root rejects
+    /// everything outside nothing — fail closed (S10).
     #[must_use]
     pub fn check_lexical(&self, candidate: &[u8]) -> PathVerdict {
         for part in candidate.split(|&b| b == b'/' || b == b'\\') {
@@ -89,8 +98,16 @@ impl PathPolicy {
                 return PathVerdict::RejectParentComponent;
             }
         }
-        if !candidate.starts_with(&self.root) {
+        if self.root.is_empty() || !candidate.starts_with(&self.root) {
             return PathVerdict::RejectOutsideRoot;
+        }
+        // Component boundary: the byte right after the root prefix must be a
+        // separator, or the candidate must be exactly the root itself.
+        if candidate.len() > self.root.len() {
+            let next = candidate[self.root.len()];
+            if next != b'/' && next != b'\\' {
+                return PathVerdict::RejectOutsideRoot;
+            }
         }
         PathVerdict::Allow
     }

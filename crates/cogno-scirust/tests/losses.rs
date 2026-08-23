@@ -74,3 +74,28 @@ fn infonce_loss() -> SciRustResult<()> {
     assert_eq!(tape.value_of(loss_var).len(), 1);
     Ok(())
 }
+
+#[test]
+fn calibration_surfaces_non_finite_scores_in_batch() {
+    use cogno_scirust::calib::Calibration;
+    let cal = Calibration::try_new(2.0).unwrap();
+    // Scalar compat path: non-finite input maps to the most conservative
+    // confidence (0 bps), never a plausible-looking value.
+    assert_eq!(cal.calibrate_bps(f32::NAN), 0);
+    // Batch path: the corruption is surfaced instead of published (§2).
+    let z = cogno_scirust::tensor::Tensor::try_new(
+        cogno_scirust::tensor::Shape::try_new(&[3]).unwrap(),
+        vec![0.5, f32::NAN, -1.0],
+        16,
+    )
+    .unwrap();
+    assert!(cal.try_calibrate_batch(&z).is_err());
+    let ok = cogno_scirust::tensor::Tensor::try_new(
+        cogno_scirust::tensor::Shape::try_new(&[1]).unwrap(),
+        vec![0.5],
+        16,
+    )
+    .unwrap();
+    let out = cal.try_calibrate_batch(&ok).unwrap();
+    assert!(out.bps[0] <= cal.max_bps);
+}

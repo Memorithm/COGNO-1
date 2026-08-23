@@ -93,12 +93,30 @@ impl Calibration {
     }
 
     /// Calibrate a raw score `z` to basis points, clamped to `0..=max_bps`.
+    ///
+    /// A non-finite `z` maps to `0` bps — the **most conservative** confidence
+    /// — rather than silently round-tripping NaN into a plausible-looking
+    /// value. Batch callers that must surface the corruption use
+    /// [`Self::try_calibrate_batch`].
     #[must_use]
     pub fn calibrate_bps(&self, z: f32) -> u16 {
+        if !z.is_finite() {
+            return 0;
+        }
         let s = self.sigmoid(z);
         let bps = (s * f32::from(self.max_bps)).round();
         let clamped = bps.clamp(0.0, f32::from(self.max_bps));
         clamped as u16
+    }
+
+    /// Batch calibrate. Returns an error instead of a confidence when any
+    /// input score is non-finite: a corrupted score must never be published
+    /// as a valid-looking confidence (surfaced, not propagated).
+    pub fn try_calibrate_batch(&self, z: &Tensor) -> SciRustResult<CalibratedConfidence> {
+        if z.data.iter().any(|v| !v.is_finite()) {
+            return Err(SciRustError::NonFinite);
+        }
+        self.calibrate_batch(z)
     }
 
     /// Batch calibrate. Returns a `CalibratedConfidence` per input.

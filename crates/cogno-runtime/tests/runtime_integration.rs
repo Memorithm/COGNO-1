@@ -229,7 +229,8 @@ fn phase5_executor_when_enabled_still_rejects_shell_shape() {
     use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
     // tools_enabled=true, positive list contains the tool; shell shape rejected hard.
     static TOOLS: &[ToolId] = &[ToolId(1)];
-    let exec = ToolExecutor::phase5(true, TOOLS);
+    static CAPS: &[CapabilityId] = &[CapabilityId(1)];
+    let exec = ToolExecutor::phase5(true, TOOLS, CAPS);
     let shell_text = "ls ; rm -rf /";
     let args = [TypedArgument::Text(shell_text)];
     let p = ToolProposalView {
@@ -245,10 +246,64 @@ fn phase5_executor_when_enabled_still_rejects_shell_shape() {
 }
 
 #[test]
+fn phase5_executor_rejects_shell_smuggled_in_path_or_bytes_argument() {
+    use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
+    // The forbidden `sh -c` shape must be detected in *any* text-like slot,
+    // not only `TypedArgument::Text`.
+    static TOOLS: &[ToolId] = &[ToolId(7)];
+    static CAPS: &[CapabilityId] = &[CapabilityId(1)];
+    let exec = ToolExecutor::phase5(true, TOOLS, CAPS);
+    let path_args = [TypedArgument::Path("x; rm -rf / $(id) `id`")];
+    let p_path = ToolProposalView {
+        tool_id: ToolId(7),
+        capability_id: CapabilityId(1),
+        arguments: &path_args,
+        justification_code: ReasonCode(1),
+    };
+    assert_eq!(
+        exec.execute(&p_path),
+        ToolOutcome::Refused(RejectReason::HardConstraint)
+    );
+    let byte_args = [TypedArgument::Bytes(b"ok$IFS${IFS}id")];
+    let p_bytes = ToolProposalView {
+        tool_id: ToolId(7),
+        capability_id: CapabilityId(1),
+        arguments: &byte_args,
+        justification_code: ReasonCode(1),
+    };
+    assert_eq!(
+        exec.execute(&p_bytes),
+        ToolOutcome::Refused(RejectReason::HardConstraint)
+    );
+}
+
+#[test]
+fn phase5_executor_enforces_capability_allowlist() {
+    use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
+    // The tool is on the positive list but its requested capability is not:
+    // refused by default (S2), regardless of tool identity.
+    static TOOLS: &[ToolId] = &[ToolId(7)];
+    static CAPS: &[CapabilityId] = &[CapabilityId(1)];
+    let exec = ToolExecutor::phase5(true, TOOLS, CAPS);
+    let args = [TypedArgument::Text("file.txt")];
+    let p = ToolProposalView {
+        tool_id: ToolId(7),
+        capability_id: CapabilityId(999),
+        arguments: &args,
+        justification_code: ReasonCode(1),
+    };
+    assert_eq!(
+        exec.execute(&p),
+        ToolOutcome::Refused(RejectReason::Unauthorized)
+    );
+}
+
+#[test]
 fn phase5_executor_when_enabled_authorizes_known_non_shell() {
     use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
     static TOOLS: &[ToolId] = &[ToolId(7)];
-    let exec = ToolExecutor::phase5(true, TOOLS);
+    static CAPS: &[CapabilityId] = &[CapabilityId(1)];
+    let exec = ToolExecutor::phase5(true, TOOLS, CAPS);
     let args = [TypedArgument::Text("file.txt")];
     let p = ToolProposalView {
         tool_id: ToolId(7),
@@ -263,7 +318,8 @@ fn phase5_executor_when_enabled_authorizes_known_non_shell() {
 fn phase5_executor_rejects_unknown_tool_even_when_enabled() {
     use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
     static TOOLS: &[ToolId] = &[ToolId(7)];
-    let exec = ToolExecutor::phase5(true, TOOLS);
+    static CAPS: &[CapabilityId] = &[CapabilityId(1)];
+    let exec = ToolExecutor::phase5(true, TOOLS, CAPS);
     let args = [TypedArgument::Text("hello")];
     let p = ToolProposalView {
         tool_id: ToolId(999),
@@ -489,8 +545,36 @@ fn reward_engine_cannot_be_repaid_after_safety_penalty() {
         .score(5_000, 1, Reward(2_000), RewardParams::DEFAULT)
         .unwrap();
     assert!(s2.points > s1.points, "positive signal raises score");
-    // But the lexicographic decider never permits a hard violation even with s2.
-    assert!(s2.points < 10_000_000 / 2 || s2.points >= 0); // tautology check: engine returns sane i64
+    // And the lexicographic decider never permits a hard violation even with
+    // a maximal reward: a Secret-classified candidate with the highest
+    // possible confidence and reward is still rejected on the hard gate.
+    struct SecretCandidate;
+    impl cogno_core::Candidate for SecretCandidate {
+        fn is_structurally_valid(&self) -> bool {
+            true
+        }
+        fn hard_constraint_ok(&self) -> bool {
+            false
+        }
+        fn capability_allowed(&self) -> bool {
+            true
+        }
+        fn privacy_rejection(&self) -> Option<RejectReason> {
+            None
+        }
+    }
+    let max_reward = e.score(
+        u16::MAX,
+        usize::MAX,
+        Reward(i64::MAX),
+        RewardParams::DEFAULT,
+    );
+    let score = max_reward.unwrap_or(s2);
+    assert_eq!(
+        cogno_core::decide(&SecretCandidate, score),
+        cogno_core::Decision::<_>::Reject(RejectReason::HardConstraint),
+        "a hard violation cannot be compensated by any reward (S4)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -577,14 +661,17 @@ fn queue_saturated_returns_structured_error_no_partial_state() {
 
 #[test]
 fn admission_latency_is_constant_time_in_budget_fields() {
-    // Cheap smoke test: admission runs without allocations and with a bounded
-    // number of checked ops. We call it many times in a tight loop; if it
-    // panicked or allocated per call the test would still pass but the
-    // invariant is documented by the absence of panic and the bounded API.
+    // Admission is checked-arithmetic only (§11): the verdict must be a pure
+    // function of the request and the budget. Assert the deterministic
+    // outcome over many calls — any hidden state, allocation feedback or
+    // order dependence would eventually diverge.
     let rt = Runtime::try_new(cfg()).unwrap();
+    let expected = rt.admit(16, 4, 4, 4, 4);
     for _ in 0..10_000 {
-        let _ = rt.admit(16, 4, 4, 4, 4);
+        assert_eq!(
+            rt.admit(16, 4, 4, 4, 4),
+            expected,
+            "admission verdict must be deterministic"
+        );
     }
-    // No assertion needed: the value is that the call did not allocate
-    // unboundedly. The budget API is checked-arithmetic-only (§11).
 }

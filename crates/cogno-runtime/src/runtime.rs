@@ -296,13 +296,21 @@ impl Runtime {
         out
     }
 
-    /// Decide a tool proposal (Phase 5 gate). MVP refuses everything.
+    /// Decide a tool proposal (Phase 5 gate). MVP refuses everything. Both
+    /// outcomes are audited: an authorization is a state-relevant decision
+    /// and must be traceable like any rejection (§3, S6).
     pub fn execute_tool(&mut self, p: &ToolProposalView<'_>) -> ToolOutcome {
         let o = self.tools.execute(p);
-        if matches!(o, ToolOutcome::Refused(_)) {
-            self.rejections = self.rejections.saturating_add(1);
-            self.audit
-                .reject(cogno_core::RejectReason::Unauthorized, None);
+        match o {
+            ToolOutcome::Refused(_) => {
+                self.rejections = self.rejections.saturating_add(1);
+                self.audit
+                    .reject(cogno_core::RejectReason::Unauthorized, None);
+            }
+            ToolOutcome::DryRunAuthorized => {
+                self.audit
+                    .tool_authorize(Some("dry-run authorized".to_string()));
+            }
         }
         o
     }

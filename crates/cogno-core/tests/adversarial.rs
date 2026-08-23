@@ -428,20 +428,25 @@ fn t03_kb_injection_retrieved_document_is_untrusted_and_distinct_from_policy() {
 #[test]
 fn t09_tokenizer_hash_mismatch_rejected() {
     use cogno_core::{ArchitectureId, ModelFamily, ModelManifest};
-    // A manifest with one tokenizer hash must not validate a different
-    // tokenizer. The loader would recompute the hash and compare; here we
-    // model that the manifest's stored hash is the contract — any artifact
-    // whose hash differs is hostile (§21).
-    let stored = [0xAA; 32];
-    let mut actual = [0u8; 32];
-    actual[0] = 0xAA;
-    actual[1] = 0xAA;
-    // Introduce a single-byte difference.
-    actual[5] = 0x01;
-    assert_ne!(stored, actual, "hash mismatch must be detected");
-    // The manifest itself still validates structurally (size is correct),
-    // which is why the loader performs the hash check *separately*, before
-    // any major allocation.
+    // The loader contract (§21): recompute the artifact digest and compare it
+    // to the manifest's stored hash **before** any major allocation. We
+    // exercise that comparison with a deterministic, dependency-free FNV-1a
+    // digest over the artifact bytes: a single flipped byte must change the
+    // digest and therefore refuse the artifact.
+    fn fnv1a(bytes: &[u8]) -> [u8; 32] {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for &b in bytes {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        let mut out = [0u8; 32];
+        out[..8].copy_from_slice(&h.to_be_bytes());
+        out
+    }
+
+    let tokenizer_bytes = b"vocab: a=1 b=2 c=3";
+    let stored = fnv1a(tokenizer_bytes);
+
     let m = ModelManifest {
         schema_version: 1,
         model_family: ModelFamily::Generic,
@@ -457,9 +462,22 @@ fn t09_tokenizer_hash_mismatch_rejected() {
         m.validate(1000).is_ok(),
         "structural checks pass; hash gate is separate"
     );
+
+    // Matching artifact passes the loader's hash gate.
+    assert_eq!(
+        m.tokenizer_hash,
+        fnv1a(tokenizer_bytes),
+        "authentic tokenizer accepted"
+    );
+    // A hostile artifact differing by ONE byte produces a different digest:
+    // the loader gate refuses it even though the manifest is structurally
+    // valid.
+    let mut tampered = *tokenizer_bytes;
+    tampered[7] ^= 0x01;
     assert_ne!(
-        m.tokenizer_hash, actual,
-        "tokenizer hash gate would refuse this artifact"
+        m.tokenizer_hash,
+        fnv1a(&tampered),
+        "single-byte tampering must be detected"
     );
 }
 
@@ -589,5 +607,204 @@ fn t06_profile_poisoning_contradictory_evidence_becomes_conflicted() {
         j.len(),
         3,
         "all evidence preserved in the append-only journal"
+    );
+}
+
+#[test]
+fn t06_conflict_detected_regardless_of_order() {
+    use cogno_core::{
+        DerivationPolicy, EvidenceOrigin, Fingerprint, Journal, JournalEvent, RuleState,
+    };
+    // Mirror of the approval-then-rejection test: the rejection comes FIRST.
+    // The conflict must be detected either way (§9/T06) — a later approval
+    // must not silently override an earlier user rejection.
+    fn event(fp_byte: u8, evidence_origin: EvidenceOrigin, evidence_id: u64) -> JournalEvent {
+        let mut fp = [0u8; 32];
+        fp[0] = fp_byte;
+        JournalEvent {
+            id: cogno_core::EventId(0),
+            fingerprint: Fingerprint(fp),
+            origin: InputOrigin::ExplicitUserInstruction,
+            evidence_origin,
+            evidence_id: EvidenceId::from_u64(evidence_id),
+            category_tag: 7,
+            payload: Vec::new(),
+        }
+    }
+    for (rejection_first, tag_fp) in [(true, 150u8), (false, 151)] {
+        let mut j = Journal::default();
+        if rejection_first {
+            j.append(event(tag_fp, EvidenceOrigin::UserRejection, 300));
+            j.append(event(tag_fp + 1, EvidenceOrigin::ExplicitUserApproval, 301));
+        } else {
+            j.append(event(tag_fp, EvidenceOrigin::ExplicitUserApproval, 302));
+            j.append(event(tag_fp + 1, EvidenceOrigin::UserRejection, 303));
+        }
+        let p = cogno_core::Profile::derive(&j, DerivationPolicy::DEFAULT);
+        let rule = p.rule(7).expect("rule present");
+        assert_eq!(
+            rule.state,
+            RuleState::Conflicted,
+            "approve+reject is Conflicted in any order (rejection_first={rejection_first})"
+        );
+        assert!(!rule.is_active());
+        assert!(!rule.conflicts.is_empty());
+    }
+}
+
+#[test]
+fn duplicate_evidence_ids_do_not_inflate_distinct_evidence() {
+    use cogno_core::{DerivationPolicy, EvidenceOrigin, Fingerprint, Journal, JournalEvent};
+    // Same evidence id replayed with different fingerprints (e.g. payload
+    // jitter) must count ONCE toward min_evidence (§9 distinct non-model
+    // proofs). Two distinct ids are required for promotion.
+    let mut j = Journal::default();
+    for i in 0..2u8 {
+        let mut fp = [0u8; 32];
+        fp[0] = 60 + i;
+        j.append(JournalEvent {
+            id: cogno_core::EventId(0),
+            fingerprint: Fingerprint(fp),
+            origin: InputOrigin::ExplicitUserInstruction,
+            evidence_origin: EvidenceOrigin::ExplicitUserStatement,
+            evidence_id: EvidenceId::from_u64(777), // SAME id twice
+            category_tag: 5,
+            payload: Vec::new(),
+        });
+    }
+    let p = cogno_core::Profile::derive(&j, DerivationPolicy::DEFAULT);
+    let rule = p.rule(5).unwrap();
+    assert_eq!(rule.distinct_evidence, 1, "duplicate id counted once");
+    assert!(!rule.is_active(), "min_evidence=2 needs two DISTINCT ids");
+    // A genuinely second id promotes.
+    let mut fp = [0u8; 32];
+    fp[0] = 99;
+    j.append(JournalEvent {
+        id: cogno_core::EventId(0),
+        fingerprint: Fingerprint(fp),
+        origin: InputOrigin::ExplicitUserInstruction,
+        evidence_origin: EvidenceOrigin::ExplicitUserStatement,
+        evidence_id: EvidenceId::from_u64(778),
+        category_tag: 5,
+        payload: Vec::new(),
+    });
+    let p = cogno_core::Profile::derive(&j, DerivationPolicy::DEFAULT);
+    assert!(p.rule(5).unwrap().is_active());
+}
+
+#[test]
+fn sibling_prefix_path_rejected() {
+    // `/app/root` must NOT authorize the sibling subtree `/app/rootkit/...`:
+    // the root match requires a component boundary (T13).
+    let pol = PathPolicy {
+        root: b"/app/root".to_vec(),
+    };
+    assert_eq!(
+        pol.check_lexical(b"/app/rootkit/secrets.txt"),
+        cogno_core::PathVerdict::RejectOutsideRoot
+    );
+    // The real subtree still passes.
+    assert_eq!(
+        pol.check_lexical(b"/app/root/data/log.txt"),
+        cogno_core::PathVerdict::Allow
+    );
+    // Exact-root candidate passes.
+    assert_eq!(
+        pol.check_lexical(b"/app/root"),
+        cogno_core::PathVerdict::Allow
+    );
+}
+
+#[test]
+fn empty_root_rejects_everything() {
+    // An empty root would otherwise authorize every absolute path (S10).
+    let pol = PathPolicy { root: Vec::new() };
+    assert_eq!(
+        pol.check_lexical(b"any/path"),
+        cogno_core::PathVerdict::RejectOutsideRoot
+    );
+}
+
+#[test]
+fn proposal_rejects_non_adjacent_duplicate_evidence_ids() {
+    use cogno_core::{CognoProposalView, ProposalAction, RejectReason, RuleCategory, RuleScope};
+    // `[a, b, a]` was previously accepted by the adjacency-only check; the
+    // spec forbids duplicates anywhere in the list.
+    let p = CognoProposalView {
+        schema_version: 1,
+        action: ProposalAction::ExtractPreference,
+        category: RuleCategory::Format,
+        scope: RuleScope::Session,
+        confidence_bps: 5_000,
+        evidence_ids: &[
+            EvidenceId::from_u64(7),
+            EvidenceId::from_u64(8),
+            EvidenceId::from_u64(7),
+        ],
+        payload: br#"{}"#.to_vec().leak(),
+    };
+    assert_eq!(
+        validate_proposal(&p),
+        Err(RejectReason::Malformed),
+        "non-adjacent duplicates rejected"
+    );
+}
+
+#[test]
+fn journal_refuses_zero_fingerprint_and_keeps_dedup_o1_behavior() {
+    use cogno_core::{EvidenceOrigin, Fingerprint, Journal, JournalEvent};
+    let mut j = Journal::default();
+    // ZERO fingerprint: distinct events with an all-zero digest would all
+    // collapse into one dedup bucket — refused outright (fail closed).
+    let e = JournalEvent {
+        id: cogno_core::EventId(0),
+        fingerprint: Fingerprint::ZERO,
+        origin: InputOrigin::ModelOutput,
+        evidence_origin: EvidenceOrigin::ModelInference,
+        evidence_id: EvidenceId::from_u64(1),
+        category_tag: 1,
+        payload: Vec::new(),
+    };
+    assert_eq!(
+        j.append(e),
+        cogno_core::AppendOutcome::ZeroFingerprint,
+        "zero fingerprint rejected"
+    );
+    assert_eq!(j.len(), 0);
+
+    // Dedup stays correct when the duplicate arrives far from the original:
+    // the `seen` map keeps O(1) average lookups and the ORIGINAL event id.
+    let mk = |byte: u8| {
+        let mut fp = [0u8; 32];
+        fp[0] = byte;
+        JournalEvent {
+            id: cogno_core::EventId(0),
+            fingerprint: Fingerprint(fp),
+            origin: InputOrigin::ExplicitUserInstruction,
+            evidence_origin: EvidenceOrigin::ExplicitUserStatement,
+            evidence_id: EvidenceId::from_u64(u64::from(byte)),
+            category_tag: 1,
+            payload: Vec::new(),
+        }
+    };
+    let first_id = match j.append(mk(42)) {
+        cogno_core::AppendOutcome::Appended { id } => id,
+        other => panic!("expected append, got {other:?}"),
+    };
+    for i in 0..500u16 {
+        let mut e = mk((i % 200 + 1) as u8);
+        if i == 499 {
+            e.fingerprint = {
+                let mut fp = [0u8; 32];
+                fp[0] = 42;
+                Fingerprint(fp)
+            };
+        }
+        let _ = j.append(e);
+    }
+    assert_eq!(
+        j.append(mk(42)),
+        cogno_core::AppendOutcome::Duplicate { id: first_id },
+        "duplicate returns the original id even after many appends"
     );
 }

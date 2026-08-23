@@ -80,3 +80,59 @@ fn kv_report_never_silent() {
     assert_eq!(r.admitted_tokens, 0);
     assert_eq!(r.dropped_tokens, 10);
 }
+
+#[test]
+fn kv_prefix_pinned_filling_capacity_is_rejected_at_construction() {
+    // prefix >= capacity previously passed construction and panicked on the
+    // first eviction (`token_ids[capacity]`). Fail closed instead (S10).
+    let err = BoundedKvCache::try_new(
+        4,
+        4,
+        2,
+        1,
+        KvCachePolicy::PrefixPinnedSlidingWindow {
+            prefix_tokens: 4,
+            window_tokens: 2,
+        },
+    );
+    assert!(err.is_err(), "prefix filling the whole cache is invalid");
+    // Even a struct built through validated paths can never panic on push.
+    let mut kv = BoundedKvCache::try_new(
+        8,
+        4,
+        2,
+        1,
+        KvCachePolicy::PrefixPinnedSlidingWindow {
+            prefix_tokens: 2,
+            window_tokens: 6,
+        },
+    )
+    .unwrap();
+    for i in 0..32u64 {
+        let _ = kv.push(i); // saturates at prefix+window, evicts, never panics
+    }
+    assert_eq!(kv.len, 8);
+}
+
+#[test]
+fn kv_zero_window_policy_rejected_at_construction() {
+    let err = BoundedKvCache::try_new(
+        4,
+        4,
+        2,
+        1,
+        KvCachePolicy::SlidingWindow { window_tokens: 0 },
+    );
+    assert!(err.is_err());
+    let err = BoundedKvCache::try_new(
+        4,
+        4,
+        2,
+        1,
+        KvCachePolicy::PrefixPinnedSlidingWindow {
+            prefix_tokens: 1,
+            window_tokens: 0,
+        },
+    );
+    assert!(err.is_err());
+}

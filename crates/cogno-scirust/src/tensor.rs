@@ -49,6 +49,10 @@ impl Shape {
         self.0.len()
     }
 
+    /// Number of **dimensions** (rank), not the element count. For the
+    /// element count use [`Shape::checked_len`] on [`Self::as_slice`]. Kept
+    /// under this name for slice-like ergonomics; do not use it to size data
+    /// buffers.
     #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
@@ -104,7 +108,9 @@ impl Tensor {
 
     /// Zeros tensor of a given shape, bounded by `max_elements`.
     pub fn try_zeros(shape: Shape, max_elements: usize) -> SciRustResult<Self> {
-        let n = shape.len();
+        // The element count is the checked *product* of the dims, not the
+        // rank: allocating the rank silently produced shape/data inconsistency.
+        let n = Shape::checked_len(shape.as_slice())?;
         if n > max_elements {
             return Err(SciRustError::CapacityExceeded {
                 requested: n,

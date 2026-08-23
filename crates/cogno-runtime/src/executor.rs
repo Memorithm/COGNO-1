@@ -10,7 +10,7 @@
 //! Until Phase 5 is audited and enabled, [`ToolExecutor::execute`] returns
 //! `Unauthorized` for every proposal — fail closed (S10).
 
-use cogno_core::{RejectReason, MVP_TOOLS_ENABLED};
+use cogno_core::{CapabilityId, RejectReason, MVP_TOOLS_ENABLED};
 use cogno_core::{ToolId, ToolProposalView};
 
 /// Deterministic outcome of a tool proposal.
@@ -22,12 +22,14 @@ pub enum ToolOutcome {
     DryRunAuthorized,
 }
 
-/// Tool executor. Stateless and deterministic; the positive tool list and
-/// argument policy are owned by the runtime, not by arbitrary model proposals.
+/// Tool executor. Stateless and deterministic; the positive tool list, the
+/// capability allowlist and the argument policy are owned by the runtime,
+/// not by arbitrary model proposals (S2 — refused by default).
 #[derive(Debug)]
 pub struct ToolExecutor {
     pub tools_enabled: bool,
     pub positive_tools: &'static [ToolId],
+    pub allowed_capabilities: &'static [CapabilityId],
 }
 
 impl Default for ToolExecutor {
@@ -37,30 +39,41 @@ impl Default for ToolExecutor {
 }
 
 impl ToolExecutor {
-    /// MVP construction: tools disabled, empty positive list.
+    /// MVP construction: tools disabled, empty positive list, no capability.
     #[must_use]
     pub fn mvp() -> Self {
         Self {
             tools_enabled: MVP_TOOLS_ENABLED,
             positive_tools: &[],
+            allowed_capabilities: &[],
         }
     }
 
     /// Phase 5 construction: tools enabled by the host after audit, with an
-    /// explicit positive tool list. Even enabled, the executor enforces
-    /// capability, path and shell checks before returning `DryRunAuthorized`.
-    pub fn phase5(tools_enabled: bool, positive_tools: &'static [ToolId]) -> Self {
+    /// explicit positive tool list and an explicit capability allowlist. Even
+    /// enabled, the executor enforces capability, tool-list and shell checks
+    /// before returning `DryRunAuthorized`.
+    pub fn phase5(
+        tools_enabled: bool,
+        positive_tools: &'static [ToolId],
+        allowed_capabilities: &'static [CapabilityId],
+    ) -> Self {
         Self {
             tools_enabled,
             positive_tools,
+            allowed_capabilities,
         }
     }
 
     /// Decide a tool proposal. The MVP refuses everything. When enabled, the
-    /// proposal must reference a tool in the positive list and must not match
-    /// the forbidden `sh -c <text>` shape (`looks_like_shell_invocation`).
+    /// proposal must reference a capability on the allowlist (S2), a tool on
+    /// the positive list, and must not match the forbidden `sh -c <text>`
+    /// shape (`looks_like_shell_invocation`).
     pub fn execute(&self, p: &ToolProposalView<'_>) -> ToolOutcome {
         if !self.tools_enabled {
+            return ToolOutcome::Refused(RejectReason::Unauthorized);
+        }
+        if !self.allowed_capabilities.contains(&p.capability_id) {
             return ToolOutcome::Refused(RejectReason::Unauthorized);
         }
         if !self.positive_tools.contains(&p.tool_id) {

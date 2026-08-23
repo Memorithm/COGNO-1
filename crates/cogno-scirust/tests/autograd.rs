@@ -184,3 +184,33 @@ fn softmax_rejects_multirow_matrix() -> SciRustResult<()> {
     ));
     Ok(())
 }
+
+#[test]
+fn relu_and_neg_surface_non_finite_inputs_instead_of_silencing_them() {
+    use cogno_scirust::{
+        engine::Tape,
+        error::SciRustError,
+        tensor::{Shape, Tensor},
+    };
+    let mut tape = Tape::new(64, 16);
+    let v = tape
+        .variable(Tensor::try_new(Shape::try_new(&[2]).unwrap(), vec![1.0, f32::NAN], 16).unwrap())
+        .unwrap();
+    // relu used to map NaN -> 0.0 (f32::max swallows NaN), hiding a poisoned
+    // gradient; it must surface NonFinite like every other op.
+    assert!(matches!(tape.relu(v).unwrap_err(), SciRustError::NonFinite));
+    let v = tape
+        .variable(Tensor::try_new(Shape::try_new(&[1]).unwrap(), vec![f32::INFINITY], 16).unwrap())
+        .unwrap();
+    assert!(matches!(tape.neg(v).unwrap_err(), SciRustError::NonFinite));
+}
+
+#[test]
+fn try_zeros_allocates_the_element_count_not_the_rank() {
+    use cogno_scirust::tensor::{Shape, Tensor};
+    let t = Tensor::try_zeros(Shape::try_new(&[3, 4]).unwrap(), 64).unwrap();
+    assert_eq!(t.len(), 12, "3x4 shape must hold 12 zeros");
+    assert_eq!(t.as_slice(), &[0.0; 12]);
+    // Capacity bound still applies to the element count.
+    assert!(Tensor::try_zeros(Shape::try_new(&[3, 4]).unwrap(), 11).is_err());
+}

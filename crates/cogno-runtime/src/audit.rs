@@ -97,17 +97,35 @@ pub struct AuditRecord {
     pub cognitive_decision: Option<CognitiveRewardDecision>,
 }
 
-/// In-memory audit buffer (bounded by the Phase 0 budget; a real runtime uses
-/// the on-disk journal).
+/// Hard cap on the in-memory audit buffer (T16): an attacker generating
+/// rejections must not be able to grow the process without bound. Oldest
+/// records are evicted first and counted, never silently discarded.
+pub const MAX_AUDIT_RECORDS: usize = 4096;
+
+/// In-memory audit buffer, bounded by [`MAX_AUDIT_RECORDS`]; a real runtime
+/// uses the on-disk journal. Evictions of the oldest records are surfaced in
+/// `dropped_records`.
 #[derive(Debug, Default)]
 pub struct Audit {
     pub records: Vec<AuditRecord>,
+    pub dropped_records: usize,
 }
 
 impl Audit {
+    /// Bounded push. When the buffer is full the **oldest** record is evicted
+    /// (FIFO) and `dropped_records` is incremented — bounded memory, no
+    /// silent loss.
+    fn push_record(&mut self, record: AuditRecord) {
+        if self.records.len() >= MAX_AUDIT_RECORDS {
+            self.records.drain(0..1);
+            self.dropped_records = self.dropped_records.saturating_add(1);
+        }
+        self.records.push(record);
+    }
+
     /// Record a rejection with its reason.
     pub fn reject(&mut self, reason: RejectReason, note: Option<String>) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "reject",
             reason: Some(reason),
             note,
@@ -121,8 +139,23 @@ impl Audit {
     /// Record an acceptance. Score/decision tracked by the caller; the audit
     /// carries the verdict, not the reward value, so secrets never leak (S8).
     pub fn accept(&mut self, note: Option<String>) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "accept",
+            reason: None,
+            note,
+            taste: None,
+            cognitive: None,
+            cognitive_reward: None,
+            cognitive_decision: None,
+        });
+    }
+
+    /// Record a tool authorization decision. The authorization step is the
+    /// most security-sensitive decision in the pipeline; it is audited like
+    /// any other state-changing decision (§3, S6).
+    pub fn tool_authorize(&mut self, note: Option<String>) {
+        self.push_record(AuditRecord {
+            decision: "tool_authorize",
             reason: None,
             note,
             taste: None,
@@ -134,7 +167,7 @@ impl Audit {
 
     /// Record a deterministic soft decision and all verified taste influences.
     pub fn taste_decision(&mut self, decision: &TasteDecision) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: if decision.abstained {
                 "taste_abstain"
             } else {
@@ -152,7 +185,7 @@ impl Audit {
     /// Record an integer-only V4 observation. The snapshot is explicitly
     /// non-authoritative and carries its exact persisted model provenance.
     pub fn cognitive_observation(&mut self, observation: &CognitiveObservation) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "cognitive_observation",
             reason: None,
             note: None,
@@ -166,7 +199,7 @@ impl Audit {
     /// Record the checked bounded V4 score delta after the hard-gated context
     /// has been sealed. No raw model output is interpreted here.
     pub fn cognitive_reward(&mut self, applied: &AppliedCognitiveReward) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "cognitive_reward",
             reason: None,
             note: None,
@@ -179,7 +212,7 @@ impl Audit {
 
     /// Record a deterministic comparison among sealed post-hard V4 rewards.
     pub fn cognitive_decision(&mut self, decision: &CognitiveRewardDecision) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "cognitive_decision",
             reason: None,
             note: None,
@@ -192,7 +225,7 @@ impl Audit {
 
     /// Record a context truncation (never silent, §17).
     pub fn truncation(&mut self, report: ContextReport) {
-        self.records.push(AuditRecord {
+        self.push_record(AuditRecord {
             decision: "truncate_context",
             reason: None,
             note: Some(format!(
@@ -278,5 +311,40 @@ mod tests {
         assert!(audit.records[0].taste.is_none());
         assert!(audit.records[0].cognitive_reward.is_none());
         assert!(audit.records[0].cognitive_decision.is_none());
+    }
+}
+
+#[cfg(test)]
+mod bounded_tests {
+    use super::*;
+
+    #[test]
+    fn audit_buffer_stays_bounded_under_flood_and_counts_evictions() {
+        // T16: an attacker generating rejections must not grow the process
+        // without bound; oldest records are evicted and counted, never lost
+        // silently.
+        let mut audit = Audit::default();
+        for i in 0..(MAX_AUDIT_RECORDS * 3) {
+            audit.reject(RejectReason::Oversized, Some(format!("r{i}")));
+            assert!(audit.records.len() <= MAX_AUDIT_RECORDS);
+        }
+        assert_eq!(audit.records.len(), MAX_AUDIT_RECORDS);
+        assert_eq!(
+            audit.dropped_records,
+            MAX_AUDIT_RECORDS * 2,
+            "every evicted record is accounted for"
+        );
+        // FIFO: the oldest surviving record is the first one not yet dropped.
+        assert_eq!(audit.records[0].note.as_deref(), Some("r8192"));
+    }
+
+    #[test]
+    fn tool_authorization_is_audited() {
+        // §3/S6: an authorization is a state-relevant decision and must be
+        // traceable like any rejection.
+        let mut audit = Audit::default();
+        audit.tool_authorize(Some("dry-run authorized".to_string()));
+        assert_eq!(audit.len(), 1);
+        assert_eq!(audit.records[0].decision, "tool_authorize");
     }
 }

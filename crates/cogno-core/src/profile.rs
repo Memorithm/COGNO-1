@@ -11,10 +11,10 @@
 //! Model inference alone never creates a hard rule (§9). Contradictory rules
 //! become `Conflicted`, never silently dropped.
 
-use crate::evidence::{EvidenceOrigin, RuleState};
+use crate::evidence::{EvidenceId, EvidenceOrigin, RuleState};
 use crate::journal::Journal;
 use crate::semantic::SemanticMemoryBudget;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 /// Category bucket carried by a `JournalEvent`. Reused here as the rule key.
 type CategoryTag = u16;
@@ -71,14 +71,23 @@ impl Profile {
     /// Derive a profile from a journal. Pure and deterministic: same journal
     /// and policy ⇒ same profile (replay invariant S6/S7).
     ///
-    /// Contradiction handling (§9, T06): a `UserRejection` against an
-    /// already-approved rule for the same category marks it `Conflicted`
-    /// rather than silently replacing the prior preference. Both pieces of
+    /// Contradiction handling (§9, T06): a `UserRejection` **and** an
+    /// approval/statement for the same category mark it `Conflicted`,
+    /// regardless of the order the events were appended in. Both pieces of
     /// evidence are kept in the journal (the journal is append-only); the
     /// derived view surfaces the conflict so the host can arbitrate.
+    ///
+    /// `distinct_evidence` counts **distinct evidence ids** (§9): replaying
+    /// the same id with different fingerprints cannot inflate authority.
     pub fn derive(journal: &Journal, policy: DerivationPolicy) -> Self {
         let mut p = Self::default();
         let budget = SemanticMemoryBudget::MVP_SAFE;
+        // Per-category derivation state, folded in append order but reduced
+        // order-independently at the end.
+        let mut approved_seen: BTreeMap<CategoryTag, bool> = BTreeMap::new();
+        let mut rejected_seen: BTreeMap<CategoryTag, bool> = BTreeMap::new();
+        let mut seen_ids_per_rule: BTreeMap<CategoryTag, HashSet<EvidenceId>> = BTreeMap::new();
+
         for ev in journal.iter() {
             if !budget.allows_payload(ev.payload.len()) {
                 continue;
@@ -90,15 +99,11 @@ impl Profile {
                 model_only: true,
                 conflicts: Vec::new(),
             });
+            let tag = ev.category_tag;
 
-            // Detect contradiction: a rejection against prior approval/statement
-            // for the same category. The conflict is recorded (not silently
-            // dropped) and forces `Conflicted` regardless of evidence count.
             let is_rejection = matches!(ev.evidence_origin, EvidenceOrigin::UserRejection);
-            let had_approval = entry.distinct_evidence > 0 && !entry.model_only;
-            if is_rejection && had_approval {
-                entry.conflicts.push(ev.category_tag);
-                continue;
+            if is_rejection {
+                rejected_seen.insert(tag, true);
             }
 
             let authoritative = !matches!(
@@ -108,7 +113,15 @@ impl Profile {
                     | EvidenceOrigin::ToolObservation
             );
             if authoritative {
-                entry.distinct_evidence = entry.distinct_evidence.saturating_add(1);
+                if !is_rejection {
+                    approved_seen.insert(tag, true);
+                }
+                // Count distinct evidence ids only; duplicates of an already
+                // seen id never inflate `distinct_evidence`.
+                let ids = seen_ids_per_rule.entry(tag).or_default();
+                if ids.insert(ev.evidence_id) {
+                    entry.distinct_evidence = entry.distinct_evidence.saturating_add(1);
+                }
                 entry.model_only = false;
                 if ev.evidence_origin.can_create_hard_rule() {
                     entry.hard = true;
@@ -116,10 +129,12 @@ impl Profile {
             }
         }
 
-        for entry in p.rules.values_mut() {
-            if !entry.conflicts.is_empty() {
+        for (&tag, entry) in p.rules.iter_mut() {
+            let conflicted = approved_seen.contains_key(&tag) && rejected_seen.contains_key(&tag);
+            if conflicted {
                 // A conflicted rule is never `Active`: the host must arbitrate
                 // before it can be re-promoted. The evidence is preserved.
+                entry.conflicts.push(tag);
                 entry.state = RuleState::Conflicted;
             } else if entry.model_only && policy.quarantine_model_only {
                 entry.state = RuleState::Quarantined;

@@ -21,8 +21,7 @@ use crate::training_data_policy::{
     HostConfidentialTrainingAttestation, TrainingDataAdmissionPolicy, TrainingDataGovernanceError,
 };
 use cogno_core::DataClassification;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use sha2::{Digest, Sha256};
 
 /// Opaque label id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -60,6 +59,12 @@ impl LabeledExample {
     /// Classification is deliberately not part of this object or fingerprint:
     /// the host must supply it independently at corpus admission, and relabeling
     /// cannot make duplicate content appear new.
+    ///
+    /// The digest is a real SHA-256 over `label (u16, big-endian) || payload`
+    /// (§21): stable across compiler/toolchain versions — unlike the former
+    /// `DefaultHasher`, whose algorithm may change between Rust releases and
+    /// would break replay/provenance reproducibility (S6) — and collision-
+    /// resistant, so dedup-by-fingerprint (§9) cannot be forged cheaply.
     #[must_use]
     pub fn new(
         label: Label,
@@ -67,12 +72,10 @@ impl LabeledExample {
         origin: cogno_core::InputOrigin,
         evidence_origin: cogno_core::EvidenceOrigin,
     ) -> Self {
-        let mut h = DefaultHasher::new();
-        h.write_u16(label.0);
-        h.write(&payload);
-        let hash = h.finish();
-        let mut fp = [0u8; 32];
-        fp[..8].copy_from_slice(&hash.to_le_bytes());
+        let mut h = Sha256::new();
+        h.update(label.0.to_be_bytes());
+        h.update(&payload);
+        let fp: [u8; 32] = h.finalize().into();
         Self {
             label,
             payload,

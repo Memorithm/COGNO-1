@@ -83,42 +83,50 @@ pub struct JournalEvent {
 
 /// Append-only journal. Deduplicates by `fingerprint` (§9). Keeps the order in
 /// which unique events were appended; compaction is a separate, deterministic
-/// pass (`compact`).
+/// pass (`compact`). The `seen` map gives O(1) average duplicate detection
+/// while remembering the original event id.
 #[derive(Debug, Default)]
 pub struct Journal {
     events: Vec<JournalEvent>,
-    seen: std::collections::HashSet<Fingerprint>,
+    seen: std::collections::HashMap<Fingerprint, u64>,
     next_id: u64,
 }
 
 /// Journal append outcome. `Duplicate` means the fingerprint was already
-/// present; the event is **not** appended again (counted once, §9).
+/// present; the event is **not** appended again (counted once, §9). A zero
+/// fingerprint is rejected: it would let distinct events collapse into one
+/// dedup bucket and forge a duplicate (fail closed, S10).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppendOutcome {
     Appended { id: EventId },
     Duplicate { id: EventId },
+    ZeroFingerprint,
 }
 
 impl Journal {
     /// Append an event. Returns `Duplicate` (with the original id) if the
     /// fingerprint was already present; the journal state is unchanged in that
     /// case (no partial modification, §13 allocation principle extended to
-    /// state).
+    /// state). Dedup consults the `seen` set, so the cost per append is O(1)
+    /// average rather than a full scan.
     pub fn append(&mut self, mut event: JournalEvent) -> AppendOutcome {
-        if let Some(existing) = self
-            .events
-            .iter()
-            .find(|e| e.fingerprint == event.fingerprint)
-        {
-            return AppendOutcome::Duplicate { id: existing.id };
+        if event.fingerprint.is_zero() {
+            return AppendOutcome::ZeroFingerprint;
+        }
+        if let Some(&existing) = self.seen.get(&event.fingerprint) {
+            return AppendOutcome::Duplicate {
+                id: EventId(existing),
+            };
         }
         event.id = EventId(self.next_id);
-        self.next_id = self.next_id.checked_add(1).expect("event id overflow");
-        self.seen.insert(event.fingerprint);
+        // Saturating instead of panicking: the core never panics on its own
+        // paths (crate contract); u64::MAX events is unreachable in practice
+        // but saturation keeps the operation total and deterministic.
+        self.next_id = self.next_id.saturating_add(1);
+        let id = event.id;
+        self.seen.insert(event.fingerprint, id.0);
         self.events.push(event);
-        AppendOutcome::Appended {
-            id: EventId(self.next_id - 1),
-        }
+        AppendOutcome::Appended { id }
     }
 
     /// Iterate events in append order. Used by the profile derivation and the

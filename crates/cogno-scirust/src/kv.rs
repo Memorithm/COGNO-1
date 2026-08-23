@@ -9,6 +9,32 @@
 use cogno_core::ContextReport;
 pub use cogno_core::KvCachePolicy;
 
+/// Validate an eviction policy against a capacity (fail closed, S10). A
+/// policy that cannot admit or evict a single token is a misconfiguration:
+/// `PrefixPinnedSlidingWindow` with `prefix_tokens >= capacity_tokens` would
+/// leave no sliding room and index out of bounds on the first eviction, and a
+/// zero window stores nothing while reporting evictions.
+fn validate_policy(policy: &KvCachePolicy, capacity_tokens: usize) -> Result<(), KvPushError> {
+    match *policy {
+        KvCachePolicy::RejectOnOverflow => Ok(()),
+        KvCachePolicy::SlidingWindow { window_tokens } => {
+            if window_tokens == 0 || window_tokens > capacity_tokens {
+                return Err(KvPushError::InvalidPolicy);
+            }
+            Ok(())
+        }
+        KvCachePolicy::PrefixPinnedSlidingWindow {
+            prefix_tokens,
+            window_tokens,
+        } => {
+            if window_tokens == 0 || prefix_tokens + window_tokens > capacity_tokens {
+                return Err(KvPushError::InvalidPolicy);
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Errors raised by a push into a bounded KV cache.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KvPushError {
@@ -19,6 +45,10 @@ pub enum KvPushError {
     Evicted,
     /// Capacity was 0 at construction (misconfiguration).
     ZeroCapacity,
+    /// The eviction policy is degenerate for this capacity (e.g. a pinned
+    /// prefix that fills the whole cache leaves no room to slide, which would
+    /// index out of bounds on eviction). Refused at construction (S10).
+    InvalidPolicy,
 }
 
 /// Outcome of a push.
@@ -65,6 +95,7 @@ impl BoundedKvCache {
         if total == 0 {
             return Err(KvPushError::ZeroCapacity);
         }
+        validate_policy(&policy, capacity_tokens)?;
         Ok(Self {
             capacity_tokens,
             policy,
@@ -111,12 +142,20 @@ impl BoundedKvCache {
                 let prefix = prefix_tokens.min(self.capacity_tokens);
                 let win = window_tokens.min(self.capacity_tokens.saturating_sub(prefix));
                 let cap = prefix + win;
+                if cap == 0 {
+                    // Degenerate policy (guarded at construction; defensive
+                    // here so `push` stays total regardless of how the struct
+                    // was built). Nothing can be stored or evicted.
+                    return KvPushOutcome::Refused;
+                }
                 if self.len < cap {
                     self.token_ids[self.len] = token_id;
                     self.len += 1;
                     return KvPushOutcome::Admitted;
                 }
-                // Evict the oldest *after* the pinned prefix.
+                // Evict the oldest *after* the pinned prefix. `win >= 1` and
+                // `prefix < cap` hold for any validated policy, so every index
+                // below is in bounds.
                 let dropped = self.token_ids[prefix];
                 self.token_ids.copy_within(prefix + 1..cap, prefix);
                 self.token_ids[cap - 1] = token_id;

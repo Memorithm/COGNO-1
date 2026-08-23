@@ -238,6 +238,11 @@ impl Tape {
     /// Negation.
     pub fn neg(&mut self, a: Var) -> SciRustResult<Var> {
         let na = self.nodes[a.idx].value.clone();
+        // Surface non-finite inputs like every other op: `neg` would silently
+        // propagate NaN/Inf into downstream gradients.
+        for &v in &na.data {
+            ensure_finite(v)?;
+        }
         let data: Vec<f32> = na.data.iter().map(|x| -x).collect();
         let n = data.len();
         let value = Tensor {
@@ -255,6 +260,12 @@ impl Tape {
     /// ReLU (elementwise).
     pub fn relu(&mut self, a: Var) -> SciRustResult<Var> {
         let na = self.nodes[a.idx].value.clone();
+        // `f32::max` swallows NaN (NaN.max(0.0) == 0.0), so a NaN gradient
+        // would silently vanish here instead of surfacing as `NonFinite`.
+        // Check the input explicitly, like every other op.
+        for &v in &na.data {
+            ensure_finite(v)?;
+        }
         let data: Vec<f32> = na.data.iter().map(|x| x.max(0.0)).collect();
         let n = data.len();
         let value = Tensor {

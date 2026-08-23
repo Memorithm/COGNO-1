@@ -45,15 +45,16 @@ pub struct AdamW {
 
 impl AdamW {
     pub fn try_new(lr: f32, n: usize) -> SciRustResult<Self> {
-        validate_hyperparams(lr)?;
-        Ok(Self {
+        let opt = Self {
             lr,
             beta1: 0.9,
             beta2: 0.999,
             eps: 1e-8,
             weight_decay: 0.01,
             state: ParamState::new(n),
-        })
+        };
+        validate_hyperparams(opt.lr, opt.beta1, opt.beta2, opt.eps, opt.weight_decay)?;
+        Ok(opt)
     }
 }
 
@@ -65,6 +66,11 @@ impl Optimizer for AdamW {
                 rhs: vec![grad.len()],
             });
         }
+        // Re-validate on every step: the hyperparameter fields are plain data
+        // and a host could mutate them after construction; an out-of-domain
+        // value (e.g. beta1 == 1.0) would divide by zero and silently produce
+        // NaN parameters. Fail closed before any state changes (S10).
+        validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
         self.state.step = self
             .state
             .step
@@ -90,7 +96,13 @@ impl Optimizer for AdamW {
             // Decoupled weight decay: param -= lr * (wd * param + m_hat / (sqrt(v_hat) + eps))
             let denom = v_hat.sqrt() + eps;
             let update = m_hat / denom;
-            param[i] -= lr * (wd * param[i] + update);
+            let candidate = param[i] - lr * (wd * param[i] + update);
+            // A non-finite result must surface, never silently poison the
+            // parameter for every subsequent step.
+            if !candidate.is_finite() {
+                return Err(SciRustError::NonFinite);
+            }
+            param[i] = candidate;
         }
         Ok(())
     }
@@ -110,15 +122,16 @@ pub struct AmsGrad {
 
 impl AmsGrad {
     pub fn try_new(lr: f32, n: usize) -> SciRustResult<Self> {
-        validate_hyperparams(lr)?;
-        Ok(Self {
+        let opt = Self {
             lr,
             beta1: 0.9,
             beta2: 0.999,
             eps: 1e-8,
             weight_decay: 0.01,
             state: ParamState::new(n),
-        })
+        };
+        validate_hyperparams(opt.lr, opt.beta1, opt.beta2, opt.eps, opt.weight_decay)?;
+        Ok(opt)
     }
 }
 
@@ -130,6 +143,9 @@ impl Optimizer for AmsGrad {
                 rhs: vec![grad.len()],
             });
         }
+        // Same re-validation as AdamW: hyperparameters are mutable plain
+        // data; out-of-domain values must fail closed before any update.
+        validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
         self.state.step = self
             .state
             .step
@@ -150,14 +166,32 @@ impl Optimizer for AmsGrad {
             self.state.v_hat[i] = self.state.v_hat[i].max(self.state.v[i]);
             let denom = self.state.v_hat[i].sqrt() + eps;
             let update = self.state.m[i] / denom;
-            param[i] -= lr * (wd * param[i] + update);
+            let candidate = param[i] - lr * (wd * param[i] + update);
+            if !candidate.is_finite() {
+                return Err(SciRustError::NonFinite);
+            }
+            param[i] = candidate;
         }
         Ok(())
     }
 }
 
-fn validate_hyperparams(lr: f32) -> SciRustResult<()> {
-    if lr <= 0.0 || !lr.is_finite() {
+/// Validate every hyperparameter against its domain. `beta` must lie in
+/// `[0, 1)` (a value of `1` zeroes the bias correction denominator), `eps`
+/// must be strictly positive and finite, the learning rate strictly positive,
+/// and weight decay non-negative.
+fn validate_hyperparams(lr: f32, beta1: f32, beta2: f32, eps: f32, wd: f32) -> SciRustResult<()> {
+    let ok = lr > 0.0
+        && lr.is_finite()
+        && (0.0..1.0).contains(&beta1)
+        && beta1.is_finite()
+        && (0.0..1.0).contains(&beta2)
+        && beta2.is_finite()
+        && eps > 0.0
+        && eps.is_finite()
+        && wd >= 0.0
+        && wd.is_finite();
+    if !ok {
         return Err(SciRustError::NonFinite);
     }
     Ok(())

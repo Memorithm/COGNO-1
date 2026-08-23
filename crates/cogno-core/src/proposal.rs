@@ -128,17 +128,18 @@ pub fn validate_proposal(p: &CognoProposalView) -> Result<(), RejectReason> {
         return Err(RejectReason::Malformed);
     }
 
-    let mut last = None;
-    for &eid in p.evidence_ids {
-        if let Some(prev) = last
-            && eid == prev
-        {
+    // Duplicate detection is pairwise over the (bounded, ≤ MAX_EVIDENCE_IDS)
+    // id list: adjacency-only checks miss `[a, b, a]`. Allocation-free so the
+    // validation hot path stays bounded.
+    for i in 0..p.evidence_ids.len() {
+        if p.evidence_ids[i].0 == 0 {
             return Err(RejectReason::Malformed);
         }
-        if eid.0 == 0 {
-            return Err(RejectReason::Malformed);
+        for prior in &p.evidence_ids[..i] {
+            if prior == &p.evidence_ids[i] {
+                return Err(RejectReason::Malformed);
+            }
         }
-        last = Some(eid);
     }
 
     if requires_evidence(p.action) && p.evidence_ids.is_empty() {

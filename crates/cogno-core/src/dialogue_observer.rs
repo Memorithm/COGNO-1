@@ -110,6 +110,9 @@ pub fn observe_dialogue(
     Ok(match journal.append(event) {
         AppendOutcome::Appended { id } => DialogueObservationOutcome::Appended { id },
         AppendOutcome::Duplicate { id } => DialogueObservationOutcome::Duplicate { id },
+        AppendOutcome::ZeroFingerprint => {
+            return Err(DialogueObservationError::ZeroFingerprint);
+        }
     })
 }
 

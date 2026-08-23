@@ -48,20 +48,25 @@ fn contains_shell_meta(s: &str) -> bool {
     s.bytes().any(|b| {
         matches!(
             b,
-            b';' | b'|' | b'&' | b'>' | b'<' | b'$' | b'`' | b'\n' | b'\r'
+            b';' | b'|' | b'&' | b'>' | b'<' | b'$' | b'`' | b'\n' | b'\r' | b'\0'
         )
     })
 }
 
 /// Conservative detector for the forbidden `sh -c <model_text>` shape: any
-/// `Text` argument carrying shell metacharacters. Conservative because the
-/// MVP rejects *all* tool proposals anyway; this flag supports the dedicated
-/// adversarial test `shell_command_proposal`.
+/// text-carrying argument (`Text`, `Path`, or `Bytes` interpreted lossily)
+/// carrying shell metacharacters. `Path` and `Bytes` are scanned too: a
+/// hostile proposal can smuggle a shell string into any text-like slot, and a
+/// false positive only over-rejects, which is the safe direction for this
+/// system (S10). Conservative because the MVP rejects *all* tool proposals
+/// anyway; this flag supports the dedicated adversarial test
+/// `shell_command_proposal`.
 #[must_use]
 pub fn looks_like_shell_invocation(p: &ToolProposalView) -> bool {
     p.arguments.iter().any(|arg| match arg {
-        TypedArgument::Text(s) => contains_shell_meta(s),
-        _ => false,
+        TypedArgument::Text(s) | TypedArgument::Path(s) => contains_shell_meta(s),
+        TypedArgument::Bytes(b) => std::str::from_utf8(b).is_ok_and(contains_shell_meta),
+        TypedArgument::Int(_) => false,
     })
 }
 
