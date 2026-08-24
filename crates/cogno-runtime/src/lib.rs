@@ -192,9 +192,11 @@ pub use taste_longitudinal::{
     TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE, STALE_GENERATION_GAP,
 };
 pub use taste_loop::{
-    ingest_validation_store, load_profile_snapshot, record_feedback, run_feedback_iteration,
-    run_feedback_iteration_retained, save_profile_snapshot, state_tag_of, ProfileSnapshot,
-    SnapshotPreference, TasteFeedbackRecord, TasteLoopError, FEEDBACK_FILE,
+    active_preference_views, audit_store, compact_feedback_journal, current_unix_seconds,
+    ingest_validation_store, load_profile_snapshot, record_feedback,
+    run_feedback_iteration_retained, run_feedback_iteration_tuned, save_profile_snapshot,
+    state_tag_of, ActivePreferenceView, CompactionReport, LoopTuning, ProfileSnapshot,
+    SnapshotPreference, StoreAudit, TasteFeedbackRecord, TasteLoopError, FEEDBACK_FILE,
     FEEDBACK_SCHEMA_VERSION, MAX_FEEDBACK_JOURNAL_BYTES, MAX_FEEDBACK_RECORDS,
     PROFILE_SNAPSHOT_FILE,
 };
