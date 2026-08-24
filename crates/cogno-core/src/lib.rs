@@ -108,9 +108,10 @@ pub use reward_engine::{RewardEngine, RewardParams};
 pub use scratch::RequestScratch;
 pub use semantic::SemanticMemoryBudget;
 pub use taste::{
-    ScientificTaste, ScientificTasteProfile, TasteError, TasteEvent, TasteEventKind, TasteOrigin,
-    TastePolicy, TasteScope, TasteSource, TasteSourceKind, TasteState, MAX_TASTE_CONFIDENCE_BPS,
-    MAX_TASTE_EVIDENCE_IDS, MAX_TASTE_SOURCE_ID_BYTES,
+    ScientificTaste, ScientificTasteProfile, TasteArbitration, TasteArbitrationAction,
+    TasteArbitrationAuthority, TasteError, TasteEvent, TasteEventKind, TasteOrigin, TastePolicy,
+    TasteScope, TasteSettings, TasteSource, TasteSourceKind, TasteState, MAX_SCOPE_KEY_BYTES,
+    MAX_TASTE_CONFIDENCE_BPS, MAX_TASTE_EVIDENCE_IDS, MAX_TASTE_SOURCE_ID_BYTES,
 };
 pub use tool::{
     classify_tool_proposal, looks_like_shell_invocation, CapabilityId, ReasonCode, ToolId,

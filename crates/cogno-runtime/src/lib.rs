@@ -71,9 +71,11 @@ pub mod taste_generation;
 pub mod taste_generation_v2;
 pub mod taste_longitudinal;
 pub mod taste_orchestrator;
+pub mod taste_package;
 pub mod taste_persisted_chain;
 pub mod taste_persisted_restart;
 pub mod taste_restart_manifest;
+pub mod taste_settings;
 pub mod taste_validation_store;
 pub mod verified_taste_profile;
 
@@ -194,6 +196,11 @@ pub use taste_orchestrator::{
     ScientificTasteOrchestratorError, MAX_ORCHESTRATED_CANDIDATES, MAX_ORCHESTRATED_VALIDATIONS,
     MIN_PROMOTION_CONFIRMATIONS, PROMOTION_THRESHOLD_BPS,
 };
+pub use taste_package::{
+    PackageEntry, PackagePolicy, PackageScope, PackageSource, PackageSourceKind, TastePackage,
+    TastePackageError, MAX_PACKAGE_DOCUMENT_BYTES, MAX_PACKAGE_PARENTS, MAX_PACKAGE_PREFERENCES,
+    MAX_PACKAGE_SOURCES_PER_ENTRY, PACKAGE_FORMAT,
+};
 pub use taste_persisted_chain::{
     load_persisted_taste_generation_selection, PersistedTasteGenerationError,
     PersistedTasteGenerationSelection,
@@ -206,6 +213,7 @@ pub use taste_restart_manifest::{
     TasteRestartManifestAuthority, TasteRestartManifestError, TasteRestartPreference,
     MAX_RESTART_MANIFEST_PREFERENCES,
 };
+pub use taste_settings::{load_settings, save_settings, TasteSettingsError};
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
     StoredValidationVerdict, TasteValidationAppendOutcome, TasteValidationStoreError,
