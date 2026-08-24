@@ -192,8 +192,11 @@ pub use taste_longitudinal::{
     TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE, STALE_GENERATION_GAP,
 };
 pub use taste_loop::{
-    record_feedback, run_feedback_iteration, TasteFeedbackRecord, TasteLoopError, FEEDBACK_FILE,
+    ingest_validation_store, load_profile_snapshot, record_feedback, run_feedback_iteration,
+    run_feedback_iteration_retained, save_profile_snapshot, state_tag_of, ProfileSnapshot,
+    SnapshotPreference, TasteFeedbackRecord, TasteLoopError, FEEDBACK_FILE,
     FEEDBACK_SCHEMA_VERSION, MAX_FEEDBACK_JOURNAL_BYTES, MAX_FEEDBACK_RECORDS,
+    PROFILE_SNAPSHOT_FILE,
 };
 pub use taste_orchestrator::{
     orchestrate_scientific_taste_cycle, validation_origin_is_non_model, OrchestratedTasteCandidate,

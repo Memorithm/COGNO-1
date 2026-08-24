@@ -46,6 +46,11 @@ pub struct TasteFeedbackRecord {
     #[serde(default)]
     pub source_id: String,
     pub confidence_bps: u16,
+    /// Unix seconds when the outcome was observed (0 = unknown/legacy, kept
+    /// forever). Drives deterministic retention (forgetting) at iteration
+    /// time; never used to reorder or rewrite history.
+    #[serde(default)]
+    pub observed_at_unix: u64,
 }
 
 /// Failure modes of the loop layer.
@@ -120,15 +125,33 @@ pub fn run_feedback_iteration(
     settings: &TasteSettings,
     policy: TastePolicy,
 ) -> Result<ScientificTasteProfile, TasteLoopError> {
+    run_feedback_iteration_retained(store_root, settings, policy, 0, 0)
+}
+
+/// Same as [`run_feedback_iteration`] but with deterministic forgetting:
+/// events carrying `observed_at_unix > 0` whose observation is older than
+/// `retention_secs` before `now_unix` are excluded from derivation. Records
+/// without a timestamp (0) are always kept. Deterministic given inputs; the
+/// journal itself is never rewritten.
+pub fn run_feedback_iteration_retained(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    policy: TastePolicy,
+    now_unix: u64,
+    retention_secs: u64,
+) -> Result<ScientificTasteProfile, TasteLoopError> {
     if !settings.can_learn() {
         return Err(TasteLoopError::LearningDeniedByConsent);
     }
-    let events = load_journal_events(store_root)?;
+    let events = load_journal_events_retained(store_root, now_unix, retention_secs)?;
     ScientificTasteProfile::derive(&events, policy).map_err(TasteLoopError::Core)
 }
 
-/// Read and validate the whole journal into canonical event order.
-fn load_journal_events(store_root: impl AsRef<Path>) -> Result<Vec<TasteEvent>, TasteLoopError> {
+fn load_journal_events_retained(
+    store_root: impl AsRef<Path>,
+    now_unix: u64,
+    retention_secs: u64,
+) -> Result<Vec<TasteEvent>, TasteLoopError> {
     let path = journal_path(store_root);
     let bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
@@ -139,6 +162,7 @@ fn load_journal_events(store_root: impl AsRef<Path>) -> Result<Vec<TasteEvent>, 
     if bytes.len() > MAX_FEEDBACK_JOURNAL_BYTES {
         return Err(TasteLoopError::JournalTooLarge);
     }
+    let forgetting = retention_secs > 0;
     let text = std::str::from_utf8(&bytes)
         .map_err(|_| TasteLoopError::InvalidRecord("journal is not UTF-8".to_string()))?;
     let mut events = Vec::new();
@@ -150,6 +174,14 @@ fn load_journal_events(store_root: impl AsRef<Path>) -> Result<Vec<TasteEvent>, 
         let record: TasteFeedbackRecord = serde_json::from_str(line)
             .map_err(|error| TasteLoopError::InvalidRecord(format!("bad json: {error}")))?;
         validate_record(&record)?;
+        // Deterministic forgetting: only timestamped records can expire, and
+        // clock skew (observed in the "future") never drops evidence.
+        if forgetting && record.observed_at_unix != 0 {
+            let age = now_unix.saturating_sub(record.observed_at_unix);
+            if age > retention_secs {
+                continue;
+            }
+        }
         // First occurrence wins; replays of the same id are ignored so a
         // re-fed journal cannot double-count outcomes.
         if seen_ids.insert(record.event_id) {
@@ -260,6 +292,228 @@ fn event_from_record(record: &TasteFeedbackRecord) -> Result<TasteEvent, TasteLo
     })
 }
 
+/// Convert every stored validation into feedback records (point d'intégration
+/// de la boucle : les verdicts réels du store alimentent le journal). The
+/// caller supplies the scope instance the outcomes belong to — the validation
+/// store itself is scope-free. Returns the number of records appended;
+/// re-ingesting the same store is harmless (duplicate event ids are ignored
+/// at derivation time).
+pub fn ingest_validation_store(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    scope: TasteScope,
+    scope_key: &str,
+) -> Result<usize, TasteLoopError> {
+    if !settings.can_learn() {
+        return Err(TasteLoopError::LearningDeniedByConsent);
+    }
+    scope
+        .validate_key(scope_key)
+        .map_err(|_| TasteLoopError::InvalidRecord("invalid scope key".to_string()))?;
+    let validations =
+        crate::taste_validation_store::PersistentTasteValidationStore::open(&store_root)
+            .map_err(|error| TasteLoopError::Io(format!("{error:?}")))?;
+    let mut appended = 0_usize;
+    for validation in validations.records() {
+        let record = validation_to_record(validation, scope, scope_key);
+        // Records that already exist in the journal (same event id) would be
+        // deduplicated anyway; appending them again only wastes bytes, so a
+        // full re-ingest stays cheap and idempotent in effect.
+        record_feedback(&store_root, settings, &record)?;
+        appended += 1;
+    }
+    Ok(appended)
+}
+
+fn validation_to_record(
+    validation: &crate::taste_validation_store::StoredTasteValidation,
+    scope: TasteScope,
+    scope_key: &str,
+) -> TasteFeedbackRecord {
+    use crate::taste_validation_store::{
+        StoredValidationOrigin, StoredValidationVerdict, ValidationSubjectKind,
+    };
+    let kind = match validation.verdict {
+        StoredValidationVerdict::Confirmed => "confirmed",
+        StoredValidationVerdict::Contradicted => "contradicted",
+    };
+    let origin = match validation.origin {
+        StoredValidationOrigin::DeterministicEvaluation => "deterministic_evaluation",
+        StoredValidationOrigin::ExplicitUserAction => "explicit_user_action",
+    };
+    let (source_kind, source_id) = match validation.subject_kind {
+        ValidationSubjectKind::HumanHost => ("human", short_hash(&validation.subject_id_sha256)),
+        ValidationSubjectKind::DeterministicEvaluator => (
+            "deterministic_kernel",
+            short_hash(&validation.subject_id_sha256),
+        ),
+        ValidationSubjectKind::ExternalAgent => {
+            ("external_agent", short_hash(&validation.subject_id_sha256))
+        }
+        ValidationSubjectKind::Unattributed => ("unknown", "unattributed".to_string()),
+    };
+    TasteFeedbackRecord {
+        schema_version: FEEDBACK_SCHEMA_VERSION,
+        event_id: validation.validation_id,
+        preference_id: validation.preference_id,
+        scope: scope.scope_tag().to_string(),
+        scope_key: scope_key.to_string(),
+        kind: kind.to_string(),
+        origin: origin.to_string(),
+        source_kind: source_kind.to_string(),
+        source_id,
+        confidence_bps: validation.confidence_bps,
+        observed_at_unix: 0,
+    }
+}
+
+/// Bounded source id derived from the subject hash: `sha256:<first 14 hex>`.
+/// Attribution stays traceable without exceeding the core's 64-byte bound.
+fn short_hash(bytes: &[u8; 32]) -> String {
+    let mut output = String::from("sha256:");
+    for byte in &bytes[..7] {
+        output.push_str(&format!("{byte:02x}"));
+    }
+    output
+}
+
+/// Persisted derived-profile snapshot (`taste.profile.json`). Pure audit and
+/// restart convenience: always recomputable from the journal, never an
+/// authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileSnapshot {
+    pub schema_version: u16,
+    /// Journal byte length this snapshot was derived from (incremental
+    /// bookkeeping hint; snapshots are verified by recomputation, not trust).
+    pub journal_bytes: usize,
+    pub policy: crate::taste_package::PackagePolicy,
+    pub preferences: Vec<SnapshotPreference>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SnapshotPreference {
+    pub preference_id: u64,
+    pub scope: String,
+    pub scope_key: String,
+    /// `quarantined | candidate | active | conflicted | rejected`
+    pub state: String,
+    pub confidence_bps: u16,
+}
+
+/// On-disk snapshot name under the store root.
+pub const PROFILE_SNAPSHOT_FILE: &str = "taste.profile.json";
+const SNAPSHOT_SCHEMA_VERSION: u16 = 1;
+
+/// Canonical lowercase tag of a derived preference state (CLI/report use).
+#[must_use]
+pub fn state_tag_of(state: cogno_core::TasteState) -> &'static str {
+    match state {
+        cogno_core::TasteState::Quarantined => "quarantined",
+        cogno_core::TasteState::Candidate => "candidate",
+        cogno_core::TasteState::Active => "active",
+        cogno_core::TasteState::Conflicted => "conflicted",
+        cogno_core::TasteState::Rejected => "rejected",
+    }
+}
+
+fn snapshot_path(store_root: impl AsRef<Path>) -> PathBuf {
+    store_root.as_ref().join(PROFILE_SNAPSHOT_FILE)
+}
+
+/// Save a derived profile snapshot atomically. Consent-gated on learning:
+/// no profile leaves memory for a host that disabled taste learning.
+pub fn save_profile_snapshot(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    profile: &ScientificTasteProfile,
+    policy: TastePolicy,
+) -> Result<(), TasteLoopError> {
+    if !settings.can_learn() {
+        return Err(TasteLoopError::LearningDeniedByConsent);
+    }
+    let path = snapshot_path(&store_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    }
+    let journal_bytes = fs::metadata(journal_path(&store_root))
+        .map(|meta| meta.len() as usize)
+        .unwrap_or(0);
+    let preferences = profile
+        .preferences
+        .values()
+        .map(|entry| SnapshotPreference {
+            preference_id: entry.preference_id,
+            scope: entry.scope.scope_tag().to_string(),
+            scope_key: entry.scope_key.clone(),
+            state: state_tag_of(entry.state).to_string(),
+            confidence_bps: entry.confidence_bps,
+        })
+        .collect();
+    let snapshot = ProfileSnapshot {
+        schema_version: SNAPSHOT_SCHEMA_VERSION,
+        journal_bytes,
+        policy: crate::taste_package::PackagePolicy::from(policy),
+        preferences,
+    };
+    let mut encoded = serde_json::to_vec_pretty(&snapshot)
+        .map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    encoded.push(b'\n');
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, encoded).map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    fs::rename(&tmp, &path).map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    Ok(())
+}
+
+/// Load a previously saved snapshot, bounds-checked. Missing file yields
+/// `Ok(None)`; anything malformed fails closed.
+pub fn load_profile_snapshot(
+    store_root: impl AsRef<Path>,
+) -> Result<Option<ProfileSnapshot>, TasteLoopError> {
+    match fs::read(snapshot_path(store_root)) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(TasteLoopError::Io(error.to_string())),
+        Ok(bytes) => {
+            if bytes.len() > MAX_FEEDBACK_JOURNAL_BYTES {
+                return Err(TasteLoopError::JournalTooLarge);
+            }
+            let snapshot: ProfileSnapshot = serde_json::from_slice(&bytes)
+                .map_err(|error| TasteLoopError::InvalidRecord(format!("bad snapshot: {error}")))?;
+            if snapshot.schema_version != SNAPSHOT_SCHEMA_VERSION {
+                return Err(TasteLoopError::InvalidRecord(
+                    "unsupported snapshot schema version".to_string(),
+                ));
+            }
+            if snapshot.journal_bytes > MAX_FEEDBACK_JOURNAL_BYTES {
+                return Err(TasteLoopError::JournalTooLarge);
+            }
+            for preference in &snapshot.preferences {
+                if preference.confidence_bps > cogno_core::MAX_TASTE_CONFIDENCE_BPS {
+                    return Err(TasteLoopError::InvalidRecord(
+                        "confidence_bps exceeds 10000".to_string(),
+                    ));
+                }
+                let scope = TasteScope::from_scope_tag(&preference.scope).ok_or_else(|| {
+                    TasteLoopError::InvalidRecord(format!("unknown scope `{}`", preference.scope))
+                })?;
+                scope
+                    .validate_key(&preference.scope_key)
+                    .map_err(|_| TasteLoopError::InvalidRecord("invalid scope key".to_string()))?;
+                match preference.state.as_str() {
+                    "quarantined" | "candidate" | "active" | "conflicted" | "rejected" => {}
+                    other => {
+                        return Err(TasteLoopError::InvalidRecord(format!(
+                            "unknown state `{other}`"
+                        )))
+                    }
+                }
+            }
+            Ok(Some(snapshot))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +538,7 @@ mod tests {
             source_kind: source_kind.to_string(),
             source_id: "scirust@gen7".to_string(),
             confidence_bps: 5_000,
+            observed_at_unix: 0,
         }
     }
 
@@ -442,5 +697,171 @@ mod tests {
             cogno_core::TasteState::Active,
             "a single deduplicated confirmation cannot activate"
         );
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::taste_validation_store::{
+        StoredTasteValidation, StoredValidationOrigin, StoredValidationVerdict,
+        ValidationSubjectKind,
+    };
+
+    fn record(event_id: u64, kind: &str, origin: &str, source_kind: &str) -> TasteFeedbackRecord {
+        TasteFeedbackRecord {
+            schema_version: FEEDBACK_SCHEMA_VERSION,
+            event_id,
+            preference_id: 7,
+            scope: "project".to_string(),
+            scope_key: "project:cogno-1".to_string(),
+            kind: kind.to_string(),
+            origin: origin.to_string(),
+            source_kind: source_kind.to_string(),
+            source_id: "scirust@gen7".to_string(),
+            confidence_bps: 5_000,
+            observed_at_unix: 0,
+        }
+    }
+
+    fn granted() -> TasteSettings {
+        TasteSettings {
+            learning_enabled: true,
+            export_allowed: true,
+            import_allowed: true,
+        }
+    }
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("cogno-loop-x-{tag}-{}-{nonce}", std::process::id()))
+    }
+
+    fn stored(
+        validation_id: u64,
+        verdict: StoredValidationVerdict,
+        hash: [u8; 32],
+    ) -> StoredTasteValidation {
+        StoredTasteValidation {
+            validation_id,
+            preference_id: 7,
+            evidence_id: validation_id * 100,
+            origin: StoredValidationOrigin::DeterministicEvaluation,
+            verdict,
+            confidence_bps: 6_500,
+            subject_kind: ValidationSubjectKind::DeterministicEvaluator,
+            subject_id_sha256: hash,
+        }
+    }
+
+    #[test]
+    fn validation_store_feeds_the_journal_and_reingest_is_harmless() {
+        let root = temp_root("ingest");
+        {
+            let mut store =
+                crate::taste_validation_store::PersistentTasteValidationStore::open(&root)
+                    .expect("open");
+            store
+                .append(stored(1, StoredValidationVerdict::Confirmed, [7_u8; 32]))
+                .expect("append 1");
+            store
+                .append(stored(2, StoredValidationVerdict::Confirmed, [7_u8; 32]))
+                .expect("append 2");
+        }
+        let count =
+            ingest_validation_store(&root, &granted(), TasteScope::Project, "project:cogno-1")
+                .expect("ingest");
+        assert_eq!(count, 2);
+        // Re-ingesting appends again but derivation dedupes by event id.
+        ingest_validation_store(&root, &granted(), TasteScope::Project, "project:cogno-1")
+            .expect("re-ingest");
+        let profile =
+            run_feedback_iteration(&root, &granted(), TastePolicy::DEFAULT).expect("iterate");
+        assert_eq!(
+            profile.preferences[&7].state,
+            cogno_core::TasteState::Active
+        );
+    }
+
+    #[test]
+    fn deterministic_forgetting_expires_only_old_timestamped_records() {
+        let root = temp_root("forget");
+        let mut old = record(
+            1,
+            "confirmed",
+            "deterministic_evaluation",
+            "deterministic_kernel",
+        );
+        old.observed_at_unix = 1_000;
+        let mut fresh = record(
+            2,
+            "confirmed",
+            "deterministic_evaluation",
+            "deterministic_kernel",
+        );
+        fresh.observed_at_unix = 900_000;
+        // Undated legacy record must survive any retention window.
+        let legacy = record(3, "confirmed", "explicit_user_action", "human");
+        for entry in [&old, &fresh, &legacy] {
+            record_feedback(&root, &granted(), entry).expect("record");
+        }
+        // Two kernel confirms + one human edit -> Active without forgetting.
+        let full = run_feedback_iteration(&root, &granted(), TastePolicy::DEFAULT).expect("full");
+        assert_eq!(full.preferences[&7].state, cogno_core::TasteState::Active);
+        // With a tight window both timestamped outcomes expire; only the
+        // undated legacy record survives, so activation is lost.
+        let pruned = run_feedback_iteration_retained(
+            &root,
+            &granted(),
+            TastePolicy::DEFAULT,
+            1_000_000,
+            50_000,
+        )
+        .expect("pruned");
+        let entry = pruned.preferences.get(&7).expect("entry");
+        assert_ne!(
+            entry.state,
+            cogno_core::TasteState::Active,
+            "expired evidence must not keep the preference active"
+        );
+        // Journal is never rewritten by iteration.
+        let lines = std::fs::read_to_string(root.join(FEEDBACK_FILE))
+            .expect("journal")
+            .lines()
+            .count();
+        assert_eq!(lines, 3);
+    }
+
+    #[test]
+    fn snapshots_round_trip_and_fail_closed() {
+        let root = temp_root("snap");
+        record_feedback(
+            &root,
+            &granted(),
+            &record(1, "proposed", "model_inference", "assistance_model"),
+        )
+        .expect("proposal");
+        let policy = TastePolicy::DEFAULT;
+        let profile = run_feedback_iteration(&root, &granted(), policy).expect("iterate");
+        save_profile_snapshot(&root, &granted(), &profile, policy).expect("save");
+        let loaded = load_profile_snapshot(&root).expect("load").expect("some");
+        assert_eq!(loaded.schema_version, 1);
+        assert_eq!(loaded.preferences.len(), profile.preferences.len());
+        assert_eq!(
+            loaded.policy.activation_threshold_bps,
+            policy.activation_threshold_bps
+        );
+        // Missing file -> None.
+        let empty = temp_root("snap-empty");
+        assert_eq!(load_profile_snapshot(&empty).expect("none"), None);
+        // Corrupted snapshot fails closed.
+        std::fs::write(root.join(PROFILE_SNAPSHOT_FILE), "{broken").expect("corrupt");
+        assert!(matches!(
+            load_profile_snapshot(&root),
+            Err(TasteLoopError::InvalidRecord(_))
+        ));
     }
 }

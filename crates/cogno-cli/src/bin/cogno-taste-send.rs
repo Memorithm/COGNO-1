@@ -3,8 +3,8 @@
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
-use cogno_runtime::load_settings;
-use cogno_transport::{push_package, PushOutcome};
+use cogno_runtime::{load_settings, TastePackage};
+use cogno_transport::{push_package, push_package_authorized, PushOutcome};
 use std::net::TcpStream;
 use std::path::Path;
 
@@ -36,28 +36,34 @@ fn run() -> Result<(), String> {
     }
 
     // Consent gate: a host that forbids exports never sends preferences.
-    let settings = load_settings(Path::new(&store_root))
-        .map_err(|error| format!("cannot load host consent: {error}"))?;
-    let package = cogno_runtime::TastePackage::load_file(&package_path)
-        .map_err(|error| format!("cannot verify {}: {error:?}", package_path))?;
+    let settings = load_settings(Path::new(&store_root)).map_err(|error| error.to_string())?;
+    let package = TastePackage::load_file(&package_path)
+        .map_err(|error| format!("cannot verify {package_path}: {error:?}"))?;
+    // Shared secret comes from the environment so it never shows in ps(1).
+    let token = std::env::var("COGNO_TASTE_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty());
 
     let mut stream = TcpStream::connect((host.as_str(), port))
         .map_err(|error| format!("cannot connect to {host}:{port}: {error}"))?;
-    match push_package(&mut stream, &package, &settings) {
-        Ok(PushOutcome::Accepted(digest)) => {
+    let outcome = match token.as_deref() {
+        Some(token) => push_package_authorized(&mut stream, &package, &settings, token),
+        None => push_package(&mut stream, &package, &settings),
+    };
+    match outcome.map_err(|error| format!("send failed: {error}"))? {
+        PushOutcome::Accepted(digest) | PushOutcome::Duplicate(digest) => {
             println!(
                 "{}",
                 serde_json::json!({ "event": "accepted", "digest": digest })
             );
             Ok(())
         }
-        Ok(PushOutcome::Rejected(reason)) => {
+        PushOutcome::Rejected(reason) => {
             eprintln!(
                 "{}",
                 serde_json::json!({ "event": "rejected", "reason": reason })
             );
             std::process::exit(3);
         }
-        Err(error) => Err(format!("send failed: {error}")),
     }
 }

@@ -176,7 +176,8 @@ départagée par le plus petit ID candidat stable.
 | `cogno-core` | Types, hard validators, reward entier, budgets, mémoire, sécurité | déterministe, sans backend neuronal obligatoire, sans `unsafe` propriétaire |
 | `cogno-scirust` | autograd borné, optimisateurs, encodeur partagé, heads et objectif joint | Rust sûr, bornes strictes, erreurs fallibles |
 | `cogno-model` | tokenizer, bridges d'entraînement, revue Meta, artefacts hostiles | aucune exécution de code au chargement, provenance contrôlée |
-| `cogno-runtime` | admission, pipeline, audit, persistance/replay, activation, reward/decision V4 | hard-before-soft, fail-closed, installation one-shot |
+| `cogno-runtime` | admission, pipeline, audit, persistance/replay, activation, reward/decision V4, packages de goût, boucle de feedback | hard-before-soft, fail-closed, installation one-shot |
+| `cogno-transport` | échange de packages de goût entre hôtes (framing borné, auth, sessions, pull) | std-only, vérification bout-en-bout, consentement aux deux bords |
 | `cogno-cli` | binaire `cogno`, observabilité et ingestion explicite | aucune autorité implicite, outils gated |
 
 ## 11. État des phases (§27)
