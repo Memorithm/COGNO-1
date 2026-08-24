@@ -24,6 +24,7 @@ dependencies = [
  "cogno-core",
  "cogno-model",
  "cogno-runtime",
+ "cogno-transport",
  "serde",
  "serde_json",
  "sha2",
@@ -59,6 +60,14 @@ name = "cogno-scirust"
 version = "0.0.1"
 dependencies = [
  "cogno-core",
+]
+
+[[package]]
+name = "cogno-transport"
+version = "0.0.1"
+dependencies = [
+ "cogno-core",
+ "cogno-runtime",
 ]
 
 [[package]]

@@ -18,6 +18,9 @@ use std::fs;
 use std::path::Path;
 
 const SCHEMA_VERSION: u16 = 1;
+/// Bounded scope identity for file-fed CLI derivations: every event derived
+/// here belongs to the CLI's own project scope instance.
+const SCOPE_KEY: &str = "project:cogno-cli";
 
 #[derive(Debug, Deserialize)]
 struct CandidateReport {
@@ -60,6 +63,14 @@ fn run() -> Result<(), String> {
     validate_candidate_report(&report)?;
 
     let store_root = Path::new(&store_root);
+    // Consent gate (étape 4): the host settings decide whether taste events
+    // may be replayed into a profile at all. Fail closed on unreadable or
+    // invalid settings.
+    let settings = cogno_runtime::load_settings(store_root)
+        .map_err(|error| format!("cannot load host consent: {error}"))?;
+    if !settings.can_learn() {
+        return Err("taste learning disabled by host consent (taste.settings.json)".to_string());
+    }
     let store = PersistentTasteValidationStore::open(store_root)
         .map_err(|error| format!("cannot replay validation store: {error:?}"))?;
     let output = derive_output(&report, &store, &candidate_bytes, store_root)?;
@@ -125,6 +136,7 @@ fn derive_output(
             event_id: 0,
             preference_id: candidate.preference_id,
             scope: TasteScope::Project,
+            scope_key: SCOPE_KEY.to_string(),
             kind: TasteEventKind::Proposed,
             origin: TasteOrigin::ModelInference,
             confidence_bps: 5_000,
@@ -141,6 +153,7 @@ fn derive_output(
                 event_id: validation.validation_id,
                 preference_id: validation.preference_id,
                 scope: TasteScope::Project,
+                scope_key: SCOPE_KEY.to_string(),
                 kind: match validation.verdict {
                     StoredValidationVerdict::Confirmed => TasteEventKind::Confirmed,
                     StoredValidationVerdict::Contradicted => TasteEventKind::Contradicted,

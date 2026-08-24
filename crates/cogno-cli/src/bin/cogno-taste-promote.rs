@@ -15,6 +15,9 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 const SCHEMA_VERSION: u16 = 1;
+/// Bounded scope identity for file-fed CLI derivations: every event derived
+/// here belongs to the CLI's own project scope instance.
+const SCOPE_KEY: &str = "project:cogno-cli";
 const MAX_VALIDATIONS: usize = 16_384;
 
 #[derive(Debug, Deserialize)]
@@ -191,6 +194,7 @@ fn derive_output(report: &CandidateReport, validations: &[Validation]) -> Result
             event_id: 0,
             preference_id: candidate.preference_id,
             scope: TasteScope::Project,
+            scope_key: SCOPE_KEY.to_string(),
             kind: TasteEventKind::Proposed,
             origin: TasteOrigin::ModelInference,
             confidence_bps: 5_000,
@@ -206,6 +210,7 @@ fn derive_output(report: &CandidateReport, validations: &[Validation]) -> Result
                 event_id: validation.validation_id,
                 preference_id: candidate.preference_id,
                 scope: TasteScope::Project,
+                scope_key: SCOPE_KEY.to_string(),
                 kind: match validation.verdict.as_str() {
                     "confirmed" => TasteEventKind::Confirmed,
                     "contradicted" => TasteEventKind::Contradicted,

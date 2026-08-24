@@ -11,6 +11,9 @@ pub const MAX_TASTE_EVIDENCE_IDS: usize = 16;
 /// Upper bound for a source identifier (harness model name, agent id, ...).
 /// Bounded so hostile harnesses cannot inflate memory through ids (S5).
 pub const MAX_TASTE_SOURCE_ID_BYTES: usize = 64;
+/// Upper bound for a scope key (e.g. `project:cogno-1@9a2f…`). A preference
+/// learned for one scope must never silently leak into another (étape 4).
+pub const MAX_SCOPE_KEY_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TasteScope {
@@ -18,6 +21,45 @@ pub enum TasteScope {
     Project,
     Domain,
     Team,
+}
+
+impl TasteScope {
+    /// Validate the bounded, printable identity of a scope instance
+    /// (`user:alice`, `project:cogno-1@9a2f…`, `domain:rust-macros`,
+    /// `team:acme-platform`). Fail closed on empty, oversized or
+    /// non-printable keys: an unbound scope is not a real scope.
+    pub fn validate_key(self, key: &str) -> Result<(), TasteError> {
+        if key.is_empty()
+            || key.len() > MAX_SCOPE_KEY_BYTES
+            || !key.bytes().all(|b| (0x21..=0x7e).contains(&b))
+        {
+            return Err(TasteError::InvalidScopeKey);
+        }
+        Ok(())
+    }
+
+    /// Canonical lowercase wire/journal tag (`"user"`, `"project"`, …).
+    #[must_use]
+    pub const fn scope_tag(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Project => "project",
+            Self::Domain => "domain",
+            Self::Team => "team",
+        }
+    }
+
+    /// Parse a canonical scope tag; unknown tags are rejected.
+    #[must_use]
+    pub fn from_scope_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "user" => Some(Self::User),
+            "project" => Some(Self::Project),
+            "domain" => Some(Self::Domain),
+            "team" => Some(Self::Team),
+            _ => None,
+        }
+    }
 }
 
 /// Class of the harness participant that produced a taste event. Models may
@@ -36,6 +78,33 @@ pub enum TasteSourceKind {
     /// Legacy or unidentified provenance (pre-attribution data). Kept
     /// explicit so replays never fabricate a plausible-looking origin.
     Unknown,
+}
+
+impl TasteSourceKind {
+    /// Canonical snake_case wire/journal tag.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::AssistanceModel => "assistance_model",
+            Self::Human => "human",
+            Self::DeterministicKernel => "deterministic_kernel",
+            Self::ExternalAgent => "external_agent",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Parse a canonical source kind tag; unknown tags are rejected.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "assistance_model" => Some(Self::AssistanceModel),
+            "human" => Some(Self::Human),
+            "deterministic_kernel" => Some(Self::DeterministicKernel),
+            "external_agent" => Some(Self::ExternalAgent),
+            "unknown" => Some(Self::Unknown),
+            _ => None,
+        }
+    }
 }
 
 /// Bounded, printable identity of whoever produced an event: e.g.
@@ -105,6 +174,10 @@ pub struct TasteEvent {
     pub event_id: u64,
     pub preference_id: u64,
     pub scope: TasteScope,
+    /// Bounded identity of the scope instance this event belongs to
+    /// (`project:cogno-1@9a2f…`). Two events with the same preference id but
+    /// different scope identities never merge silently — they conflict.
+    pub scope_key: String,
     pub kind: TasteEventKind,
     pub origin: TasteOrigin,
     pub confidence_bps: u16,
@@ -120,6 +193,7 @@ impl TasteEvent {
         if self.confidence_bps > MAX_TASTE_CONFIDENCE_BPS {
             return Err(TasteError::ConfidenceOutOfRange);
         }
+        self.scope.validate_key(&self.scope_key)?;
         if self.evidence_ids.len() > MAX_TASTE_EVIDENCE_IDS {
             return Err(TasteError::EvidenceLimitExceeded);
         }
@@ -151,6 +225,9 @@ pub enum TasteError {
     DuplicateEvent,
     /// Source id empty, oversized or carrying non-printable bytes.
     InvalidSourceId,
+    /// Scope key empty, oversized or carrying non-printable bytes: the scope
+    /// instance is not a real, bounded identity (étape 4).
+    InvalidScopeKey,
     /// Arbitration target does not exist in the derived profile.
     UnknownPreference(u64),
     /// Only `Conflicted` entries may be arbitrated; anything else stays
@@ -186,10 +263,52 @@ impl TastePolicy {
     };
 }
 
+/// Host consent switches for the taste system (étape 4). Pure data — hosts
+/// persist and load it; derivation never mutates it. Defaults are
+/// privacy-preserving: local learning is on, but nothing ever leaves or
+/// enters the machine without explicit consent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TasteSettings {
+    /// Master switch: record and replay taste events locally.
+    pub learning_enabled: bool,
+    /// Consent to export preferences into a portable `taste.md` package.
+    pub export_allowed: bool,
+    /// Consent to ingest foreign `taste.md` packages (imports stay
+    /// quarantined regardless — consent only permits ingestion at all).
+    pub import_allowed: bool,
+}
+
+impl Default for TasteSettings {
+    fn default() -> Self {
+        Self {
+            learning_enabled: true,
+            export_allowed: false,
+            import_allowed: false,
+        }
+    }
+}
+
+impl TasteSettings {
+    pub const fn can_learn(&self) -> bool {
+        self.learning_enabled
+    }
+
+    pub const fn can_export(&self) -> bool {
+        self.learning_enabled && self.export_allowed
+    }
+
+    pub const fn can_import(&self) -> bool {
+        self.import_allowed
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScientificTaste {
     pub preference_id: u64,
     pub scope: TasteScope,
+    /// Identity of the scope instance the preference was learned in. Events
+    /// for the same id under a different scope identity conflict (below).
+    pub scope_key: String,
     pub confidence_bps: u16,
     pub state: TasteState,
     pub non_model_confirmations: u16,
@@ -237,6 +356,7 @@ impl ScientificTasteProfile {
                 .or_insert(ScientificTaste {
                     preference_id: event.preference_id,
                     scope: event.scope,
+                    scope_key: event.scope_key.clone(),
                     confidence_bps: event.confidence_bps,
                     state: TasteState::Quarantined,
                     non_model_confirmations: 0,
@@ -248,7 +368,14 @@ impl ScientificTasteProfile {
                     conflict_resolutions: 0,
                 });
 
-            entry.scope = event.scope;
+            // Real scopes (étape 4): the first-seen (scope, scope_key) pair —
+            // deterministic because events are sorted by event_id — binds the
+            // preference to one scope instance. Events from a different scope
+            // instance never merge; they conflict the entry instead.
+            if entry.scope != event.scope || entry.scope_key != event.scope_key {
+                entry.state = TasteState::Conflicted;
+                continue;
+            }
             entry.sources.insert(event.source.clone());
             match event.kind {
                 TasteEventKind::Proposed => {
@@ -449,6 +576,7 @@ mod tests {
             event_id,
             preference_id: 7,
             scope: TasteScope::Project,
+            scope_key: "project:cogno-1".to_string(),
             kind,
             origin,
             confidence_bps: 5_000,
@@ -537,6 +665,7 @@ mod attribution_and_arbitration_tests {
             event_id,
             preference_id: 7,
             scope: TasteScope::Project,
+            scope_key: "project:cogno-1".to_string(),
             kind,
             origin,
             confidence_bps: 5_000,
@@ -810,5 +939,102 @@ mod attribution_and_arbitration_tests {
         )
         .expect("deterministic replay");
         assert_eq!(profile, replayed);
+    }
+
+    #[test]
+    fn scope_keys_are_bounded_and_printable() {
+        for key in ["", " ", "a\tb", &"x".repeat(MAX_SCOPE_KEY_BYTES + 1)] {
+            assert_eq!(
+                TasteScope::Project.validate_key(key),
+                Err(TasteError::InvalidScopeKey),
+                "key `{key}` must be refused"
+            );
+        }
+        TasteScope::User
+            .validate_key("user:alice")
+            .expect("valid key");
+    }
+
+    #[test]
+    fn events_reject_invalid_scope_keys() {
+        let mut item = ev(
+            1,
+            TasteEventKind::Proposed,
+            TasteOrigin::ModelInference,
+            src(TasteSourceKind::AssistanceModel, "model-a"),
+        );
+        item.scope_key = String::new();
+        assert_eq!(item.validate(), Err(TasteError::InvalidScopeKey));
+        assert_eq!(
+            ScientificTasteProfile::derive(std::slice::from_ref(&item), TastePolicy::DEFAULT),
+            Err(TasteError::InvalidScopeKey)
+        );
+    }
+
+    #[test]
+    fn cross_scope_reuse_conflicts_instead_of_merging() {
+        let base = [
+            ev(
+                1,
+                TasteEventKind::Accepted,
+                TasteOrigin::DeterministicEvaluation,
+                src(TasteSourceKind::DeterministicKernel, "scirust"),
+            ),
+            ev(
+                3,
+                TasteEventKind::Confirmed,
+                TasteOrigin::ExplicitUserAction,
+                src(TasteSourceKind::Human, "host"),
+            ),
+        ];
+        let mut foreign = ev(
+            2,
+            TasteEventKind::Confirmed,
+            TasteOrigin::ModelInference,
+            src(TasteSourceKind::ExternalAgent, "foreign-domain-agent"),
+        );
+        foreign.scope = TasteScope::Domain;
+        foreign.scope_key = "domain:rust-macros".to_string();
+        let profile = ScientificTasteProfile::derive(
+            &[base[0].clone(), foreign, base[1].clone()],
+            TastePolicy::DEFAULT,
+        )
+        .expect("valid profile");
+        let entry = &profile.preferences[&7];
+        assert_eq!(entry.state, TasteState::Conflicted);
+        assert_eq!(entry.scope_key, "project:cogno-1", "first binding wins");
+        // The foreign event contributed nothing: its source never joins.
+        let foreign_source = src(TasteSourceKind::ExternalAgent, "foreign-domain-agent");
+        assert!(!entry.sources.contains(&foreign_source));
+        assert_eq!(entry.non_model_confirmations, 2);
+        // Human arbitration can lift the block; gates were met on their own.
+        let mut arbitrated = profile;
+        arbitrated
+            .arbitrate(
+                &TastePolicy::DEFAULT,
+                TasteArbitration {
+                    preference_id: 7,
+                    action: TasteArbitrationAction::Activate,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                },
+            )
+            .expect("gates met");
+        assert!(arbitrated.preferences[&7].is_active());
+    }
+
+    #[test]
+    fn consent_defaults_keep_data_local() {
+        let settings = TasteSettings::default();
+        assert!(settings.can_learn());
+        assert!(!settings.can_export(), "export needs explicit consent");
+        assert!(!settings.can_import(), "import needs explicit consent");
+        let off = TasteSettings {
+            learning_enabled: false,
+            export_allowed: true,
+            import_allowed: true,
+        };
+        assert!(!off.can_learn());
+        assert!(!off.can_export(), "export implies learning enabled");
+        assert!(off.can_import());
     }
 }
