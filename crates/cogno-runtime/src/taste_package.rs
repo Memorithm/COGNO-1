@@ -21,6 +21,7 @@ use cogno_core::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -95,7 +96,8 @@ pub struct PackageEntry {
 }
 
 /// Serializable mirror of [`TasteScope`] with stable lowercase tags.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Variant order is the canonical sort order for entry keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum PackageScope {
     User,
@@ -286,6 +288,102 @@ impl TastePackage {
         Self { body, digest }
     }
 
+    /// Deterministically compose several packages into one (étape 5).
+    ///
+    /// Rules, chosen to be order-independent (commutative) so the same input
+    /// set always yields byte-identical output:
+    /// - every part must carry exactly `policy` (else [`TastePackageError::PolicyMismatch`]);
+    /// - entries are grouped by `(preference_id, scope, scope_key)`; within a
+    ///   group the highest confidence wins and a differing value records the
+    ///   preference id in `conflicts`;
+    /// - source sets are unioned (sorted, deduplicated);
+    /// - ancestry is the union of all parts' digests and their own parents,
+    ///   sorted and bounded by [`MAX_PACKAGE_PARENTS`].
+    pub fn compose(parts: &[&Self], policy: TastePolicy) -> Result<Self, TastePackageError> {
+        if parts.is_empty() {
+            return Err(TastePackageError::EmptyProfile);
+        }
+        let expected = PackagePolicy::from(policy);
+        for part in parts {
+            if part.body.policy != expected {
+                return Err(TastePackageError::PolicyMismatch);
+            }
+            if part.body.entries.len() > MAX_PACKAGE_PREFERENCES {
+                return Err(TastePackageError::TooManyEntries);
+            }
+        }
+        // Group key -> (confidence max, any-differing flag, sources union).
+        struct Group {
+            confidence_bps: u16,
+            differed: bool,
+            sources: Vec<PackageSource>,
+            representative: PackageEntry,
+        }
+        let mut groups: BTreeMap<(u64, PackageScope, String), Group> = BTreeMap::new();
+        for part in parts {
+            for entry in &part.body.entries {
+                let key = (entry.preference_id, entry.scope, entry.scope_key.clone());
+                let group = groups.entry(key).or_insert_with(|| Group {
+                    confidence_bps: entry.confidence_bps,
+                    differed: false,
+                    sources: Vec::new(),
+                    representative: entry.clone(),
+                });
+                if entry.confidence_bps != group.confidence_bps {
+                    group.differed = true;
+                }
+                if entry.confidence_bps > group.confidence_bps {
+                    group.confidence_bps = entry.confidence_bps;
+                    group.representative = entry.clone();
+                }
+                group.sources.extend(entry.sources.iter().cloned());
+            }
+        }
+        let mut entries = Vec::new();
+        let mut conflicts = Vec::new();
+        for ((preference_id, _, _), mut group) in groups {
+            if group.differed {
+                conflicts.push(preference_id);
+            }
+            group.sources.sort();
+            group.sources.dedup();
+            if group.sources.len() > MAX_PACKAGE_SOURCES_PER_ENTRY {
+                return Err(TastePackageError::TooManySources);
+            }
+            let mut entry = group.representative;
+            entry.confidence_bps = group.confidence_bps;
+            entry.sources = group.sources;
+            for source in &entry.sources {
+                validate_source(source)?;
+            }
+            entries.push(entry);
+            if entries.len() > MAX_PACKAGE_PREFERENCES {
+                return Err(TastePackageError::TooManyEntries);
+            }
+        }
+        // Entries already come out of the BTreeMap in canonical total order;
+        // the same preference id may have conflicted in several scopes.
+        conflicts.sort();
+        conflicts.dedup();
+        let mut parents: Vec<String> = Vec::new();
+        for part in parts {
+            parents.push(hex(&part.digest));
+            parents.extend(part.body.parents.iter().cloned());
+        }
+        parents.sort();
+        parents.dedup();
+        if parents.len() > MAX_PACKAGE_PARENTS {
+            return Err(TastePackageError::TooManyParents);
+        }
+        Ok(Self::from_parts(PackageBody {
+            format: PACKAGE_FORMAT.to_string(),
+            policy: expected,
+            parents,
+            conflicts,
+            entries,
+        }))
+    }
+
     #[must_use]
     pub const fn digest(&self) -> [u8; 32] {
         self.digest
@@ -314,6 +412,11 @@ impl TastePackage {
     #[must_use]
     pub const fn policy(&self) -> PackagePolicy {
         self.body.policy
+    }
+
+    #[must_use]
+    pub const fn format(&self) -> &str {
+        self.body.format.as_str()
     }
 
     /// Render the deterministic `taste.md` document: markdown shell around
@@ -388,11 +491,17 @@ impl TastePackage {
         }
         Ok(self.import_events())
     }
-
     /// Load and fully verify `<root>/taste.md`.
     pub fn load(root: impl AsRef<Path>) -> Result<Self, TastePackageError> {
         let path = root.as_ref().join("taste.md");
         let bytes = fs::read(&path).map_err(|error| TastePackageError::Io(error.to_string()))?;
+        Self::parse_markdown(&bytes)
+    }
+
+    /// Load and fully verify an explicit document path.
+    pub fn load_file(path: impl AsRef<Path>) -> Result<Self, TastePackageError> {
+        let bytes =
+            fs::read(path.as_ref()).map_err(|error| TastePackageError::Io(error.to_string()))?;
         Self::parse_markdown(&bytes)
     }
 
@@ -531,7 +640,7 @@ fn validate_body(body: &PackageBody) -> Result<(), TastePackageError> {
         }
         previous_parent.clone_from(parent);
     }
-    let mut previous_id = 0_u64;
+    let mut previous_key = (0_u64, PackageScope::User, String::new());
     let mut first = true;
     for entry in &body.entries {
         if entry.confidence_bps > MAX_TASTE_CONFIDENCE_BPS {
@@ -546,11 +655,14 @@ fn validate_body(body: &PackageBody) -> Result<(), TastePackageError> {
         {
             return Err(TastePackageError::InvalidBody);
         }
-        if !first && entry.preference_id <= previous_id {
+        if !first
+            && (entry.preference_id, entry.scope, entry.scope_key.as_str())
+                <= (previous_key.0, previous_key.1, previous_key.2.as_str())
+        {
             return Err(TastePackageError::InvalidBody);
         }
         first = false;
-        previous_id = entry.preference_id;
+        previous_key = (entry.preference_id, entry.scope, entry.scope_key.clone());
         let mut sorted = entry.sources.clone();
         sorted.sort();
         sorted.dedup();
@@ -564,6 +676,13 @@ fn validate_body(body: &PackageBody) -> Result<(), TastePackageError> {
     let mut previous_conflict = 0_u64;
     let mut first_conflict = true;
     for conflict in &body.conflicts {
+        if !body
+            .entries
+            .iter()
+            .any(|entry| entry.preference_id == *conflict)
+        {
+            return Err(TastePackageError::InvalidBody);
+        }
         if !first_conflict && *conflict <= previous_conflict {
             return Err(TastePackageError::InvalidBody);
         }
@@ -655,6 +774,34 @@ mod tests {
 
     /// Derive a profile with one Active preference (#7) contributed by a
     /// model proposal + two kernel confirmations.
+    /// Derive a profile whose Active preferences are exactly `ids` (one
+    /// kernel-confirmed activation each).
+    fn profile_with_ids(ids: &[u64]) -> ScientificTasteProfile {
+        let mut events = Vec::new();
+        for id in ids {
+            let base = id * 10;
+            let kernel = source(TasteSourceKind::DeterministicKernel, "scirust@gen7");
+            for offset in 0..3 {
+                events.push(TasteEvent {
+                    event_id: base + offset,
+                    preference_id: *id,
+                    scope: TasteScope::Project,
+                    scope_key: "project:cogno-1".to_string(),
+                    kind: if offset == 0 {
+                        TasteEventKind::Proposed
+                    } else {
+                        TasteEventKind::Confirmed
+                    },
+                    origin: TasteOrigin::DeterministicEvaluation,
+                    confidence_bps: 5_000,
+                    evidence_ids: vec![base + offset],
+                    source: kernel.clone(),
+                });
+            }
+        }
+        ScientificTasteProfile::derive(&events, TastePolicy::DEFAULT).expect("profile")
+    }
+
     fn active_profile() -> ScientificTasteProfile {
         let events = [
             event(
@@ -768,6 +915,119 @@ mod tests {
             matches!(event.kind, TasteEventKind::Proposed)
                 && matches!(event.origin, TasteOrigin::ImportedProfile)
         }));
+    }
+
+    #[test]
+    fn compose_unions_disjoint_packages_deterministically() {
+        let left = TastePackage::from_profile(&active_profile(), TastePolicy::DEFAULT)
+            .expect("left package");
+        let right = TastePackage::from_profile(&profile_with_ids(&[9, 12]), TastePolicy::DEFAULT)
+            .expect("right package");
+        let ab = TastePackage::compose(&[&left, &right], TastePolicy::DEFAULT).expect("compose");
+        let ba = TastePackage::compose(&[&right, &left], TastePolicy::DEFAULT).expect("compose");
+        // Order independence: identical bytes and digest.
+        assert_eq!(
+            ab.render_markdown().expect("render"),
+            ba.render_markdown().expect("render")
+        );
+        assert_eq!(ab.digest, ba.digest);
+        // Ancestry records both inputs (sorted by digest hex).
+        let mut expected_parents = vec![hex(&left.digest), hex(&right.digest)];
+        expected_parents.sort();
+        assert_eq!(ab.parents(), expected_parents.as_slice());
+        // No conflicts: the packages are disjoint.
+        assert!(ab.conflicts().is_empty());
+        // Composed package still verifies on disk.
+        let root = temp_root("compose-roundtrip");
+        let exporter = TasteSettings {
+            export_allowed: true,
+            ..TasteSettings::default()
+        };
+        ab.save_with_consent(&root, &exporter).expect("save");
+        let reloaded = TastePackage::load(&root).expect("load");
+        assert_eq!(reloaded, ab);
+    }
+
+    #[test]
+    fn compose_resolves_conflicts_by_max_confidence() {
+        let weak = TastePackage::from_profile(&active_profile(), TastePolicy::DEFAULT)
+            .expect("weak package");
+        let strong_events = vec![
+            event(
+                21,
+                TasteEventKind::Confirmed,
+                TasteOrigin::DeterministicEvaluation,
+                source(TasteSourceKind::DeterministicKernel, "scirust@gen8"),
+            ),
+            event(
+                22,
+                TasteEventKind::Confirmed,
+                TasteOrigin::DeterministicEvaluation,
+                source(TasteSourceKind::DeterministicKernel, "scirust@gen8"),
+            ),
+            event(
+                23,
+                TasteEventKind::Confirmed,
+                TasteOrigin::ExplicitUserAction,
+                source(TasteSourceKind::Human, "alice"),
+            ),
+        ];
+        let strong = TastePackage::from_profile(
+            &ScientificTasteProfile::derive(&strong_events, TastePolicy::DEFAULT).expect("profile"),
+            TastePolicy::DEFAULT,
+        )
+        .expect("strong package");
+        let composed =
+            TastePackage::compose(&[&weak, &strong], TastePolicy::DEFAULT).expect("compose");
+        // Same preference id (7) in both -> recorded as a conflict.
+        assert_eq!(composed.conflicts(), &[7]);
+        // The winning entry carries the highest confidence of either side.
+        let winner = composed
+            .entries()
+            .iter()
+            .find(|entry| entry.preference_id == 7)
+            .expect("entry");
+        let confidence_of = |package: &TastePackage| {
+            package
+                .entries()
+                .iter()
+                .find(|entry| entry.preference_id == 7)
+                .map(|entry| entry.confidence_bps)
+                .expect("entry")
+        };
+        let best = confidence_of(&weak).max(confidence_of(&strong));
+        assert_eq!(winner.confidence_bps, best);
+        // Determinism under permutation.
+        let flipped =
+            TastePackage::compose(&[&strong, &weak], TastePolicy::DEFAULT).expect("compose");
+        assert_eq!(composed.digest, flipped.digest);
+    }
+
+    #[test]
+    fn compose_rejects_policy_mismatch_and_parent_overflow() {
+        let package =
+            TastePackage::from_profile(&active_profile(), TastePolicy::DEFAULT).expect("package");
+        let mut drifted = TastePolicy::DEFAULT;
+        drifted.minimum_non_model_confirmations = 4;
+        let other = TastePackage::from_profile(&active_profile(), drifted).expect("other");
+        assert_eq!(
+            TastePackage::compose(&[&package, &other], TastePolicy::DEFAULT),
+            Err(TastePackageError::PolicyMismatch)
+        );
+        assert_eq!(
+            TastePackage::compose(&[], TastePolicy::DEFAULT),
+            Err(TastePackageError::EmptyProfile)
+        );
+        // Composing chains accumulates parents until the bound is hit.
+        let mut current = package.clone();
+        for _ in 0..(MAX_PACKAGE_PARENTS + 2) {
+            match TastePackage::compose(&[&current, &package], TastePolicy::DEFAULT) {
+                Ok(next) => current = next,
+                Err(TastePackageError::TooManyParents) => return,
+                Err(error) => panic!("unexpected error: {error:?}"),
+            }
+        }
+        panic!("parent bound was never reached");
     }
 
     #[test]
