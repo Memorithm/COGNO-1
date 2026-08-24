@@ -70,6 +70,7 @@ pub mod taste_decision;
 pub mod taste_generation;
 pub mod taste_generation_v2;
 pub mod taste_longitudinal;
+pub mod taste_loop;
 pub mod taste_orchestrator;
 pub mod taste_package;
 pub mod taste_persisted_chain;
@@ -189,6 +190,10 @@ pub use taste_generation_v2::{
 pub use taste_longitudinal::{
     TasteDriftState, TasteHistoryObservation, TasteLongitudinalError, TasteLongitudinalStatus,
     TasteLongitudinalTracker, MATERIAL_DRIFT_BPS, MAX_HISTORY_PER_PREFERENCE, STALE_GENERATION_GAP,
+};
+pub use taste_loop::{
+    record_feedback, run_feedback_iteration, TasteFeedbackRecord, TasteLoopError, FEEDBACK_FILE,
+    FEEDBACK_SCHEMA_VERSION, MAX_FEEDBACK_JOURNAL_BYTES, MAX_FEEDBACK_RECORDS,
 };
 pub use taste_orchestrator::{
     orchestrate_scientific_taste_cycle, validation_origin_is_non_model, OrchestratedTasteCandidate,

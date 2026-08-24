@@ -37,6 +37,29 @@ impl TasteScope {
         }
         Ok(())
     }
+
+    /// Canonical lowercase wire/journal tag (`"user"`, `"project"`, …).
+    #[must_use]
+    pub const fn scope_tag(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Project => "project",
+            Self::Domain => "domain",
+            Self::Team => "team",
+        }
+    }
+
+    /// Parse a canonical scope tag; unknown tags are rejected.
+    #[must_use]
+    pub fn from_scope_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "user" => Some(Self::User),
+            "project" => Some(Self::Project),
+            "domain" => Some(Self::Domain),
+            "team" => Some(Self::Team),
+            _ => None,
+        }
+    }
 }
 
 /// Class of the harness participant that produced a taste event. Models may
@@ -55,6 +78,33 @@ pub enum TasteSourceKind {
     /// Legacy or unidentified provenance (pre-attribution data). Kept
     /// explicit so replays never fabricate a plausible-looking origin.
     Unknown,
+}
+
+impl TasteSourceKind {
+    /// Canonical snake_case wire/journal tag.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::AssistanceModel => "assistance_model",
+            Self::Human => "human",
+            Self::DeterministicKernel => "deterministic_kernel",
+            Self::ExternalAgent => "external_agent",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Parse a canonical source kind tag; unknown tags are rejected.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "assistance_model" => Some(Self::AssistanceModel),
+            "human" => Some(Self::Human),
+            "deterministic_kernel" => Some(Self::DeterministicKernel),
+            "external_agent" => Some(Self::ExternalAgent),
+            "unknown" => Some(Self::Unknown),
+            _ => None,
+        }
+    }
 }
 
 /// Bounded, printable identity of whoever produced an event: e.g.
