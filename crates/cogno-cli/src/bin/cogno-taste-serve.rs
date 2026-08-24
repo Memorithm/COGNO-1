@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
+use cogno_core::TasteSettings;
 use cogno_runtime::{load_settings, TastePackage};
 use cogno_transport::{
     serve_session, PushOutcome, SessionConfig, SessionEvent, DEFAULT_MAX_REQUESTS,
@@ -15,18 +16,6 @@ use std::path::{Path, PathBuf};
 /// Cross-connection idempotency memory (`<root>/taste.accepted.log`).
 const ACCEPTED_LOG: &str = "taste.accepted.log";
 
-fn load_accepted(store_root: &Path) -> BTreeSet<String> {
-    let path = store_root.join(ACCEPTED_LOG);
-    let Ok(file) = std::fs::File::open(path) else {
-        return BTreeSet::new();
-    };
-    BufReader::new(file)
-        .lines()
-        .map_while(Result::ok)
-        .filter(|line| line.len() == 64)
-        .collect()
-}
-
 fn main() {
     if let Err(error) = run() {
         eprintln!("cogno-taste-serve: {error}");
@@ -35,33 +24,29 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    const USAGE: &str =
+        "usage: cogno-taste-serve STORE_ROOT BIND_ADDR PORT [--max-pushes N] [--daemon] [--max-connections N]";
     let mut args = std::env::args().skip(1);
-    let store_root = args
-        .next()
-        .ok_or("usage: cogno-taste-serve STORE_ROOT BIND_ADDR PORT [--max-pushes N]")?;
-    let bind_addr = args
-        .next()
-        .ok_or("usage: cogno-taste-serve STORE_ROOT BIND_ADDR PORT [--max-pushes N]")?;
+    let store_root = args.next().ok_or(USAGE)?;
+    let bind_addr = args.next().ok_or(USAGE)?;
     let port: u16 = args
         .next()
-        .ok_or("usage: cogno-taste-serve STORE_ROOT BIND_ADDR PORT [--max-pushes N]")?
+        .ok_or(USAGE)?
         .parse()
         .map_err(|error| format!("invalid port: {error}"))?;
     let mut max_requests = DEFAULT_MAX_REQUESTS;
+    let mut max_connections: usize = 64;
+    let mut daemon = false;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--max-pushes" => {
-                max_requests = args
-                    .next()
-                    .ok_or("--max-pushes requires a number")?
-                    .parse()
-                    .map_err(|error| format!("invalid --max-pushes: {error}"))?;
+                max_requests = parse_number(&mut args, "--max-pushes")?;
             }
-            other => {
-                return Err(format!(
-                    "{other}\nusage: cogno-taste-serve STORE_ROOT BIND_ADDR PORT [--max-pushes N]"
-                ))
+            "--max-connections" => {
+                max_connections = parse_number(&mut args, "--max-connections")?;
             }
+            "--daemon" => daemon = true,
+            other => return Err(format!("{other}\n{USAGE}")),
         }
     }
 
@@ -71,11 +56,83 @@ fn run() -> Result<(), String> {
     let token = std::env::var("COGNO_TASTE_TOKEN")
         .ok()
         .filter(|t| !t.is_empty());
-    // The host's own package is pullable by digest.
     let own_package: Option<PathBuf> = PathBuf::from(&store_root).join("taste.md").into();
+    let accepted_log_path = Path::new(&store_root).join(ACCEPTED_LOG);
 
     let listener = TcpListener::bind((bind_addr.as_str(), port))
         .map_err(|error| format!("cannot bind {bind_addr}:{port}: {error}"))?;
+
+    if !daemon {
+        return serve_connection(
+            &listener,
+            &settings,
+            token.as_deref(),
+            max_requests,
+            &own_package,
+            accepted_log_path.parent().unwrap_or(Path::new(".")),
+        );
+    }
+    // Daemon mode: bounded accept loop with backoff on errors. Connections
+    // are handled sequentially so the idempotency set stays deterministic
+    // without locks.
+    let mut failures = 0_u32;
+    for _ in 0..max_connections {
+        match serve_connection(
+            &listener,
+            &settings,
+            token.as_deref(),
+            max_requests,
+            &own_package,
+            accepted_log_path.parent().unwrap_or(Path::new(".")),
+        ) {
+            Ok(()) => failures = 0,
+            Err(message) => {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({ "event": "connection_error", "message": message })
+                );
+                failures += 1;
+                if failures >= 5 {
+                    return Err(format!("too many consecutive failures ({message})"));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100 * u64::from(failures)));
+            }
+        }
+    }
+    println!(
+        "{}",
+        serde_json::json!({ "event": "shutdown", "reason": "connection budget exhausted" })
+    );
+    Ok(())
+}
+
+fn parse_number(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<usize, String> {
+    args.next()
+        .ok_or(format!("{flag} requires a number"))?
+        .parse()
+        .map_err(|error| format!("invalid {flag}: {error}"))
+}
+
+fn load_accepted(store_root: &Path) -> BTreeSet<String> {
+    let path = store_root.join(ACCEPTED_LOG);
+    let Ok(file) = std::fs::File::open(path) else {
+        return BTreeSet::new();
+    };
+    BufReader::new(file)
+        .lines()
+        .map_while(Result::ok)
+        .filter(|line| line.len() == 64 && line.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .collect()
+}
+
+fn serve_connection(
+    listener: &TcpListener,
+    settings: &TasteSettings,
+    token: Option<&str>,
+    max_requests: usize,
+    own_package: &Option<PathBuf>,
+    store_dir: &Path,
+) -> Result<(), String> {
     let (mut stream, peer) = listener
         .accept()
         .map_err(|error| format!("accept failed: {error}"))?;
@@ -84,13 +141,14 @@ fn run() -> Result<(), String> {
         serde_json::json!({ "event": "connection", "peer": peer.to_string() })
     );
 
-    let mut seen_digests = load_accepted(Path::new(&store_root));
+    let mut seen_digests = load_accepted(store_dir);
     let mut config = SessionConfig {
-        settings: &settings,
-        auth_token: token.as_deref(),
+        settings,
+        auth_token: token,
         max_requests,
         seen_digests: &mut seen_digests,
     };
+    let own_package = own_package.clone();
     let mut lookup = move |digest: &str| -> Option<TastePackage> {
         let path = own_package.as_ref()?;
         let package = TastePackage::load_file(path).ok()?;
@@ -101,7 +159,7 @@ fn run() -> Result<(), String> {
     let mut accepted_log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(Path::new(&store_root).join(ACCEPTED_LOG))
+        .open(store_dir.join(ACCEPTED_LOG))
         .map_err(|error| format!("cannot open accepted log: {error}"))?;
     for event in events {
         match event {

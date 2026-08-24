@@ -4,7 +4,8 @@
 #![deny(warnings, missing_debug_implementations, unreachable_pub)]
 
 use cogno_runtime::{
-    load_settings, record_feedback, TasteFeedbackRecord, TastePackage, FEEDBACK_SCHEMA_VERSION,
+    current_unix_seconds, load_settings, record_feedback, TasteFeedbackRecord, TastePackage,
+    FEEDBACK_SCHEMA_VERSION,
 };
 use std::path::Path;
 
@@ -55,7 +56,7 @@ fn run() -> Result<(), String> {
             source_kind: source.kind.tag().to_string(),
             source_id: source.id.clone(),
             confidence_bps: event.confidence_bps,
-            observed_at_unix: 0,
+            observed_at_unix: current_unix_seconds(),
         };
         record_feedback(Path::new(&store_root), &settings, &record)
             .map_err(|error| format!("cannot record imported preference: {error}"))?;

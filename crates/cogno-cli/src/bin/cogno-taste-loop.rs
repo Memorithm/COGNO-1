@@ -5,11 +5,10 @@
 
 use cogno_core::TastePolicy;
 use cogno_runtime::{
-    load_profile_snapshot, load_settings, run_feedback_iteration_retained, save_profile_snapshot,
-    ProfileSnapshot,
+    current_unix_seconds, load_profile_snapshot, load_settings, run_feedback_iteration_tuned,
+    save_profile_snapshot, LoopTuning, ProfileSnapshot,
 };
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     if let Err(error) = run() {
@@ -21,38 +20,47 @@ fn main() {
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let store_root = args.next().ok_or(usage())?;
-    let mut now_unix: Option<u64> = None;
-    let mut retention_secs: u64 = 0;
+    let mut tuning = LoopTuning::default();
+    let mut now_given = false;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--now" => {
-                now_unix = Some(
-                    args.next()
-                        .ok_or("--now requires a unix seconds value")?
-                        .parse()
-                        .map_err(|error| format!("invalid --now: {error}"))?,
-                );
+                tuning.now_unix = args
+                    .next()
+                    .ok_or("--now requires a unix seconds value")?
+                    .parse()
+                    .map_err(|error| format!("invalid --now: {error}"))?;
+                now_given = true;
             }
             "--retention-secs" => {
-                retention_secs = args
+                tuning.retention_secs = args
                     .next()
                     .ok_or("--retention-secs requires a seconds value")?
                     .parse()
                     .map_err(|error| format!("invalid --retention-secs: {error}"))?;
             }
+            "--graduated-decay" => tuning.graduated_decay = true,
+            "--bandit-step-bps" => {
+                tuning.bandit_step_bps = args
+                    .next()
+                    .ok_or("--bandit-step-bps requires a number (<=5000)")?
+                    .parse()
+                    .map_err(|error| format!("invalid --bandit-step-bps: {error}"))?;
+            }
             other => return Err(format!("{other}\n{}", usage())),
         }
+    }
+    if !now_given && (tuning.retention_secs > 0 || tuning.graduated_decay) {
+        tuning.now_unix = current_unix_seconds();
     }
 
     // Consent gate: learning disabled means no derivation either.
     let settings = load_settings(Path::new(&store_root)).map_err(|error| error.to_string())?;
-    let now_unix = now_unix.unwrap_or_else(current_unix_seconds);
-    let profile = run_feedback_iteration_retained(
+    let profile = run_feedback_iteration_tuned(
         Path::new(&store_root),
         &settings,
         TastePolicy::DEFAULT,
-        now_unix,
-        retention_secs,
+        &tuning,
     )
     .map_err(|error| format!("feedback iteration failed: {error}"))?;
 
@@ -84,8 +92,10 @@ fn run() -> Result<(), String> {
         "{}",
         serde_json::json!({
             "policy": "default",
-            "now": now_unix,
-            "retention_secs": retention_secs,
+            "now": tuning.now_unix,
+            "retention_secs": tuning.retention_secs,
+            "graduated_decay": tuning.graduated_decay,
+            "bandit_step_bps": tuning.bandit_step_bps,
             "preferences": preferences,
             "delta": delta_report(previous, &profile),
         })
@@ -94,14 +104,7 @@ fn run() -> Result<(), String> {
 }
 
 fn usage() -> &'static str {
-    "usage: cogno-taste-loop STORE_ROOT [--now UNIX_SECS] [--retention-secs N]"
-}
-
-fn current_unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
+    "usage: cogno-taste-loop STORE_ROOT [--now N] [--retention-secs S] [--graduated-decay] [--bandit-step-bps B]"
 }
 
 fn delta_report(

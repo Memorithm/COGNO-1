@@ -1,0 +1,5 @@
+{"event":"connection","peer":"127.0.0.1:54496"}
+{"digest":"33126720e065ac7288e0a271c478caab7730a02314c141137d4e3c9464d20a27","event":"accepted"}
+{"event":"connection","peer":"127.0.0.1:54502"}
+{"digest":"33126720e065ac7288e0a271c478caab7730a02314c141137d4e3c9464d20a27","event":"duplicate"}
+{"event":"shutdown","reason":"connection budget exhausted"}

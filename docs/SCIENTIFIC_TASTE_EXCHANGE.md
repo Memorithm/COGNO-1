@@ -121,14 +121,31 @@ Règles :
 
 - tags fermés (`kind`: proposed/accepted/confirmed/edited/rejected/
   contradicted) ; origine inconnue ou `model_inference` hors `proposed` ⇒
-  refus d'enregistrement ;
+  refus d'enregistrement ; les enregistrements sont horodatés automatiquement ;
 - itération : journal → validation → déduplication par `event_id` → ordre
   canonique → dérivation déterministe ;
 - **oubli déterministe** : `observed_at_unix` + fenêtre de rétention excluent
   les preuves expirées du calcul, sans jamais réécrire l'historique ;
+- **décroissance graduée** (`--graduated-decay`) : dans la fenêtre, la
+  confiance décroît linéairement jusqu'à zéro à l'horizon (arithmétique
+  entière) — la fraîcheur d'une preuve module son poids ;
+- **bandit borné** (`--bandit-step-bps B`) : le bilan des issues d'une
+  préférence (confirmations+acceptations moins rejets+contradictions)
+  décale la confiance effective de ses preuves, borné à ±5 000 bps — aucun
+  journal ne peut fabriquer une confiance illimitée ;
+- **compaction** : `compact_feedback_journal` déduplique et purge
+  atomiquement le journal (échec fermé sur ligne corrompue) ;
 - snapshots `taste.profile.json` (audit/redémarrage) : toujours recalculables
   depuis le journal, jamais autoritaires ; le CLI affiche le delta d'état et
   de confiance entre itérations.
+
+Conditionnement du modèle : `active_preference_views()` expose les seules
+préférences `Active` (id, scope, clé, confiance) à la couche de génération,
+sous consentement `learning_enabled` — jamais le graphe de provenance.
+
+Audit : `cogno-taste-verify STORE_ROOT [--retention-secs S]` contrôle
+lecture-seule settings, journal (corruption, doublons, expiration), snapshot,
+journal d'acceptations et package local.
 
 Chaîne opérationnelle complète :
 
@@ -137,10 +154,19 @@ validations SciRust ──▶ cogno-taste-ingest ──┐
 packages distants  ──▶ cogno-taste-import ───┤
                                              ▼
                                   taste.feedback.jsonl
-                                             │ cogno-taste-loop (--retention-secs)
+                                             │ cogno-taste-loop (--retention-secs
+                                             │   --graduated-decay --bandit-step-bps)
                                              ▼
                               profil dérivé + snapshot + delta
+                                             │ cogno-taste-export (consent export)
+                                             ▼
+                                     taste.md signé ──▶ compose / send / serve ⇄ pairs
 ```
+
+Le serveur accepte `--daemon` (boucle d'accept bornée par
+`--max-connections`, backoff sur erreurs, arrêt gracieux au budget) pour un
+déploiement persistant ; les mémoires d'idempotence survivent aux
+connexions via `taste.accepted.log`.
 
 ## 6. Notes adversariales
 

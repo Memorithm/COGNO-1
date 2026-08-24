@@ -115,6 +115,99 @@ pub fn record_feedback(
     Ok(())
 }
 
+/// Unix seconds right now (runtime layer; the deterministic core never reads
+/// a clock). Used to auto-stamp records so retention actually applies.
+#[must_use]
+pub fn current_unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
+/// Outcome of a journal compaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompactionReport {
+    /// Lines present before compaction (including duplicates).
+    pub records_before: usize,
+    /// Records kept after deduplication and retention.
+    pub records_after: usize,
+    /// Byte size before / after.
+    pub bytes_before: usize,
+    pub bytes_after: usize,
+    /// `false` means nothing changed and the file was left untouched.
+    pub rewritten: bool,
+}
+
+/// Compact the feedback journal in place: parse strictly (a corrupt line
+/// fails closed and aborts — compaction never silently drops data it cannot
+/// understand), drop duplicate `event_id`s (first wins, matching derivation)
+/// and optionally expire records outside the retention window. The rewrite
+/// is atomic (temp file + rename) and only happens when something is
+/// actually removed.
+pub fn compact_feedback_journal(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    now_unix: u64,
+    retention_secs: u64,
+) -> Result<CompactionReport, TasteLoopError> {
+    if !settings.can_learn() {
+        return Err(TasteLoopError::LearningDeniedByConsent);
+    }
+    let path = journal_path(&store_root);
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(CompactionReport {
+                records_before: 0,
+                records_after: 0,
+                bytes_before: 0,
+                bytes_after: 0,
+                rewritten: false,
+            })
+        }
+        Err(error) => return Err(TasteLoopError::Io(error.to_string())),
+    };
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| TasteLoopError::InvalidRecord("journal is not UTF-8".to_string()))?;
+    let mut kept: Vec<String> = Vec::new();
+    let mut seen_ids = std::collections::BTreeSet::new();
+    let mut total_lines = 0_usize;
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        total_lines += 1;
+        let record: TasteFeedbackRecord = serde_json::from_str(line)
+            .map_err(|error| TasteLoopError::InvalidRecord(format!("bad json: {error}")))?;
+        validate_record(&record)?;
+        // Same rules as derivation: first id wins, expired evidence goes.
+        if !seen_ids.insert(record.event_id) {
+            continue;
+        }
+        if retention_secs > 0 && record.observed_at_unix != 0 {
+            let age = now_unix.saturating_sub(record.observed_at_unix);
+            if age > retention_secs {
+                continue;
+            }
+        }
+        kept.push(line.to_string());
+    }
+    let report = CompactionReport {
+        records_before: total_lines,
+        records_after: kept.len(),
+        bytes_before: bytes.len(),
+        bytes_after: kept.iter().map(|line| line.len() + 1).sum(),
+        rewritten: kept.len() < total_lines,
+    };
+    if !report.rewritten {
+        return Ok(report);
+    }
+    let mut payload = kept.join("\n").into_bytes();
+    payload.push(b'\n');
+    let tmp = path.with_extension("jsonl.tmp");
+    fs::write(&tmp, payload).map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    fs::rename(&tmp, &path).map_err(|error| TasteLoopError::Io(error.to_string()))?;
+    Ok(report)
+}
+
 /// Run one full iteration of the continuous loop:
 ///
 /// journal → validated events (deduplicated, ordered by `event_id`) →
@@ -140,17 +233,87 @@ pub fn run_feedback_iteration_retained(
     now_unix: u64,
     retention_secs: u64,
 ) -> Result<ScientificTasteProfile, TasteLoopError> {
+    run_feedback_iteration_tuned(
+        store_root,
+        settings,
+        policy,
+        &LoopTuning {
+            now_unix,
+            retention_secs,
+            ..LoopTuning::default()
+        },
+    )
+}
+
+/// Full control over the deterministic learning transforms (étape RL) :
+/// rétention temporelle, décroissance graduée et bandit borné.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LoopTuning {
+    /// Reference clock for age computations (0 disables time effects).
+    pub now_unix: u64,
+    /// Evidence older than this (by `observed_at_unix`) is excluded; 0
+    /// disables retention entirely.
+    pub retention_secs: u64,
+    /// When `true`, evidence inside the window does not keep full weight:
+    /// confidence scales linearly down to zero at the horizon (integer
+    /// math). Undated records (`observed_at_unix == 0`) are never aged.
+    pub graduated_decay: bool,
+    /// Per-preference outcome adaptation (bandit): each net win
+    /// (`confirmed`/`accepted` minus `rejected`/`contradicted`) shifts that
+    /// preference's evidence confidence by `bandit_step_bps`, clamped to
+    /// ±5000 bps. 0 disables. Deterministic given the journal.
+    pub bandit_step_bps: u16,
+}
+
+const BANDIT_MAX_SHIFT_BPS: i32 = 5_000;
+const MAX_TASTE_CONFIDENCE_BPS: u16 = cogno_core::MAX_TASTE_CONFIDENCE_BPS;
+
+pub fn run_feedback_iteration_tuned(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    policy: TastePolicy,
+    tuning: &LoopTuning,
+) -> Result<ScientificTasteProfile, TasteLoopError> {
     if !settings.can_learn() {
         return Err(TasteLoopError::LearningDeniedByConsent);
     }
-    let events = load_journal_events_retained(store_root, now_unix, retention_secs)?;
+    let events = load_journal_events_retained(store_root, tuning)?;
     ScientificTasteProfile::derive(&events, policy).map_err(TasteLoopError::Core)
+}
+
+/// Compact views of every `Active` preference for model-side conditioning:
+/// the generation/prompt layer may read these (consent-gated) but never the
+/// provenance graph behind them.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ActivePreferenceView {
+    pub preference_id: u64,
+    pub scope: String,
+    pub scope_key: String,
+    pub confidence_bps: u16,
+}
+
+pub fn active_preference_views(
+    store_root: impl AsRef<Path>,
+    settings: &TasteSettings,
+    tuning: &LoopTuning,
+) -> Result<Vec<ActivePreferenceView>, TasteLoopError> {
+    let profile = run_feedback_iteration_tuned(store_root, settings, TastePolicy::DEFAULT, tuning)?;
+    Ok(profile
+        .preferences
+        .values()
+        .filter(|entry| matches!(entry.state, cogno_core::TasteState::Active))
+        .map(|entry| ActivePreferenceView {
+            preference_id: entry.preference_id,
+            scope: entry.scope.scope_tag().to_string(),
+            scope_key: entry.scope_key.clone(),
+            confidence_bps: entry.confidence_bps,
+        })
+        .collect())
 }
 
 fn load_journal_events_retained(
     store_root: impl AsRef<Path>,
-    now_unix: u64,
-    retention_secs: u64,
+    tuning: &LoopTuning,
 ) -> Result<Vec<TasteEvent>, TasteLoopError> {
     let path = journal_path(store_root);
     let bytes = match fs::read(&path) {
@@ -162,7 +325,7 @@ fn load_journal_events_retained(
     if bytes.len() > MAX_FEEDBACK_JOURNAL_BYTES {
         return Err(TasteLoopError::JournalTooLarge);
     }
-    let forgetting = retention_secs > 0;
+    let forgetting = tuning.retention_secs > 0 && tuning.now_unix > 0;
     let text = std::str::from_utf8(&bytes)
         .map_err(|_| TasteLoopError::InvalidRecord("journal is not UTF-8".to_string()))?;
     let mut events = Vec::new();
@@ -177,19 +340,68 @@ fn load_journal_events_retained(
         // Deterministic forgetting: only timestamped records can expire, and
         // clock skew (observed in the "future") never drops evidence.
         if forgetting && record.observed_at_unix != 0 {
-            let age = now_unix.saturating_sub(record.observed_at_unix);
-            if age > retention_secs {
+            let age = tuning.now_unix.saturating_sub(record.observed_at_unix);
+            if age > tuning.retention_secs {
                 continue;
             }
         }
         // First occurrence wins; replays of the same id are ignored so a
         // re-fed journal cannot double-count outcomes.
         if seen_ids.insert(record.event_id) {
-            events.push(event_from_record(&record)?);
+            let mut event = event_from_record(&record)?;
+            apply_graduated_decay(&mut event, record.observed_at_unix, tuning);
+            events.push(event);
         }
     }
     events.sort_by_key(|event| event.event_id);
+    apply_bandit(&mut events, tuning.bandit_step_bps);
     Ok(events)
+}
+
+/// Scale one event's confidence linearly toward zero as it ages across the
+/// retention window (integer math, no float drift).
+fn apply_graduated_decay(event: &mut TasteEvent, observed_at: u64, tuning: &LoopTuning) {
+    if !tuning.graduated_decay || tuning.retention_secs == 0 || tuning.now_unix == 0 {
+        return;
+    }
+    if observed_at == 0 {
+        return;
+    }
+    let age = tuning.now_unix.saturating_sub(observed_at);
+    if age >= tuning.retention_secs {
+        return; // already handled by retention drop; keep as-is defensively
+    }
+    let remaining = tuning.retention_secs - age;
+    let horizon = tuning.retention_secs;
+    event.confidence_bps = ((u32::from(event.confidence_bps) * remaining as u32) / horizon as u32)
+        .min(u32::from(MAX_TASTE_CONFIDENCE_BPS)) as u16;
+}
+
+/// Deterministic per-preference adaptation: net outcome balance shifts the
+/// weight of that preference's evidence, bounded to ±[`BANDIT_MAX_SHIFT_BPS`]
+/// bps so no journal can manufacture unlimited confidence.
+fn apply_bandit(events: &mut [TasteEvent], step_bps: u16) {
+    if step_bps == 0 {
+        return;
+    }
+    let mut balance: std::collections::BTreeMap<u64, i32> = std::collections::BTreeMap::new();
+    for event in events.iter() {
+        let entry = balance.entry(event.preference_id).or_insert(0);
+        match event.kind {
+            TasteEventKind::Confirmed | TasteEventKind::Accepted => *entry += 1,
+            TasteEventKind::Rejected | TasteEventKind::Contradicted => *entry -= 1,
+            _ => {}
+        }
+    }
+    for event in events.iter_mut() {
+        let Some(net) = balance.get(&event.preference_id) else {
+            continue;
+        };
+        let shift = (*net * i32::from(step_bps)).clamp(-BANDIT_MAX_SHIFT_BPS, BANDIT_MAX_SHIFT_BPS);
+        let scale = 10_000 + shift;
+        event.confidence_bps = ((u32::from(event.confidence_bps) * scale as u32) / 10_000)
+            .clamp(0, u32::from(MAX_TASTE_CONFIDENCE_BPS)) as u16;
+    }
 }
 
 fn validate_record(record: &TasteFeedbackRecord) -> Result<(), TasteLoopError> {
@@ -363,7 +575,7 @@ fn validation_to_record(
         source_kind: source_kind.to_string(),
         source_id,
         confidence_bps: validation.confidence_bps,
-        observed_at_unix: 0,
+        observed_at_unix: current_unix_seconds(),
     }
 }
 
@@ -863,5 +1075,427 @@ mod integration_tests {
             load_profile_snapshot(&root),
             Err(TasteLoopError::InvalidRecord(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod tuning_tests {
+    use super::*;
+
+    fn granted() -> TasteSettings {
+        TasteSettings {
+            learning_enabled: true,
+            export_allowed: true,
+            import_allowed: true,
+        }
+    }
+
+    fn record(
+        event_id: u64,
+        kind: &str,
+        origin: &str,
+        source_kind: &str,
+        observed_at: u64,
+    ) -> TasteFeedbackRecord {
+        TasteFeedbackRecord {
+            schema_version: FEEDBACK_SCHEMA_VERSION,
+            event_id,
+            preference_id: 7,
+            scope: "project".to_string(),
+            scope_key: "project:cogno-1".to_string(),
+            kind: kind.to_string(),
+            origin: origin.to_string(),
+            source_kind: source_kind.to_string(),
+            source_id: "scirust@gen7".to_string(),
+            confidence_bps: 5_000,
+            observed_at_unix: observed_at,
+        }
+    }
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("cogno-tune-{tag}-{}-{nonce}", std::process::id()))
+    }
+
+    #[test]
+    fn compaction_dedupes_and_expires_without_losing_live_evidence() {
+        let root = temp_root("compact");
+        let settings = granted();
+        for id in [1_u64, 1, 2, 2, 3] {
+            let mut entry = record(
+                id.max(1),
+                "confirmed",
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                if id == 3 { 1_000 } else { 900_000 },
+            );
+            entry.event_id = id;
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        // Duplicate ids (1 and 2 twice) plus one expired record (id 3).
+        let report =
+            compact_feedback_journal(&root, &settings, 1_000_000, 200_000).expect("compact");
+        assert_eq!(report.records_before, 5);
+        assert_eq!(report.records_after, 2);
+        assert!(report.rewritten);
+        // Derivation after compaction matches derivation before it would
+        // with only the live events: two kernel confirms remain.
+        let profile = run_feedback_iteration_retained(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            1_000_000,
+            200_000,
+        )
+        .expect("iterate");
+        let _ = profile;
+        // A second compaction is a no-op.
+        let again =
+            compact_feedback_journal(&root, &settings, 1_000_000, 200_000).expect("compact again");
+        assert!(!again.rewritten);
+        // Corrupt journal aborts compaction instead of dropping data.
+        std::fs::write(root.join(FEEDBACK_FILE), "{oops}\n").expect("corrupt");
+        assert!(matches!(
+            compact_feedback_journal(&root, &settings, 1_000_000, 200_000),
+            Err(TasteLoopError::InvalidRecord(_))
+        ));
+    }
+
+    #[test]
+    fn graduated_decay_lowers_confidence_inside_the_window() {
+        let root = temp_root("decay");
+        let settings = granted();
+        // Two kernel confirmations at full strength -> Active baseline.
+        for id in [1_u64, 2] {
+            let mut entry = record(
+                id,
+                "confirmed",
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                0,
+            );
+            entry.event_id = id;
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        let fresh = run_feedback_iteration_tuned(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            &LoopTuning {
+                now_unix: 1_000_000,
+                retention_secs: 100_000,
+                graduated_decay: false,
+                bandit_step_bps: 0,
+            },
+        )
+        .expect("fresh");
+        // Same evidence aged to ~90% of the horizon loses weight.
+        std::fs::remove_file(root.join(FEEDBACK_FILE)).expect("reset");
+        for id in [1_u64, 2] {
+            let mut entry = record(
+                id,
+                "confirmed",
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                910_000,
+            );
+            entry.event_id = id;
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        let decayed = run_feedback_iteration_tuned(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            &LoopTuning {
+                now_unix: 1_000_000,
+                retention_secs: 100_000,
+                graduated_decay: true,
+                bandit_step_bps: 0,
+            },
+        )
+        .expect("decayed");
+        if let (Some(f), Some(d)) = (fresh.preferences.get(&7), decayed.preferences.get(&7)) {
+            assert!(
+                d.confidence_bps < f.confidence_bps,
+                "aged evidence must weigh less ({} < {})",
+                d.confidence_bps,
+                f.confidence_bps
+            );
+        }
+    }
+
+    #[test]
+    fn bandit_shifts_confidence_within_hard_bounds() {
+        let root = temp_root("bandit");
+        let settings = granted();
+        // 2 wins vs 1 loss -> net +1.
+        for (id, kind) in [(1_u64, "confirmed"), (2, "confirmed"), (3, "rejected")] {
+            let mut entry = record(
+                id,
+                kind,
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                0,
+            );
+            entry.event_id = id;
+            if kind == "rejected" {
+                entry.kind = "rejected".to_string();
+            }
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        let tuned = run_feedback_iteration_tuned(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            &LoopTuning {
+                bandit_step_bps: 1_000,
+                ..LoopTuning::default()
+            },
+        )
+        .expect("tuned");
+        let plain = run_feedback_iteration_tuned(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            &LoopTuning::default(),
+        )
+        .expect("plain");
+        if let (Some(t), Some(p)) = (tuned.preferences.get(&7), plain.preferences.get(&7)) {
+            assert!(
+                t.confidence_bps > p.confidence_bps,
+                "net wins must raise effective weight"
+            );
+        }
+        // Extreme balance cannot exceed the hard cap: many wins saturate.
+        std::fs::remove_file(root.join(FEEDBACK_FILE)).expect("reset");
+        for id in 10..20_u64 {
+            let mut entry = record(
+                id,
+                "confirmed",
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                0,
+            );
+            entry.event_id = id;
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        let saturated = run_feedback_iteration_tuned(
+            &root,
+            &settings,
+            TastePolicy::DEFAULT,
+            &LoopTuning {
+                bandit_step_bps: 5_000,
+                ..LoopTuning::default()
+            },
+        )
+        .expect("saturated");
+        for entry in saturated.preferences.values() {
+            assert!(entry.confidence_bps <= cogno_core::MAX_TASTE_CONFIDENCE_BPS);
+        }
+    }
+
+    #[test]
+    fn active_views_expose_only_active_preferences() {
+        let root = temp_root("views");
+        let settings = granted();
+        record_feedback(
+            &root,
+            &settings,
+            &record(1, "proposed", "model_inference", "assistance_model", 0),
+        )
+        .expect("record");
+        let views =
+            active_preference_views(&root, &settings, &LoopTuning::default()).expect("views");
+        assert!(views.is_empty(), "a lone proposal is not Active yet");
+        for id in [2_u64, 3] {
+            let mut entry = record(
+                id,
+                "confirmed",
+                "deterministic_evaluation",
+                "deterministic_kernel",
+                0,
+            );
+            entry.event_id = id;
+            record_feedback(&root, &settings, &entry).expect("record");
+        }
+        let views =
+            active_preference_views(&root, &settings, &LoopTuning::default()).expect("views");
+        assert_eq!(views.len(), 1);
+        assert_eq!(views[0].preference_id, 7);
+        assert_eq!(views[0].scope, "project");
+        assert!(views[0].confidence_bps > 0);
+    }
+}
+
+/// Read-only integrity audit of a store (verification never needs consent:
+/// it reads nothing sensitive and changes nothing).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct StoreAudit {
+    pub settings_present: bool,
+    pub learning_enabled: bool,
+    pub export_allowed: bool,
+    pub import_allowed: bool,
+    /// Journal lines / duplicate ids / expired records under the given
+    /// retention window (0 disables expiry counting).
+    pub journal_records: usize,
+    pub journal_duplicate_ids: usize,
+    pub journal_expired: usize,
+    pub journal_corrupt: Option<String>,
+    pub snapshot_valid: bool,
+    pub snapshot_preferences: usize,
+    pub accepted_log_digests: usize,
+    pub package_digest: Option<String>,
+    pub findings: Vec<String>,
+}
+
+pub fn audit_store(
+    store_root: impl AsRef<Path>,
+    now_unix: u64,
+    retention_secs: u64,
+) -> Result<StoreAudit, TasteLoopError> {
+    let store_root = store_root.as_ref();
+    let mut findings = Vec::new();
+
+    let settings = crate::load_settings(store_root);
+    let (settings_present, settings) = match &settings {
+        Ok(settings) => (true, *settings),
+        Err(_) => (false, TasteSettings::default()),
+    };
+
+    let path = journal_path(store_root);
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(TasteLoopError::Io(error.to_string())),
+    };
+    let mut journal_records = 0;
+    let mut journal_duplicate_ids = 0;
+    let mut journal_expired = 0;
+    let mut journal_corrupt = None;
+    let mut seen_ids = std::collections::BTreeSet::new();
+    if let Some(bytes) = &bytes {
+        match std::str::from_utf8(bytes) {
+            Err(_) => journal_corrupt = Some("journal is not UTF-8".to_string()),
+            Ok(text) => {
+                for line in text.lines().filter(|line| !line.trim().is_empty()) {
+                    match serde_json::from_str::<TasteFeedbackRecord>(line) {
+                        Err(error) => {
+                            journal_corrupt = Some(format!("bad json: {error}"));
+                            break;
+                        }
+                        Ok(record) => {
+                            if let Err(error) = validate_record(&record) {
+                                journal_corrupt = Some(format!("{error}"));
+                                break;
+                            }
+                            journal_records += 1;
+                            if !seen_ids.insert(record.event_id) {
+                                journal_duplicate_ids += 1;
+                            }
+                            if retention_secs > 0 && record.observed_at_unix != 0 {
+                                let age = now_unix.saturating_sub(record.observed_at_unix);
+                                if age > retention_secs {
+                                    journal_expired += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if bytes
+        .as_ref()
+        .is_some_and(|bytes| bytes.len() > MAX_FEEDBACK_JOURNAL_BYTES)
+    {
+        findings.push("journal exceeds size bound; run compaction".to_string());
+    }
+    if journal_duplicate_ids > 0 {
+        findings.push(format!(
+            "{journal_duplicate_ids} duplicate event id(s); compaction advised"
+        ));
+    }
+    if journal_expired > 0 {
+        findings.push(format!(
+            "{journal_expired} expired record(s); compaction advised"
+        ));
+    }
+
+    let snapshot = load_profile_snapshot(store_root)?;
+    let snapshot_valid = snapshot.is_some();
+    let snapshot_preferences = snapshot
+        .map(|snapshot| snapshot.preferences.len())
+        .unwrap_or(0);
+
+    let accepted_path = store_root.join("taste.accepted.log");
+    let accepted_log_digests = match fs::read(accepted_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(error) => return Err(TasteLoopError::Io(error.to_string())),
+        Ok(bytes) => {
+            let count = std::str::from_utf8(&bytes)
+                .map_err(|_| TasteLoopError::InvalidRecord("accepted log not UTF-8".to_string()))?
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .count();
+            for digest in std::str::from_utf8(
+                &fs::read(store_root.join("taste.accepted.log"))
+                    .map_err(|error| TasteLoopError::Io(error.to_string()))?,
+            )
+            .map_err(|_| TasteLoopError::InvalidRecord("accepted log not UTF-8".to_string()))?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            {
+                if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                    findings.push(format!("malformed digest in accepted log: {digest}"));
+                }
+            }
+            count
+        }
+    };
+
+    let package_digest = match cogno_core_package(store_root) {
+        Ok(Some(digest)) => Some(digest),
+        Ok(None) => None,
+        Err(message) => {
+            findings.push(format!("taste.md invalid: {message}"));
+            None
+        }
+    };
+
+    if !settings_present {
+        findings.push("missing taste.settings.json (defaults apply)".to_string());
+    }
+    if !settings.can_learn() {
+        findings.push("learning disabled: loop will refuse to run".to_string());
+    }
+
+    Ok(StoreAudit {
+        settings_present,
+        learning_enabled: settings.learning_enabled,
+        export_allowed: settings.export_allowed,
+        import_allowed: settings.import_allowed,
+        journal_records,
+        journal_duplicate_ids,
+        journal_expired,
+        journal_corrupt,
+        snapshot_valid,
+        snapshot_preferences,
+        accepted_log_digests,
+        package_digest,
+        findings,
+    })
+}
+
+fn cogno_core_package(store_root: &Path) -> Result<Option<String>, String> {
+    let path = store_root.join("taste.md");
+    if !path.exists() {
+        return Ok(None);
+    }
+    match crate::TastePackage::load_file(&path) {
+        Ok(package) => Ok(Some(package.digest_hex())),
+        Err(error) => Err(format!("{error:?}")),
     }
 }
