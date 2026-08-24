@@ -5,7 +5,7 @@
 
 use cogno_core::{
     ScientificTasteProfile, TasteEvent, TasteEventKind, TasteOrigin, TastePolicy, TasteScope,
-    TasteState,
+    TasteSource, TasteState,
 };
 use cogno_runtime::{
     PersistentTasteValidationStore, StoredValidationOrigin, StoredValidationVerdict,
@@ -129,6 +129,7 @@ fn derive_output(
             origin: TasteOrigin::ModelInference,
             confidence_bps: 5_000,
             evidence_ids: vec![candidate.evidence_id],
+            source: TasteSource::UNKNOWN,
         }];
         let mut validation_count = 0usize;
         for validation in store.records() {
@@ -152,6 +153,7 @@ fn derive_output(
                 },
                 confidence_bps: validation.confidence_bps,
                 evidence_ids: vec![validation.evidence_id],
+                source: TasteSource::UNKNOWN,
             });
         }
         let profile = ScientificTasteProfile::derive(&events, TastePolicy::DEFAULT)

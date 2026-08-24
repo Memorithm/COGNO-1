@@ -17,10 +17,10 @@
 use crate::scientific_exchange::ScientificExchangeDisposition;
 use crate::scirust_runtime_bridge::{
     bridge_authenticated_scirust_exchange, HostAuthenticatedSciRustSender,
-    SciRustRuntimeBridgeError,
+    SciRustRuntimeBridgeError, SciRustRuntimeKind,
 };
 use crate::scirust_validation_receipt_store::{
-    PersistentSciRustValidationReceiptStore, SciRustValidationReceiptAppendOutcome,
+    hash_sender, PersistentSciRustValidationReceiptStore, SciRustValidationReceiptAppendOutcome,
     SciRustValidationReceiptStoreError,
 };
 use crate::taste_orchestrator::{
@@ -118,6 +118,29 @@ impl PersistentSciRustTasteIngress {
                 return Err(SciRustTasteIngressError::UnexpectedDisposition);
             }
         };
+        // Stamp harness attribution from the transport-authenticated sender:
+        // a deterministic evaluation delivered by an authenticated kernel is
+        // attributed to that exact kernel instance (S6). User-action records
+        // relayed here stay unattributed — the human identity is unknown to
+        // this path and must never be fabricated.
+        let mut validation = validation;
+        if matches!(
+            validation.origin,
+            StoredValidationOrigin::DeterministicEvaluation
+        ) && matches!(
+            validation.subject_kind,
+            crate::taste_validation_store::ValidationSubjectKind::Unattributed
+        ) {
+            use crate::taste_validation_store::ValidationSubjectKind;
+            validation.subject_kind = match authenticated_sender.kind() {
+                SciRustRuntimeKind::DeterministicKernel => {
+                    ValidationSubjectKind::DeterministicEvaluator
+                }
+                SciRustRuntimeKind::RuntimeDiscovery => ValidationSubjectKind::ExternalAgent,
+            };
+            validation.subject_id_sha256 =
+                hash_sender(authenticated_sender.kind(), authenticated_sender.id());
+        }
 
         self.preflight_validation(validation)?;
         let receipt_outcome = match self.receipt_store.append(&receipt) {
@@ -264,6 +287,7 @@ fn ensure_unique_evidence(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::taste_validation_store::ValidationSubjectKind;
     use crate::{OrchestratedTasteState, StoredValidationVerdict};
     use serde_json::{json, Value};
     use std::fs;
@@ -429,6 +453,8 @@ mod tests {
                 origin: StoredValidationOrigin::DeterministicEvaluation,
                 verdict: StoredValidationVerdict::Confirmed,
                 confidence_bps: 10_000,
+                subject_kind: ValidationSubjectKind::Unattributed,
+                subject_id_sha256: [0u8; 32],
             })
             .expect("legacy deterministic");
         validations
@@ -439,6 +465,8 @@ mod tests {
                 origin: StoredValidationOrigin::ExplicitUserAction,
                 verdict: StoredValidationVerdict::Confirmed,
                 confidence_bps: 9_000,
+                subject_kind: ValidationSubjectKind::Unattributed,
+                subject_id_sha256: [0u8; 32],
             })
             .expect("user validation");
         drop(validations);
@@ -466,6 +494,8 @@ mod tests {
                 origin: StoredValidationOrigin::ExplicitUserAction,
                 verdict: StoredValidationVerdict::Confirmed,
                 confidence_bps: 9_000,
+                subject_kind: ValidationSubjectKind::Unattributed,
+                subject_id_sha256: [0u8; 32],
             })
             .expect("user validation");
         drop(validations);
@@ -496,6 +526,8 @@ mod tests {
                 origin: StoredValidationOrigin::ExplicitUserAction,
                 verdict: StoredValidationVerdict::Confirmed,
                 confidence_bps: 8_500,
+                subject_kind: ValidationSubjectKind::Unattributed,
+                subject_id_sha256: [0u8; 32],
             })
             .expect("conflicting validation");
         drop(validations);

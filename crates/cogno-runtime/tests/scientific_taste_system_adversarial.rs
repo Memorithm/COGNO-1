@@ -191,6 +191,8 @@ fn conflicting_and_duplicate_evidence_never_activate() {
         origin: StoredValidationOrigin::DeterministicEvaluation,
         verdict: StoredValidationVerdict::Confirmed,
         confidence_bps: 10_000,
+        subject_kind: cogno_runtime::ValidationSubjectKind::Unattributed,
+        subject_id_sha256: [0u8; 32],
     };
     let contradictory = StoredTasteValidation {
         validation_id: 2,
@@ -199,6 +201,8 @@ fn conflicting_and_duplicate_evidence_never_activate() {
         origin: StoredValidationOrigin::ExplicitUserAction,
         verdict: StoredValidationVerdict::Contradicted,
         confidence_bps: 10_000,
+        subject_kind: cogno_runtime::ValidationSubjectKind::Unattributed,
+        subject_id_sha256: [0u8; 32],
     };
     let report = orchestrate_scientific_taste_cycle(&[candidate], &[confirmed, contradictory])
         .expect("conflict");

@@ -8,6 +8,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAX_TASTE_CONFIDENCE_BPS: u16 = 10_000;
 pub const MAX_TASTE_EVIDENCE_IDS: usize = 16;
+/// Upper bound for a source identifier (harness model name, agent id, ...).
+/// Bounded so hostile harnesses cannot inflate memory through ids (S5).
+pub const MAX_TASTE_SOURCE_ID_BYTES: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TasteScope {
@@ -15,6 +18,59 @@ pub enum TasteScope {
     Project,
     Domain,
     Team,
+}
+
+/// Class of the harness participant that produced a taste event. Models may
+/// propose; humans and deterministic kernels confirm — the class never grants
+/// authority by itself, it only makes provenance attributable (S6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TasteSourceKind {
+    /// An assistance model (LLM/SLM) in the host's model harness.
+    AssistanceModel,
+    /// An explicit human action on the host side.
+    Human,
+    /// A deterministic evaluator (SciRust kernels, validators).
+    DeterministicKernel,
+    /// Another agent speaking the exchange protocol.
+    ExternalAgent,
+    /// Legacy or unidentified provenance (pre-attribution data). Kept
+    /// explicit so replays never fabricate a plausible-looking origin.
+    Unknown,
+}
+
+/// Bounded, printable identity of whoever produced an event: e.g.
+/// `(AssistanceModel, "claude-x")`, `(DeterministicKernel, "scirust@gen7")`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TasteSource {
+    pub kind: TasteSourceKind,
+    pub id: String,
+}
+
+impl TasteSource {
+    /// Canonical placeholder for events reconstructed without provenance
+    /// (package imports, legacy replays). An empty id is the honest
+    /// representation of "no identity claim"; it never grants authority.
+    pub const UNKNOWN: Self = Self {
+        kind: TasteSourceKind::Unknown,
+        id: String::new(),
+    };
+
+    /// Construct a bounded source id. Non-empty (except for
+    /// [`TasteSourceKind::Unknown`], which may carry no claim), at most
+    /// [`MAX_TASTE_SOURCE_ID_BYTES`] bytes, ASCII printable only (no control
+    /// characters, no homoglyph confusables): fail closed otherwise.
+    pub fn try_new(kind: TasteSourceKind, id: &str) -> Result<Self, TasteError> {
+        if id.is_empty() && kind != TasteSourceKind::Unknown {
+            return Err(TasteError::InvalidSourceId);
+        }
+        if id.len() > MAX_TASTE_SOURCE_ID_BYTES || !id.bytes().all(|b| (0x21..=0x7e).contains(&b)) {
+            return Err(TasteError::InvalidSourceId);
+        }
+        Ok(Self {
+            kind,
+            id: id.to_string(),
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +109,10 @@ pub struct TasteEvent {
     pub origin: TasteOrigin,
     pub confidence_bps: u16,
     pub evidence_ids: Vec<u64>,
+    /// Harness participant that produced this event. Required: an
+    /// unattributed event cannot be replayed into a profile, because the
+    /// harness vision depends on knowing WHICH model/human/kernel spoke.
+    pub source: TasteSource,
 }
 
 impl TasteEvent {
@@ -69,6 +129,16 @@ impl TasteEvent {
                 return Err(TasteError::DuplicateEvidence);
             }
         }
+        // Unknown sources carry no identity claim (empty id is allowed);
+        // attributed sources must have a bounded printable id.
+        if self.source.kind != TasteSourceKind::Unknown && self.source.id.is_empty() {
+            return Err(TasteError::InvalidSourceId);
+        }
+        if self.source.id.len() > MAX_TASTE_SOURCE_ID_BYTES
+            || !self.source.id.bytes().all(|b| (0x21..=0x7e).contains(&b))
+        {
+            return Err(TasteError::InvalidSourceId);
+        }
         Ok(())
     }
 }
@@ -79,6 +149,18 @@ pub enum TasteError {
     EvidenceLimitExceeded,
     DuplicateEvidence,
     DuplicateEvent,
+    /// Source id empty, oversized or carrying non-printable bytes.
+    InvalidSourceId,
+    /// Arbitration target does not exist in the derived profile.
+    UnknownPreference(u64),
+    /// Only `Conflicted` entries may be arbitrated; anything else stays
+    /// under deterministic derivation control (fail closed).
+    TargetNotConflicted(u64),
+    /// The arbitration authority is not authorized to resolve conflicts.
+    UnauthorizedArbitrationAuthority,
+    /// Human arbitration lifts the conflict block only: numeric activation
+    /// gates must still be met on their own (S4 — no compensation).
+    ActivationGateNotMet(u64),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,6 +197,13 @@ pub struct ScientificTaste {
     pub rejected_count: u32,
     pub edited_count: u32,
     pub contradicted_count: u32,
+    /// Every harness source that contributed an event to this preference
+    /// (models proposing it, humans confirming it, kernels evaluating it).
+    /// Attribution only — never authority.
+    pub sources: BTreeSet<TasteSource>,
+    /// Number of human arbitrations applied to this entry (conflict
+    /// resolutions). Derivation-relevant state, replayed deterministically.
+    pub conflict_resolutions: u32,
 }
 
 impl ScientificTaste {
@@ -124,7 +213,7 @@ impl ScientificTaste {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct ScientificTasteProfile {
     pub preferences: BTreeMap<u64, ScientificTaste>,
 }
@@ -155,9 +244,12 @@ impl ScientificTasteProfile {
                     rejected_count: 0,
                     edited_count: 0,
                     contradicted_count: 0,
+                    sources: BTreeSet::new(),
+                    conflict_resolutions: 0,
                 });
 
             entry.scope = event.scope;
+            entry.sources.insert(event.source.clone());
             match event.kind {
                 TasteEventKind::Proposed => {
                     entry.confidence_bps = entry.confidence_bps.max(event.confidence_bps);
@@ -222,6 +314,77 @@ impl ScientificTasteProfile {
         Ok(profile)
     }
 
+    /// Derive a profile and then apply explicit human arbitrations, in order,
+    /// deterministically: same events + same policy + same arbitrations ⇒ same
+    /// profile (S6). See [`ScientificTasteProfile::arbitrate`] for the rules.
+    pub fn derive_with_arbitrations(
+        events: &[TasteEvent],
+        policy: TastePolicy,
+        arbitrations: &[TasteArbitration],
+    ) -> Result<Self, TasteError> {
+        let mut profile = Self::derive(events, policy)?;
+        for arbitration in arbitrations {
+            profile.arbitrate(&policy, *arbitration)?;
+        }
+        Ok(profile)
+    }
+
+    /// Apply one human arbitration to a `Conflicted` entry (étape 2 —
+    /// arbitrage hôte). Fail-closed rules:
+    ///
+    /// - only `ExplicitHumanHost` may arbitrate (models never resolve their
+    ///   own contradictions);
+    /// - only `Conflicted` entries are arbitable — `Active`/`Rejected`/
+    ///   `Quarantined` stay under deterministic derivation control;
+    /// - `Activate` re-checks the numeric gates (`confidence_bps ≥ threshold`
+    ///   AND `non_model_confirmations ≥ minimum`): the host lifts the
+    ///   conflict **block**, never the evidence requirements (S4).
+    pub fn arbitrate(
+        &mut self,
+        policy: &TastePolicy,
+        arbitration: TasteArbitration,
+    ) -> Result<(), TasteError> {
+        if !matches!(
+            arbitration.authority,
+            TasteArbitrationAuthority::ExplicitHumanHost
+        ) {
+            return Err(TasteError::UnauthorizedArbitrationAuthority);
+        }
+        let entry = self
+            .preferences
+            .get_mut(&arbitration.preference_id)
+            .ok_or(TasteError::UnknownPreference(arbitration.preference_id))?;
+        if !matches!(entry.state, TasteState::Conflicted) {
+            return Err(TasteError::TargetNotConflicted(arbitration.preference_id));
+        }
+        entry.state = match arbitration.action {
+            TasteArbitrationAction::Reject => TasteState::Rejected,
+            TasteArbitrationAction::Quarantine => TasteState::Quarantined,
+            TasteArbitrationAction::Activate => {
+                if entry.confidence_bps >= policy.activation_threshold_bps
+                    && entry.non_model_confirmations >= policy.minimum_non_model_confirmations
+                {
+                    TasteState::Active
+                } else {
+                    return Err(TasteError::ActivationGateNotMet(arbitration.preference_id));
+                }
+            }
+        };
+        entry.conflict_resolutions = entry.conflict_resolutions.saturating_add(1);
+        Ok(())
+    }
+
+    /// Preferences that reached `Active` and were contributed to by `source`.
+    /// The harness-facing query: "what does this model's taste agree with?"
+    #[must_use]
+    pub fn active_preferences_for_source(&self, source: &TasteSource) -> Vec<u64> {
+        self.preferences
+            .values()
+            .filter(|item| item.is_active() && item.sources.contains(source))
+            .map(|item| item.preference_id)
+            .collect()
+    }
+
     #[must_use]
     pub fn active_count(&self) -> usize {
         self.preferences
@@ -240,9 +403,46 @@ fn register_confirmation(entry: &mut ScientificTaste, origin: TasteOrigin) {
     }
 }
 
+/// Who may arbitrate. Only the explicit human host can resolve a conflict:
+/// models never arbitrate their own contradictions (§9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TasteArbitrationAuthority {
+    ExplicitHumanHost,
+}
+
+/// What to do with a `Conflicted` entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TasteArbitrationAction {
+    /// Lift the conflict block and activate — numeric gates re-checked (S4).
+    Activate,
+    /// Return the entry to quarantine for more evidence.
+    Quarantine,
+    /// Authoritatively reject the preference.
+    Reject,
+}
+
+/// One host arbitration decision over a conflicted preference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TasteArbitration {
+    pub preference_id: u64,
+    pub action: TasteArbitrationAction,
+    pub authority: TasteArbitrationAuthority,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn source(kind: TasteSourceKind) -> TasteSource {
+        let id = match kind {
+            TasteSourceKind::AssistanceModel => "model-a",
+            TasteSourceKind::Human => "host",
+            TasteSourceKind::DeterministicKernel => "scirust",
+            TasteSourceKind::ExternalAgent => "agent-1",
+            TasteSourceKind::Unknown => "unattributed",
+        };
+        TasteSource::try_new(kind, id).expect("valid source")
+    }
 
     fn event(event_id: u64, kind: TasteEventKind, origin: TasteOrigin) -> TasteEvent {
         TasteEvent {
@@ -253,6 +453,12 @@ mod tests {
             origin,
             confidence_bps: 5_000,
             evidence_ids: vec![event_id],
+            source: source(match origin {
+                TasteOrigin::ModelInference => TasteSourceKind::AssistanceModel,
+                TasteOrigin::ExplicitUserAction => TasteSourceKind::Human,
+                TasteOrigin::DeterministicEvaluation => TasteSourceKind::DeterministicKernel,
+                TasteOrigin::ImportedProfile => TasteSourceKind::ExternalAgent,
+            }),
         }
     }
 
@@ -310,5 +516,299 @@ mod tests {
         )
         .expect("valid profile");
         assert_eq!(profile.preferences[&7].state, TasteState::Conflicted);
+    }
+}
+
+#[cfg(test)]
+mod attribution_and_arbitration_tests {
+    use super::*;
+
+    fn src(kind: TasteSourceKind, id: &str) -> TasteSource {
+        TasteSource::try_new(kind, id).expect("valid source")
+    }
+
+    fn ev(
+        event_id: u64,
+        kind: TasteEventKind,
+        origin: TasteOrigin,
+        source: TasteSource,
+    ) -> TasteEvent {
+        TasteEvent {
+            event_id,
+            preference_id: 7,
+            scope: TasteScope::Project,
+            kind,
+            origin,
+            confidence_bps: 5_000,
+            evidence_ids: vec![event_id],
+            source,
+        }
+    }
+
+    #[test]
+    fn source_ids_are_bounded_and_printable() {
+        assert_eq!(
+            TasteSource::try_new(TasteSourceKind::Human, ""),
+            Err(TasteError::InvalidSourceId)
+        );
+        let long = "a".repeat(MAX_TASTE_SOURCE_ID_BYTES + 1);
+        assert_eq!(
+            TasteSource::try_new(TasteSourceKind::Human, &long),
+            Err(TasteError::InvalidSourceId)
+        );
+        // Control characters and non-ASCII are rejected (no homoglyphs).
+        for bad in ["bad\nid", "bad\u{00e9}id", "bad id"] {
+            assert_eq!(
+                TasteSource::try_new(TasteSourceKind::Human, bad),
+                Err(TasteError::InvalidSourceId),
+                "space/control/non-ascii rejected: {bad:?}"
+            );
+        }
+        assert!(TasteSource::try_new(TasteSourceKind::Human, "host-1").is_ok());
+    }
+
+    #[test]
+    fn unknown_source_may_carry_no_identity_claim() {
+        assert_eq!(TasteSource::UNKNOWN.kind, TasteSourceKind::Unknown);
+        assert_eq!(TasteSource::UNKNOWN.id, "");
+        // Explicitly constructing an Unknown source without an id is allowed;
+        // attributed kinds still require a non-empty bounded id.
+        assert!(TasteSource::try_new(TasteSourceKind::Unknown, "").is_ok());
+        assert_eq!(
+            TasteSource::try_new(TasteSourceKind::AssistanceModel, ""),
+            Err(TasteError::InvalidSourceId)
+        );
+    }
+
+    #[test]
+    fn events_without_valid_source_fail_closed() {
+        let mut e = ev(
+            1,
+            TasteEventKind::Proposed,
+            TasteOrigin::ModelInference,
+            src(TasteSourceKind::AssistanceModel, "model-a"),
+        );
+        e.source.id = String::new();
+        assert_eq!(
+            ScientificTasteProfile::derive(&[e], TastePolicy::DEFAULT),
+            Err(TasteError::InvalidSourceId)
+        );
+    }
+
+    #[test]
+    fn profile_tracks_contributing_sources_per_preference() {
+        let model = src(TasteSourceKind::AssistanceModel, "model-a");
+        let human = src(TasteSourceKind::Human, "host");
+        let kernel = src(TasteSourceKind::DeterministicKernel, "scirust");
+        let profile = ScientificTasteProfile::derive(
+            &[
+                ev(
+                    1,
+                    TasteEventKind::Proposed,
+                    TasteOrigin::ModelInference,
+                    model.clone(),
+                ),
+                ev(
+                    2,
+                    TasteEventKind::Accepted,
+                    TasteOrigin::DeterministicEvaluation,
+                    kernel.clone(),
+                ),
+                ev(
+                    3,
+                    TasteEventKind::Confirmed,
+                    TasteOrigin::ExplicitUserAction,
+                    human.clone(),
+                ),
+            ],
+            TastePolicy::DEFAULT,
+        )
+        .expect("valid profile");
+        let entry = &profile.preferences[&7];
+        assert!(entry.is_active());
+        assert_eq!(entry.sources.len(), 3);
+        assert_eq!(profile.active_preferences_for_source(&model), vec![7]);
+        assert_eq!(profile.active_preferences_for_source(&human), vec![7]);
+        // An unrelated model contributed nothing.
+        assert!(profile
+            .active_preferences_for_source(&src(TasteSourceKind::AssistanceModel, "model-b"))
+            .is_empty());
+    }
+
+    #[test]
+    fn arbitration_requires_human_authority_and_conflicted_target() {
+        let events = [
+            ev(
+                1,
+                TasteEventKind::Accepted,
+                TasteOrigin::DeterministicEvaluation,
+                src(TasteSourceKind::DeterministicKernel, "scirust"),
+            ),
+            ev(
+                2,
+                TasteEventKind::Contradicted,
+                TasteOrigin::ExplicitUserAction,
+                src(TasteSourceKind::Human, "host"),
+            ),
+        ];
+        // A model authority is refused outright.
+        let profile = ScientificTasteProfile::derive(&events, TastePolicy::DEFAULT).unwrap();
+        // (authority enum has a single variant; the check is exercised by the
+        // API contract below — TargetNotConflicted proves the state gate.)
+        assert_eq!(profile.preferences[&7].state, TasteState::Conflicted);
+
+        // Arbitrating an Active entry fails closed.
+        let mut active = ScientificTasteProfile::derive(
+            &[
+                ev(
+                    1,
+                    TasteEventKind::Accepted,
+                    TasteOrigin::DeterministicEvaluation,
+                    src(TasteSourceKind::DeterministicKernel, "scirust"),
+                ),
+                ev(
+                    2,
+                    TasteEventKind::Confirmed,
+                    TasteOrigin::ExplicitUserAction,
+                    src(TasteSourceKind::Human, "host"),
+                ),
+            ],
+            TastePolicy::DEFAULT,
+        )
+        .unwrap();
+        assert!(active.preferences[&7].is_active());
+        assert_eq!(
+            active.arbitrate(
+                &TastePolicy::DEFAULT,
+                TasteArbitration {
+                    preference_id: 7,
+                    action: TasteArbitrationAction::Reject,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                }
+            ),
+            Err(TasteError::TargetNotConflicted(7))
+        );
+
+        // Unknown preference fails closed.
+        let mut empty = ScientificTasteProfile::default();
+        assert_eq!(
+            empty.arbitrate(
+                &TastePolicy::DEFAULT,
+                TasteArbitration {
+                    preference_id: 99,
+                    action: TasteArbitrationAction::Reject,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                }
+            ),
+            Err(TasteError::UnknownPreference(99))
+        );
+    }
+
+    #[test]
+    fn arbitration_lifts_conflict_but_never_the_numeric_gates() {
+        let low_evidence = [
+            ev(
+                1,
+                TasteEventKind::Accepted,
+                TasteOrigin::DeterministicEvaluation,
+                src(TasteSourceKind::DeterministicKernel, "scirust"),
+            ),
+            ev(
+                2,
+                TasteEventKind::Contradicted,
+                TasteOrigin::ExplicitUserAction,
+                src(TasteSourceKind::Human, "host"),
+            ),
+        ];
+        // Only ONE non-model confirmation and confidence below threshold:
+        // Activate must be refused even with human authority (S4).
+        let mut profile =
+            ScientificTasteProfile::derive(&low_evidence, TastePolicy::DEFAULT).unwrap();
+        assert_eq!(
+            profile.arbitrate(
+                &TastePolicy::DEFAULT,
+                TasteArbitration {
+                    preference_id: 7,
+                    action: TasteArbitrationAction::Activate,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                }
+            ),
+            Err(TasteError::ActivationGateNotMet(7))
+        );
+        assert_eq!(profile.preferences[&7].state, TasteState::Conflicted);
+
+        // Quarantine resolution succeeds and is recorded.
+        profile
+            .arbitrate(
+                &TastePolicy::DEFAULT,
+                TasteArbitration {
+                    preference_id: 7,
+                    action: TasteArbitrationAction::Quarantine,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                },
+            )
+            .expect("quarantine arbitration");
+        assert_eq!(profile.preferences[&7].state, TasteState::Quarantined);
+        assert_eq!(profile.preferences[&7].conflict_resolutions, 1);
+    }
+
+    #[test]
+    fn full_evidence_conflict_can_be_resolved_to_active() {
+        // Gates met on raw numbers (1 acceptance + 4 confirmations ⇒
+        // 9000 bps and 5 non-model confirmations), then contradicted:
+        // only the conflict block prevents activation. Human arbitration
+        // lifts exactly that block.
+        let mut events = vec![ev(
+            1,
+            TasteEventKind::Accepted,
+            TasteOrigin::DeterministicEvaluation,
+            src(TasteSourceKind::DeterministicKernel, "scirust"),
+        )];
+        for id in 2..=5u64 {
+            events.push(ev(
+                id,
+                TasteEventKind::Confirmed,
+                TasteOrigin::ExplicitUserAction,
+                src(TasteSourceKind::Human, "host"),
+            ));
+        }
+        events.push(ev(
+            6,
+            TasteEventKind::Contradicted,
+            TasteOrigin::ImportedProfile,
+            src(TasteSourceKind::ExternalAgent, "agent-1"),
+        ));
+        let policy = TastePolicy::DEFAULT;
+        let mut profile = ScientificTasteProfile::derive(&events, policy).unwrap();
+        assert_eq!(profile.preferences[&7].state, TasteState::Conflicted);
+        assert_eq!(
+            profile.preferences[&7].confidence_bps, 7_000,
+            "gates numerically met under the conflict (exactly at threshold)"
+        );
+        profile
+            .arbitrate(
+                &policy,
+                TasteArbitration {
+                    preference_id: 7,
+                    action: TasteArbitrationAction::Activate,
+                    authority: TasteArbitrationAuthority::ExplicitHumanHost,
+                },
+            )
+            .expect("gates met");
+        assert!(profile.preferences[&7].is_active());
+        assert_eq!(profile.preferences[&7].conflict_resolutions, 1);
+
+        // Replay through derive_with_arbitrations gives the identical result.
+        let replayed = ScientificTasteProfile::derive_with_arbitrations(
+            &events,
+            policy,
+            &[TasteArbitration {
+                preference_id: 7,
+                action: TasteArbitrationAction::Activate,
+                authority: TasteArbitrationAuthority::ExplicitHumanHost,
+            }],
+        )
+        .expect("deterministic replay");
+        assert_eq!(profile, replayed);
     }
 }

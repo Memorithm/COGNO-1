@@ -78,6 +78,8 @@ fn reopen_rejects_cross_origin_duplicate_evidence() {
             origin: StoredValidationOrigin::ExplicitUserAction,
             verdict: StoredValidationVerdict::Confirmed,
             confidence_bps: 9_000,
+            subject_kind: cogno_runtime::ValidationSubjectKind::Unattributed,
+            subject_id_sha256: [0u8; 32],
         })
         .expect("user validation");
     drop(validations);

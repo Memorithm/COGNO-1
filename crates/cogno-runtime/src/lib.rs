@@ -209,6 +209,7 @@ pub use taste_restart_manifest::{
 pub use taste_validation_store::{
     PersistentTasteValidationStore, StoredTasteValidation, StoredValidationOrigin,
     StoredValidationVerdict, TasteValidationAppendOutcome, TasteValidationStoreError,
+    ValidationSubjectKind,
 };
 pub use verified_taste_profile::{
     VerifiedTastePreference, VerifiedTasteProfile, VerifiedTasteProfileError,

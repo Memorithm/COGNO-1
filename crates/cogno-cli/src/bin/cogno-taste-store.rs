@@ -113,6 +113,10 @@ fn convert(validation: Validation) -> Result<StoredTasteValidation, String> {
         origin,
         verdict,
         confidence_bps: validation.confidence_bps,
+        // File-fed CLI input has no authenticated transport, so it stays
+        // explicitly unattributed rather than fabricating a subject.
+        subject_kind: cogno_runtime::ValidationSubjectKind::Unattributed,
+        subject_id_sha256: [0u8; 32],
     })
 }
 
