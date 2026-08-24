@@ -1,0 +1,23 @@
+[package]
+name = "cogno-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Host-side taste package transport for COGNO-1: bounded framing, digest verification and consent gates over any byte stream. No third-party dependencies."
+
+[lib]
+name = "cogno_transport"
+path = "src/lib.rs"
+
+[dependencies]
+cogno-core = { workspace = true }
+cogno-runtime = { workspace = true }
+
+# This crate is the ONLY place where host exchange plumbing lives. It must:
+#  - stay std-only (no network frameworks, no async runtime)
+#  - verify every received package end-to-end before handing it over
+#  - refuse to send or receive without the host's explicit consent
+# Lint policy is declared at the top of src/lib.rs.
