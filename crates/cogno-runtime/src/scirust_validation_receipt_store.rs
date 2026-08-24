@@ -189,6 +189,19 @@ fn persisted_record(
     if validation.origin != StoredValidationOrigin::DeterministicEvaluation {
         return Err(SciRustValidationReceiptStoreError::UnexpectedValidationOrigin);
     }
+    // Stamp transport-authenticated subject attribution so the in-memory
+    // record matches what `decode` reconstructs from disk (idempotent
+    // re-append stays a Duplicate, never a conflict).
+    let mut validation = validation;
+    validation.subject_kind = match receipt.sender_kind() {
+        SciRustRuntimeKind::DeterministicKernel => {
+            crate::taste_validation_store::ValidationSubjectKind::DeterministicEvaluator
+        }
+        SciRustRuntimeKind::RuntimeDiscovery => {
+            crate::taste_validation_store::ValidationSubjectKind::ExternalAgent
+        }
+    };
+    validation.subject_id_sha256 = hash_sender(receipt.sender_kind(), receipt.sender_id());
     Ok(PersistedSciRustValidationReceipt {
         validation,
         sender_kind: receipt.sender_kind(),
@@ -262,6 +275,15 @@ fn decode(
             origin: StoredValidationOrigin::DeterministicEvaluation,
             verdict,
             confidence_bps: u16::from_le_bytes(bytes[33..35].try_into().expect("confidence")),
+            subject_kind: match sender_kind {
+                SciRustRuntimeKind::DeterministicKernel => {
+                    crate::taste_validation_store::ValidationSubjectKind::DeterministicEvaluator
+                }
+                SciRustRuntimeKind::RuntimeDiscovery => {
+                    crate::taste_validation_store::ValidationSubjectKind::ExternalAgent
+                }
+            },
+            subject_id_sha256: bytes[100..132].try_into().expect("sender digest"),
         },
         sender_kind,
         message_id_sha256: bytes[36..68].try_into().expect("message digest"),
@@ -344,7 +366,7 @@ fn hash_text(domain: &[u8], value: &str) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn hash_sender(kind: SciRustRuntimeKind, id: &str) -> [u8; 32] {
+pub(crate) fn hash_sender(kind: SciRustRuntimeKind, id: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(SENDER_ID_HASH_DOMAIN);
     hasher.update([sender_kind_code(kind)]);

@@ -195,6 +195,8 @@ mod tests {
             origin: StoredValidationOrigin::DeterministicEvaluation,
             verdict,
             confidence_bps,
+            subject_kind: crate::taste_validation_store::ValidationSubjectKind::Unattributed,
+            subject_id_sha256: [0u8; 32],
         }
     }
 

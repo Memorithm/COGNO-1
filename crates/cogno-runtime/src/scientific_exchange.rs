@@ -199,6 +199,11 @@ fn to_validation(
             ScientificExchangeVerdict::Inconclusive => unreachable!("handled before conversion"),
         },
         confidence_bps: record.confidence_bps,
+        // The exchange record carries no authenticated subject identity;
+        // attribution is stamped by the ingress layer once the transport
+        // identity has been verified.
+        subject_kind: crate::taste_validation_store::ValidationSubjectKind::Unattributed,
+        subject_id_sha256: [0u8; 32],
     }
 }
 

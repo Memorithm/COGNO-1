@@ -109,7 +109,8 @@ pub use scratch::RequestScratch;
 pub use semantic::SemanticMemoryBudget;
 pub use taste::{
     ScientificTaste, ScientificTasteProfile, TasteError, TasteEvent, TasteEventKind, TasteOrigin,
-    TastePolicy, TasteScope, TasteState, MAX_TASTE_CONFIDENCE_BPS, MAX_TASTE_EVIDENCE_IDS,
+    TastePolicy, TasteScope, TasteSource, TasteSourceKind, TasteState, MAX_TASTE_CONFIDENCE_BPS,
+    MAX_TASTE_EVIDENCE_IDS, MAX_TASTE_SOURCE_ID_BYTES,
 };
 pub use tool::{
     classify_tool_proposal, looks_like_shell_invocation, CapabilityId, ReasonCode, ToolId,

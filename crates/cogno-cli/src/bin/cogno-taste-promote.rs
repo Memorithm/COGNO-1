@@ -5,7 +5,7 @@
 
 use cogno_core::{
     ScientificTasteProfile, TasteEvent, TasteEventKind, TasteOrigin, TastePolicy, TasteScope,
-    TasteState,
+    TasteSource, TasteState,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -195,6 +195,7 @@ fn derive_output(report: &CandidateReport, validations: &[Validation]) -> Result
             origin: TasteOrigin::ModelInference,
             confidence_bps: 5_000,
             evidence_ids: vec![candidate.evidence_id],
+            source: TasteSource::UNKNOWN,
         }];
         let candidate_validations = grouped
             .get(&candidate.preference_id)
@@ -217,6 +218,7 @@ fn derive_output(report: &CandidateReport, validations: &[Validation]) -> Result
                 },
                 confidence_bps: validation.confidence_bps,
                 evidence_ids: vec![validation.evidence_id],
+                source: TasteSource::UNKNOWN,
             });
         }
         let profile = ScientificTasteProfile::derive(&events, TastePolicy::DEFAULT)

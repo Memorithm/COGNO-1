@@ -589,6 +589,8 @@ mod tests {
                 origin: StoredValidationOrigin::DeterministicEvaluation,
                 verdict: StoredValidationVerdict::Confirmed,
                 confidence_bps: 8_500,
+                subject_kind: crate::taste_validation_store::ValidationSubjectKind::Unattributed,
+                subject_id_sha256: [0u8; 32],
             })
         );
     }
