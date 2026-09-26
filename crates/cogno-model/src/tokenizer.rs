@@ -57,40 +57,70 @@ impl ByteTokenizer {
 
     /// Encode one arbitrary byte payload as `[BOS] payload [EOS]`.
     pub fn encode(&self, payload: &[u8]) -> Result<Vec<u16>, ByteTokenizerError> {
+        let mut tokens = Vec::new();
+        self.encode_into(payload, &mut tokens)?;
+        Ok(tokens)
+    }
+
+    /// Replace a caller-owned buffer with one framed payload, reusing its capacity.
+    /// On any error the previous buffer contents remain unchanged.
+    pub fn encode_into(
+        &self,
+        payload: &[u8],
+        tokens: &mut Vec<u16>,
+    ) -> Result<(), ByteTokenizerError> {
         let requested = payload
             .len()
             .checked_add(2)
             .ok_or(ByteTokenizerError::LengthOverflow)?;
-        self.ensure_capacity(requested)?;
-        let mut tokens = Vec::new();
-        tokens
-            .try_reserve_exact(requested)
-            .map_err(|_| ByteTokenizerError::AllocationFailed)?;
+        self.prepare_output(tokens, requested)?;
         tokens.push(BOS_TOKEN);
         tokens.extend(payload.iter().map(|&byte| u16::from(byte)));
         tokens.push(EOS_TOKEN);
+        Ok(())
+    }
+
+    /// Encode two arbitrary byte payloads as `[BOS] left [SEP] right [EOS]`.
+    pub fn encode_pair(&self, left: &[u8], right: &[u8]) -> Result<Vec<u16>, ByteTokenizerError> {
+        let mut tokens = Vec::new();
+        self.encode_pair_into(left, right, &mut tokens)?;
         Ok(tokens)
     }
 
-    /// Encode two arbitrary byte payloads as
-    /// `[BOS] left [SEP] right [EOS]`.
-    pub fn encode_pair(&self, left: &[u8], right: &[u8]) -> Result<Vec<u16>, ByteTokenizerError> {
+    /// Replace a caller-owned buffer with a framed pair, reusing its capacity.
+    /// On any error the previous buffer contents remain unchanged.
+    pub fn encode_pair_into(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        tokens: &mut Vec<u16>,
+    ) -> Result<(), ByteTokenizerError> {
         let requested = left
             .len()
             .checked_add(right.len())
             .and_then(|value| value.checked_add(3))
             .ok_or(ByteTokenizerError::LengthOverflow)?;
-        self.ensure_capacity(requested)?;
-        let mut tokens = Vec::new();
-        tokens
-            .try_reserve_exact(requested)
-            .map_err(|_| ByteTokenizerError::AllocationFailed)?;
+        self.prepare_output(tokens, requested)?;
         tokens.push(BOS_TOKEN);
         tokens.extend(left.iter().map(|&byte| u16::from(byte)));
         tokens.push(SEP_TOKEN);
         tokens.extend(right.iter().map(|&byte| u16::from(byte)));
         tokens.push(EOS_TOKEN);
-        Ok(tokens)
+        Ok(())
+    }
+
+    fn prepare_output(
+        &self,
+        tokens: &mut Vec<u16>,
+        requested: usize,
+    ) -> Result<(), ByteTokenizerError> {
+        self.ensure_capacity(requested)?;
+        // Reserve before clearing so an allocation refusal preserves the old output.
+        tokens
+            .try_reserve_exact(requested.saturating_sub(tokens.len()))
+            .map_err(|_| ByteTokenizerError::AllocationFailed)?;
+        tokens.clear();
+        Ok(())
     }
 
     fn ensure_capacity(&self, requested: usize) -> Result<(), ByteTokenizerError> {
@@ -121,6 +151,50 @@ pub fn byte_tokenizer_hash() -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reusable_buffers_match_all_byte_values_and_keep_allocation() {
+        let t = ByteTokenizer::default();
+        let mut buffer = Vec::with_capacity(MAX_BYTE_TOKENIZER_TOKENS);
+        let allocation = buffer.as_ptr();
+        let payload: Vec<u8> = (0..=255).collect();
+        for len in 0..=payload.len() {
+            t.encode_into(&payload[..len], &mut buffer).unwrap();
+            assert_eq!(buffer, t.encode(&payload[..len]).unwrap());
+            assert_eq!(buffer.as_ptr(), allocation);
+            t.encode_pair_into(&payload[..len], b"\xff\0", &mut buffer)
+                .unwrap();
+            assert_eq!(buffer, t.encode_pair(&payload[..len], b"\xff\0").unwrap());
+            assert_eq!(buffer.as_ptr(), allocation);
+        }
+    }
+
+    #[test]
+    fn reusable_buffer_preserves_previous_result_on_refusal() {
+        let t = ByteTokenizer::try_new(5).unwrap();
+        let mut buffer = vec![999; 20];
+        let before = buffer.clone();
+        assert_eq!(
+            t.encode_into(b"abcd", &mut buffer),
+            Err(ByteTokenizerError::TokenCapacityExceeded {
+                requested: 6,
+                maximum: 5
+            })
+        );
+        assert_eq!(buffer, before);
+        assert_eq!(
+            t.encode_pair_into(b"ab", b"c", &mut buffer),
+            Err(ByteTokenizerError::TokenCapacityExceeded {
+                requested: 6,
+                maximum: 5
+            })
+        );
+        assert_eq!(buffer, before);
+        t.encode_into(b"abc", &mut buffer).unwrap();
+        assert_eq!(buffer, vec![BOS_TOKEN, 97, 98, 99, EOS_TOKEN]);
+        t.encode_pair_into(b"", b"", &mut buffer).unwrap();
+        assert_eq!(buffer, vec![BOS_TOKEN, SEP_TOKEN, EOS_TOKEN]);
+    }
 
     #[test]
     fn every_byte_maps_to_its_exact_token_without_oov() {
