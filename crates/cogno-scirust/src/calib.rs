@@ -92,6 +92,37 @@ impl Calibration {
         stable_sigmoid(z / self.temperature)
     }
 
+    /// Unrounded probability of the positive binary class.
+    ///
+    /// This probability is independent of the display-only `max_bps` scale.
+    /// Unlike the conservative scalar basis-point API, corruption is an error.
+    /// Temperature is rechecked because hosts may mutate its public field.
+    pub fn binary_probability(&self, logit: f32) -> SciRustResult<f32> {
+        if !logit.is_finite() || !self.temperature.is_finite() || self.temperature <= 0.0 {
+            return Err(SciRustError::NonFinite);
+        }
+        // Stable sigmoid accepts infinite ratios as their limiting 0/1 values.
+        Ok(stable_sigmoid(logit / self.temperature))
+    }
+
+    /// Bounded unrounded probabilities for evaluation and threshold selection.
+    /// Callers must supply validation/calibration observations, not fit on test.
+    pub fn binary_probabilities(&self, logits: &[f32]) -> SciRustResult<Vec<f32>> {
+        if logits.is_empty() {
+            return Err(SciRustError::Empty);
+        }
+        if logits.len() > MAX_CALIBRATION_EXAMPLES {
+            return Err(SciRustError::CapacityExceeded {
+                requested: logits.len(),
+                maximum: MAX_CALIBRATION_EXAMPLES,
+            });
+        }
+        logits
+            .iter()
+            .map(|&logit| self.binary_probability(logit))
+            .collect()
+    }
+
     /// Calibrate a raw score `z` to basis points, clamped to `0..=max_bps`.
     ///
     /// A non-finite `z` maps to `0` bps — the **most conservative** confidence
@@ -300,6 +331,40 @@ fn stable_sigmoid(value: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unrounded_binary_probabilities_preserve_symmetry_and_ignore_display_scale() {
+        let mut calibration = Calibration::try_new(2.0).unwrap();
+        calibration.max_bps = 100;
+        let probabilities = calibration.binary_probabilities(&[-2.0, 0.0, 2.0]).unwrap();
+        assert!((probabilities[0] + probabilities[2] - 1.0).abs() < 1e-7);
+        assert_eq!(probabilities[1], 0.5);
+        assert!((probabilities[2] - 0.7310586).abs() < 1e-7);
+        assert_eq!(calibration.calibrate_bps(2.0), 73);
+        assert_ne!(probabilities[2], 0.73);
+    }
+
+    #[test]
+    fn binary_probabilities_reject_corruption_and_bound_allocation() {
+        let mut calibration = Calibration::try_new(f32::MIN_POSITIVE).unwrap();
+        assert_eq!(calibration.binary_probability(f32::MAX).unwrap(), 1.0);
+        assert_eq!(calibration.binary_probability(-f32::MAX).unwrap(), 0.0);
+        assert!(calibration.binary_probabilities(&[0.0, f32::NAN]).is_err());
+        assert_eq!(
+            calibration.binary_probabilities(&[]),
+            Err(SciRustError::Empty)
+        );
+        assert!(matches!(
+            calibration.binary_probabilities(&vec![0.0; MAX_CALIBRATION_EXAMPLES + 1]),
+            Err(SciRustError::CapacityExceeded { .. })
+        ));
+        for temperature in [0.0, -1.0, f32::INFINITY, f32::NAN] {
+            calibration.temperature = temperature;
+            assert_eq!(
+                calibration.binary_probability(0.0),
+                Err(SciRustError::NonFinite)
+            );
+        }
+    }
 
     fn fit_config() -> CalibrationFitConfig {
         CalibrationFitConfig {
