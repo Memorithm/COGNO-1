@@ -17,6 +17,8 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_offline_bundle.py' -v
       - name: Evidence verification unit tests
         run: python3 -m unittest discover -s scripts -p 'test_bpe_evidence.py' -v
+      - name: Corpus admission unit tests
+        run: python3 -m unittest discover -s scripts -p 'test_rust_corpus.py' -v
       - name: Prepare locked source distribution
         run: python3 scripts/offline_bundle.py pack "$RUNNER_TEMP/cogno-offline"
       - name: Build, test and train without network or Cargo cache
