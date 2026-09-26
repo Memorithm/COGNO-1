@@ -69,6 +69,7 @@ impl SequenceCognitiveReviewCorpus {
     ) -> Result<bool, SequenceCognitiveDataReviewError> {
         let index = self.data_classes.len();
         self.policy.validate(data_class, index)?;
+        validate_fingerprint(&example, index)?;
         if !self.inner.add(example) {
             return Ok(false);
         }
@@ -110,6 +111,8 @@ pub enum SequenceCognitiveDataReviewError {
         examples: usize,
         classifications: usize,
     },
+    /// Caller-supplied fingerprint no longer matches all five inputs and targets.
+    FingerprintMismatch { index: usize },
     /// Existing weakest-link review validation/training error.
     Review(SequenceCognitiveMetaReviewError),
 }
@@ -167,8 +170,27 @@ pub fn review_sequence_cognitive_model_for_meta(
 fn validate_data_classifications(
     corpus: &SequenceCognitiveReviewCorpus,
 ) -> Result<(), SequenceCognitiveDataReviewError> {
+    if corpus.inner.examples.len() != corpus.data_classes.len() {
+        return Err(
+            SequenceCognitiveDataReviewError::ClassificationStateMismatch {
+                examples: corpus.inner.examples.len(),
+                classifications: corpus.data_classes.len(),
+            },
+        );
+    }
     for (index, data_class) in corpus.data_classes.iter().copied().enumerate() {
         corpus.policy.validate(data_class, index)?;
+        validate_fingerprint(&corpus.inner.examples[index], index)?;
+    }
+    Ok(())
+}
+
+fn validate_fingerprint(
+    example: &SequenceCognitiveReviewExample,
+    index: usize,
+) -> Result<(), SequenceCognitiveDataReviewError> {
+    if inner::cognitive_fingerprint(&example.example) != example.fingerprint {
+        return Err(SequenceCognitiveDataReviewError::FingerprintMismatch { index });
     }
     Ok(())
 }
@@ -282,5 +304,56 @@ mod tests {
         );
         assert_eq!(allowed.len(), 1);
         assert_eq!(validate_data_classifications(&allowed), Ok(()));
+    }
+    #[test]
+    fn forged_fingerprint_and_mutated_targets_cannot_bypass_admission() {
+        let mut corpus = SequenceCognitiveReviewCorpus::with_seed(1);
+        let original = example(1);
+        assert_eq!(
+            corpus.add(original.clone(), DataClassification::Public),
+            Ok(true)
+        );
+        let mut forged = original.clone();
+        forged.fingerprint.0[0] ^= 1;
+        assert_eq!(
+            corpus.add(forged, DataClassification::Public),
+            Err(SequenceCognitiveDataReviewError::FingerprintMismatch { index: 1 })
+        );
+        let mut changed = original;
+        changed.example.retrieval_positive_idx = 1;
+        assert_eq!(
+            corpus.add(changed, DataClassification::Public),
+            Err(SequenceCognitiveDataReviewError::FingerprintMismatch { index: 1 })
+        );
+        assert_eq!(corpus.len(), 1);
+        assert_eq!(
+            corpus.add(example(1), DataClassification::Internal),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn defensive_review_detects_missing_and_extra_classifications() {
+        let mut corpus = SequenceCognitiveReviewCorpus::with_seed(1);
+        corpus.inner.add(example(1));
+        assert_eq!(
+            validate_data_classifications(&corpus),
+            Err(
+                SequenceCognitiveDataReviewError::ClassificationStateMismatch {
+                    examples: 1,
+                    classifications: 0
+                }
+            )
+        );
+        corpus.data_classes.extend([DataClassification::Public; 2]);
+        assert_eq!(
+            validate_data_classifications(&corpus),
+            Err(
+                SequenceCognitiveDataReviewError::ClassificationStateMismatch {
+                    examples: 1,
+                    classifications: 2
+                }
+            )
+        );
     }
 }
