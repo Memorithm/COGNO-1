@@ -42,14 +42,28 @@ impl RustCorpus {
     }
     /// Expected identity must come from an independent inventory.
     pub fn read(reader: impl Read, expected: [u8; 32]) -> Result<Self, CorpusError> {
+        Self::read_mode(reader, expected, false)
+    }
+    /// Require exclusively test records, containing both classes; never invent train rows.
+    pub fn read_test_only(reader: impl Read, expected: [u8; 32]) -> Result<Self, CorpusError> {
+        Self::read_mode(reader, expected, true)
+    }
+    fn read_mode(
+        reader: impl Read,
+        expected: [u8; 32],
+        test_only: bool,
+    ) -> Result<Self, CorpusError> {
         let mut bytes = Vec::new();
         reader
             .take((MAX_CORPUS_BYTES + 1) as u64)
             .read_to_end(&mut bytes)
             .map_err(|_| CorpusError::Io)?;
-        Self::parse(&bytes, expected)
+        Self::parse_mode(&bytes, expected, test_only)
     }
     pub fn parse(bytes: &[u8], expected: [u8; 32]) -> Result<Self, CorpusError> {
+        Self::parse_mode(bytes, expected, false)
+    }
+    fn parse_mode(bytes: &[u8], expected: [u8; 32], test_only: bool) -> Result<Self, CorpusError> {
         if bytes.len() > MAX_CORPUS_BYTES {
             return Err(CorpusError::Capacity);
         }
@@ -125,7 +139,9 @@ impl RustCorpus {
                 source_hash,
             });
         }
-        if labels.len() != 6 {
+        if (test_only && labels != BTreeSet::from([(CorpusSplit::Test, 0), (CorpusSplit::Test, 1)]))
+            || (!test_only && labels.len() != 6)
+        {
             return Err(CorpusError::Labels);
         }
         Ok(Self { records, hash })
@@ -162,6 +178,28 @@ fn decode_hex(text: &str) -> Result<Vec<u8>, CorpusError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn test_only_never_accepts_training_rows() {
+        let w = wire();
+        let test = String::from("CRUST001\n")
+            + &w.lines()
+                .filter(|l| l.starts_with("test\t"))
+                .collect::<Vec<_>>()
+                .join("\n")
+            + "\n";
+        let hash = Sha256::digest(test.as_bytes()).into();
+        assert_eq!(
+            RustCorpus::read_test_only(test.as_bytes(), hash)
+                .unwrap()
+                .records()
+                .len(),
+            2
+        );
+        assert!(RustCorpus::parse(test.as_bytes(), hash).is_err());
+        assert!(
+            RustCorpus::read_test_only(w.as_bytes(), Sha256::digest(w.as_bytes()).into()).is_err()
+        );
+    }
     fn wire() -> String {
         let mut out = String::from("CRUST001\n");
         for split in ["train", "validation", "test"] {

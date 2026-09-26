@@ -19,7 +19,7 @@ def unique_object(pairs):
     return result
 
 
-def admit(data, approved_licenses):
+def admit(data, approved_licenses, evaluation_only=False):
     if not data or len(data) > LIMIT:
         raise ValueError('input size')
     records, seen, projects = [], set(), {}
@@ -62,7 +62,10 @@ def admit(data, approved_licenses):
             raise ValueError('invalid split or project leakage')
         labels[split].add(r['label'])
         records.append(r)
-    if any(value != {0, 1} for value in labels.values()):
+    if evaluation_only:
+        if labels['train'] or labels['validation'] or labels['test'] != {0, 1}:
+            raise ValueError('evaluation-only requires test rows with both labels')
+    elif any(value != {0, 1} for value in labels.values()):
         raise ValueError('each split must contain both labels')
     wire = 'CRUST001\n' + ''.join(
         f"{r['split']}\t{r['project']}\t{r['label']}\t{r['sha256']}\t{r['source'].encode().hex()}\n"
@@ -91,13 +94,14 @@ def build_manifest(data, wire, provenance, records, approved_licenses):
     }
 
 
-def write_admitted(data, output, licenses):
-    records, wire = admit(data, set(licenses))
+def write_admitted(data, output, licenses, evaluation_only=False):
+    records, wire = admit(data, set(licenses), evaluation_only)
     output.mkdir()
     (output / 'corpus.crust').write_bytes(wire)
     provenance = provenance_bytes(records)
     (output / 'provenance.jsonl').write_bytes(provenance)
     manifest = build_manifest(data, wire, provenance, records, licenses)
+    manifest['evaluation_only'] = evaluation_only
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     return manifest
 
@@ -107,10 +111,11 @@ def main():
     parser.add_argument('input', type=Path)
     parser.add_argument('output', type=Path, help='new directory')
     parser.add_argument('--license', action='append', required=True, dest='licenses')
+    parser.add_argument('--evaluation-only', action='store_true')
     args = parser.parse_args()
     with args.input.open('rb') as stream:
         data = stream.read(LIMIT + 1)
-    manifest = write_admitted(data, args.output, args.licenses)
+    manifest = write_admitted(data, args.output, args.licenses, args.evaluation_only)
     print(json.dumps(manifest, sort_keys=True))
 
 

@@ -1,5 +1,10 @@
 # Bounded Rust evaluation pipeline
 
+An external test-only panel can use `--evaluation-only`; it must contain both
+labels and no train/validation records. Rust callers must opt into
+`RustCorpus::read_test_only`. Default admission and parsing still require all
+three partitions. The coverage trainer cannot consume a test-only corpus.
+
 `scripts/admit_rust_corpus.py INPUT.jsonl NEW_DIRECTORY --license MIT` accepts
 declared, already reviewed classification records. Each JSON object requires
 source, its SHA-256, binary integer label, split (train/validation/test), project,
