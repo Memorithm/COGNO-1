@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "smart_pointers",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "rc-write-1",
+      "family": "rc-write",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "1551fde53e3df56e1840790f1cb16da73071f972ffbd0ea767d4a315cb8fe343",
+      "contrast": "Rc needs interior mutability for shared mutation"
+    },
+    {
+      "id": "rc-write-0",
+      "family": "rc-write",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0594"
+      ],
+      "source_sha256": "1eace8301f8916096f3c331981cc1fed5c5e7219d78a2b9614c3d57f2e5e3f32",
+      "contrast": "Rc needs interior mutability for shared mutation"
+    },
+    {
+      "id": "arc-write-1",
+      "family": "arc-write",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "6765ed82f31a1beec6705d8aac82283a75b63ef5287e41d941c4ca3bc4f6bd10",
+      "contrast": "Arc needs synchronization for shared mutation"
+    },
+    {
+      "id": "arc-write-0",
+      "family": "arc-write",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0594"
+      ],
+      "source_sha256": "cde7c7fabd3b9f72f1d0c7d8f102e09dc0ce0275e1c06a704a8286e4fdd17eee",
+      "contrast": "Arc needs synchronization for shared mutation"
+    },
+    {
+      "id": "refcell-guard-1",
+      "family": "refcell-guard",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "0bdbb95e7325c73e4e63350f383c14a435f368d822d175c3980a8e344144e84f",
+      "contrast": "RefMut permits mutation while Ref does not"
+    },
+    {
+      "id": "refcell-guard-0",
+      "family": "refcell-guard",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0594"
+      ],
+      "source_sha256": "bd7381c58aa93f57348f320c080bf8107d79fd769c169df7e61bccc75544e615",
+      "contrast": "RefMut permits mutation while Ref does not"
+    },
+    {
+      "id": "cell-copy-1",
+      "family": "cell-copy",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "6c046888e62ecc77206b6326ce82774a93eb32894d9dfe023d3e33646b63190a",
+      "contrast": "Cell get requires Copy values"
+    },
+    {
+      "id": "cell-copy-0",
+      "family": "cell-copy",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "f4e0e5a6202022589ef865dfcdd0f6abcca919a4347581a33511d1f6b15146a4",
+      "contrast": "Cell get requires Copy values"
+    },
+    {
+      "id": "weak-upgrade-1",
+      "family": "weak-upgrade",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "fdf9b36575dd5309cf6065e1963227ab74f36038e9b3566b96ae0ac4697a329b",
+      "contrast": "Weak must upgrade before accessing its payload"
+    },
+    {
+      "id": "weak-upgrade-0",
+      "family": "weak-upgrade",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "837f106c020d1e22136d5855c167fac0c7e2924aee4c4e269b2bed2b0f9ca4fd",
+      "contrast": "Weak must upgrade before accessing its payload"
+    },
+    {
+      "id": "box-deref-1",
+      "family": "box-deref",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "ff11781605aef6e5fd5b30f030bd3d9cfed3310c16a1bea2df0e941c262fe8c8",
+      "contrast": "Box must be dereferenced to extract an owned value"
+    },
+    {
+      "id": "box-deref-0",
+      "family": "box-deref",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "210404ef39ae377e5f4273a0bad309332405c143db68ec505f6aa08bbef392a7",
+      "contrast": "Box must be dereferenced to extract an owned value"
+    },
+    {
+      "id": "box-mut-1",
+      "family": "box-mut",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "10e26f8b752cf18f2282caaa3c7906f4d31c52ace058d0e2b64d2349188cc1f8",
+      "contrast": "Box mutation requires a mutable binding"
+    },
+    {
+      "id": "box-mut-0",
+      "family": "box-mut",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0594"
+      ],
+      "source_sha256": "3240323158b7302ba49cb61b3f4c1549a7bad85b2a4c81f7a78f05793a722ad5",
+      "contrast": "Box mutation requires a mutable binding"
+    },
+    {
+      "id": "rc-move-out-1",
+      "family": "rc-move-out",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "a3b2773257078d5ebd29bfb9e322faaa235d5fc749043d6c4978f9ccfbc20295",
+      "contrast": "Rc shared payload cannot be moved out"
+    },
+    {
+      "id": "rc-move-out-0",
+      "family": "rc-move-out",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0507"
+      ],
+      "source_sha256": "cca73753fb6e512fd5861b5dfb1d58d9735059342a5909acf33912078f2b8cd3",
+      "contrast": "Rc shared payload cannot be moved out"
+    },
+    {
+      "id": "cow-mutation-1",
+      "family": "cow-mutation",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "0a5ce43fa9cc3743839c2636f97db155dd275b7b8822ee952c75bdbcfbb26d5f",
+      "contrast": "Cow mutation requires to_mut to obtain owned storage"
+    },
+    {
+      "id": "cow-mutation-0",
+      "family": "cow-mutation",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "2df1b32e8a200e4a9e9f6cf7172ed978d57f2a918dff64329441ca3c966bb467",
+      "contrast": "Cow mutation requires to_mut to obtain owned storage"
+    },
+    {
+      "id": "refcell-ref-type-1",
+      "family": "refcell-ref-type",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8f2998a563cda39b8ef8670f8122935507bab398dc03aa6d445c327e25b564d5",
+      "contrast": "RefCell borrow returns a guard distinct from a reference"
+    },
+    {
+      "id": "refcell-ref-type-0",
+      "family": "refcell-ref-type",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "e2e45854a9d04b712f01e6aa047050fb6b71b7ac4239975dfc8d6ee328fff1c8",
+      "contrast": "RefCell borrow returns a guard distinct from a reference"
+    },
+    {
+      "id": "mutex-guard-type-1",
+      "family": "mutex-guard-type",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "c413f1f08438282d63726c42a2bd80853892a8930d5e9779056282caf850f2b5",
+      "contrast": "Mutex lock returns a Result guard requiring explicit access"
+    },
+    {
+      "id": "mutex-guard-type-0",
+      "family": "mutex-guard-type",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "12edf9f04cc18bc4b75f4ee6479703d663747d614468a8df01381d5d8fb4745b",
+      "contrast": "Mutex lock returns a Result guard requiring explicit access"
+    },
+    {
+      "id": "pin-unpin-1",
+      "family": "pin-unpin",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "4f76148c1447148c7e387a2fdf1266615fdfc4500f3ee52ead2cadff45ed0d18",
+      "contrast": "Pin get_mut requires Unpin target"
+    },
+    {
+      "id": "pin-unpin-0",
+      "family": "pin-unpin",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "27dd6540bb36dfcc9e6b01f384ac9c28d2bbfc89864deb6cd3fd6efc2a6c5ec0",
+      "contrast": "Pin get_mut requires Unpin target"
+    }
+  ]
+}
