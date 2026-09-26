@@ -31,3 +31,21 @@ The trainer accepts only the hash-checked three-partition corpus. Only training
 rows enter BPE fitting and optimizer batches. Checkpoints are persisted and
 reloaded with exact state equality before reporting predictions. The manifest
 binds every checkpoint to its corpus, tokenizer, seed, order and context.
+
+
+The [recorded results](../experiments/rust-training-ablation/README.md) retain a
+negative outcome: coverage increased but external quality did not improve.
+Reproduce all twelve checkpoints, all 288 diagnostic rows, validation selection
+and all 24 selected external predictions with:
+
+```sh
+python3 scripts/verify_rust_ablation.py \
+  --examples-dir target/release/examples \
+  --output /tmp/new-rust-ablation \
+  --rustc /absolute/path/to/rustc-1.97.1
+```
+
+Offline distribution verification runs this command with an empty Cargo cache
+and network isolation in CI. Checkpoint inventory and hashes must match exactly;
+categorical predictions must match exactly and probability/NLL tolerance is
+1e-6. Neither passing reproduction nor improved coverage promotes a checkpoint.

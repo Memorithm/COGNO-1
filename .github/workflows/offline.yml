@@ -21,6 +21,10 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_rust_corpus.py' -v
       - name: External panel integrity tests
         run: python3 -m unittest discover -s scripts -p 'test_external_rust_panel.py' -v
+      - name: Ablation selection and evidence tests
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_select_rust_ablation.py' -v
+          python3 -m unittest discover -s scripts -p 'test_rust_ablation.py' -v
       - name: Prepare locked source distribution
         run: python3 scripts/offline_bundle.py pack "$RUNNER_TEMP/cogno-offline"
       - name: Build, test and train without network or Cargo cache
