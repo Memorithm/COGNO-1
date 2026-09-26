@@ -90,6 +90,28 @@ pub fn load_versioned_neural_artifact(
     Err(VersionedNeuralArtifactError::UnsupportedArchitecture)
 }
 
+/// Failure to match a host-pinned identity, or failure of its canonical decoder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PinnedNeuralArtifactError {
+    ManifestMismatch,
+    Decode(VersionedNeuralArtifactError),
+}
+
+/// Load an artifact only when its entire declared manifest matches the identity
+/// independently retained by the host. A digest supplied alongside untrusted
+/// bytes is not itself an identity pin; `expected` must come from the caller's
+/// trusted model registry or another authenticated source.
+pub fn load_pinned_neural_artifact(
+    expected: &ModelManifest,
+    declared: &ModelManifest,
+    bytes: &[u8],
+) -> Result<LoadedNeuralModel, PinnedNeuralArtifactError> {
+    if expected != declared {
+        return Err(PinnedNeuralArtifactError::ManifestMismatch);
+    }
+    load_versioned_neural_artifact(expected, bytes).map_err(PinnedNeuralArtifactError::Decode)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,6 +253,46 @@ mod tests {
         assert!(matches!(
             load_versioned_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(VersionedNeuralArtifactError::UnsupportedArchitecture)
+        ));
+    }
+    #[test]
+    fn pinned_identity_rejects_metadata_substitution_and_still_checks_bytes() {
+        let model = SequenceClassifier::try_new(SequenceClassifierConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: BYTE_TOKENIZER_VOCAB_SIZE,
+                max_tokens: 32,
+                embedding_dim: 8,
+                hidden_dim: 12,
+                seed: 131,
+            },
+            num_classes: 3,
+            head_seed: 137,
+        })
+        .unwrap();
+        let artifact = encode_sequence_neural_artifact(&model).unwrap();
+        assert!(load_pinned_neural_artifact(
+            &artifact.manifest,
+            &artifact.manifest,
+            &artifact.bytes
+        )
+        .is_ok());
+        let mut declared = artifact.manifest;
+        declared.max_context_tokens += 1;
+        assert!(matches!(
+            load_pinned_neural_artifact(&artifact.manifest, &declared, &artifact.bytes),
+            Err(PinnedNeuralArtifactError::ManifestMismatch)
+        ));
+        declared = artifact.manifest;
+        declared.architecture_id = NEURAL_ARCHITECTURE_ID;
+        assert!(matches!(
+            load_pinned_neural_artifact(&artifact.manifest, &declared, &artifact.bytes),
+            Err(PinnedNeuralArtifactError::ManifestMismatch)
+        ));
+        let mut bytes = artifact.bytes;
+        *bytes.last_mut().unwrap() ^= 1;
+        assert!(matches!(
+            load_pinned_neural_artifact(&artifact.manifest, &artifact.manifest, &bytes),
+            Err(PinnedNeuralArtifactError::Decode(_))
         ));
     }
 }
