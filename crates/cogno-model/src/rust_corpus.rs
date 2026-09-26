@@ -33,6 +33,25 @@ pub struct RustCorpus {
     records: Vec<RustRecord>,
     hash: [u8; 32],
 }
+/// Narrow borrowed view for code that fits tokenizers or model parameters.
+/// Construction is restricted to admitted train rows; evaluation rows cannot be
+/// obtained from this view. This is an API boundary, not a process sandbox.
+#[derive(Clone, Debug)]
+pub struct RustTrainingView<'a> {
+    records: Vec<&'a RustRecord>,
+}
+impl<'a> RustTrainingView<'a> {
+    pub fn records(&self) -> &[&'a RustRecord] {
+        &self.records
+    }
+    pub fn sources(&self) -> Vec<&'a [u8]> {
+        self.records
+            .iter()
+            .map(|record| record.source.as_slice())
+            .collect()
+    }
+}
+
 impl RustCorpus {
     pub fn records(&self) -> &[RustRecord] {
         &self.records
@@ -40,6 +59,20 @@ impl RustCorpus {
     pub fn hash(&self) -> [u8; 32] {
         self.hash
     }
+    /// Obtain a training-only view. Evaluation-only corpora are refused, so a
+    /// caller cannot accidentally fit an empty tokenizer from a holdout panel.
+    pub fn training_view(&self) -> Result<RustTrainingView<'_>, CorpusError> {
+        let records: Vec<_> = self
+            .records
+            .iter()
+            .filter(|r| r.split == CorpusSplit::Train)
+            .collect();
+        if records.is_empty() {
+            return Err(CorpusError::Labels);
+        }
+        Ok(RustTrainingView { records })
+    }
+
     /// Expected identity must come from an independent inventory.
     pub fn read(reader: impl Read, expected: [u8; 32]) -> Result<Self, CorpusError> {
         Self::read_mode(reader, expected, false)
@@ -178,6 +211,34 @@ fn decode_hex(text: &str) -> Result<Vec<u8>, CorpusError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn training_view_never_exposes_validation_or_test_sources() {
+        let corpus = parse(&wire()).unwrap();
+        let view = corpus.training_view().unwrap();
+        assert_eq!(view.records().len(), 2);
+        assert!(view.records().iter().all(|r| r.split == CorpusSplit::Train));
+        assert_eq!(
+            view.sources(),
+            vec![
+                b"fn train_0() {}\n\t".as_slice(),
+                b"fn train_1() {}\n\t".as_slice()
+            ]
+        );
+        let test_only = RustCorpus {
+            records: corpus
+                .records
+                .iter()
+                .filter(|r| r.split == CorpusSplit::Test)
+                .cloned()
+                .collect(),
+            hash: corpus.hash,
+        };
+        assert!(matches!(
+            test_only.training_view(),
+            Err(CorpusError::Labels)
+        ));
+    }
+
     #[test]
     fn test_only_never_accepts_training_rows() {
         let w = wire();
