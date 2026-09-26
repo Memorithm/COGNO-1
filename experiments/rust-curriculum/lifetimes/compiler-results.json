@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "domain": "lifetimes",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "5ce9ae8f9d0b1cc1930440cd506d244306803d1237fd7901027c8fc5117ea607",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "local-return-1",
+      "source_sha256": "74d34cd22c85e7bb47dfb958c2115e037079d5853291ef4e48ca3a983a9f5f8c",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "local-return-0",
+      "source_sha256": "175a50046a9380f3d199e51a4cdcf943895f03cb69e234604b1b3e4d2894840c",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0515"
+      ]
+    },
+    {
+      "id": "parameter-return-1",
+      "source_sha256": "e53a1f71d85dd49e02b0655fcab7e71cb460b01eb83ffed7d865b65518693675",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "parameter-return-0",
+      "source_sha256": "fae42c28d66fd43ec5603999aac0491d5da306625e116c0dcf7448bd7397ed79",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0515"
+      ]
+    },
+    {
+      "id": "shared-output-lifetime-1",
+      "source_sha256": "a3842cc2ffd1024f067e1501aab60eeb3d0bf457552740e734276101d293dfbb",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "shared-output-lifetime-0",
+      "source_sha256": "9f2a2c257e190c437d0d7c71bf104bccac61d6dd6775ec63cae1ace8ea9fa991",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0106"
+      ]
+    },
+    {
+      "id": "inner-scope-1",
+      "source_sha256": "1f86c2c308afb22b0493c05160f657eba85f402c0470cee1eb48329dbd67ed1f",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "inner-scope-0",
+      "source_sha256": "32107fe522f76d3483afce63d22a99d80345df928338758c65114013cfa1a5f0",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0597"
+      ]
+    },
+    {
+      "id": "temporary-binding-1",
+      "source_sha256": "5be186c72f49aacee062741c8b89fbf7a402a4fc7f478476a25b9764aee60092",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "temporary-binding-0",
+      "source_sha256": "6d4e0ce896baadcff54c54bce199ba74f5762b2ef1422d7303ddc74554288f0f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0716"
+      ]
+    },
+    {
+      "id": "struct-lifetime-1",
+      "source_sha256": "5c7ce1ad485f8b52c12426de71ab2c1e47d12c45923a33cc2c35a7b1b327e1ed",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "struct-lifetime-0",
+      "source_sha256": "bb9615cde1dcd7905391c8832fd69463a576e27be10765f64f6cf29fe3f9372f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0106"
+      ]
+    },
+    {
+      "id": "static-requirement-1",
+      "source_sha256": "923242418681e6fe8788ed5a6f236379e830eb6a06bd1113a32fb4b0cfadf36a",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "static-requirement-0",
+      "source_sha256": "cc1089067945a5b0503d4562a789fd14178fd2c1b4c9db1d477b62df6e1888a7",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "LIFETIME"
+      ]
+    },
+    {
+      "id": "outlives-constraint-1",
+      "source_sha256": "5826794b236b02a3e1e75da1a6c2bae607a2c8d2919666c7ef3e632211bbfe39",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "outlives-constraint-0",
+      "source_sha256": "9e01cc7974e365ad21e8eeaa2de44523c033be5ca2022c515f4c916c26d8678a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "LIFETIME"
+      ]
+    },
+    {
+      "id": "closure-return-1",
+      "source_sha256": "014facaa2d913105f079134b4ce00b25dec50eba1e24cdcc5e440aea0cbbe212",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "closure-return-0",
+      "source_sha256": "eff84cc802f3c09ba2ac4e0abb42c687640ccb77ef33cee7686f8892508f082a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0373"
+      ]
+    },
+    {
+      "id": "struct-owner-scope-1",
+      "source_sha256": "b3dc762fbae7faad982e1f5cf57d4cd54cadce07fb3915280aaa3a1f40dd5432",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "struct-owner-scope-0",
+      "source_sha256": "b3d6c10370f07255d33e113aa9c1da6b52b54842a66a8072c20f61055ec8878f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0597"
+      ]
+    },
+    {
+      "id": "iterator-return-1",
+      "source_sha256": "b073e4f2be81979d6d4a79e4950faa8b8a19050b3b8a8bc6d761847fc84825b5",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "iterator-return-0",
+      "source_sha256": "54a78b897e86d68b81b44045962ab5bd69a8e1f58615a07c5ff5a90580a3dce9",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0515"
+      ]
+    },
+    {
+      "id": "method-elision-1",
+      "source_sha256": "8dbeb73b52f84a5b5c31164212d9fbe55d8ff90a444fdc573a445d1f673e900d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "method-elision-0",
+      "source_sha256": "1aa96f03752402c152efa89e1de7ea2b754fe2dc9f758946d5a1420f6d4fe754",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "LIFETIME"
+      ]
+    }
+  ]
+}

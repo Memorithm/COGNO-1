@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "lifetimes",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "local-return-1",
+      "family": "local-return",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "74d34cd22c85e7bb47dfb958c2115e037079d5853291ef4e48ca3a983a9f5f8c",
+      "contrast": "owned return survives a local String drop"
+    },
+    {
+      "id": "local-return-0",
+      "family": "local-return",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0515"
+      ],
+      "source_sha256": "175a50046a9380f3d199e51a4cdcf943895f03cb69e234604b1b3e4d2894840c",
+      "contrast": "owned return survives a local String drop"
+    },
+    {
+      "id": "parameter-return-1",
+      "family": "parameter-return",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "e53a1f71d85dd49e02b0655fcab7e71cb460b01eb83ffed7d865b65518693675",
+      "contrast": "returned reference must derive from a lasting parameter"
+    },
+    {
+      "id": "parameter-return-0",
+      "family": "parameter-return",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0515"
+      ],
+      "source_sha256": "fae42c28d66fd43ec5603999aac0491d5da306625e116c0dcf7448bd7397ed79",
+      "contrast": "returned reference must derive from a lasting parameter"
+    },
+    {
+      "id": "shared-output-lifetime-1",
+      "family": "shared-output-lifetime",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "a3842cc2ffd1024f067e1501aab60eeb3d0bf457552740e734276101d293dfbb",
+      "contrast": "two possible return sources need a common lifetime"
+    },
+    {
+      "id": "shared-output-lifetime-0",
+      "family": "shared-output-lifetime",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0106"
+      ],
+      "source_sha256": "9f2a2c257e190c437d0d7c71bf104bccac61d6dd6775ec63cae1ace8ea9fa991",
+      "contrast": "two possible return sources need a common lifetime"
+    },
+    {
+      "id": "inner-scope-1",
+      "family": "inner-scope",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "1f86c2c308afb22b0493c05160f657eba85f402c0470cee1eb48329dbd67ed1f",
+      "contrast": "borrow cannot outlive a nested owned binding"
+    },
+    {
+      "id": "inner-scope-0",
+      "family": "inner-scope",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0597"
+      ],
+      "source_sha256": "32107fe522f76d3483afce63d22a99d80345df928338758c65114013cfa1a5f0",
+      "contrast": "borrow cannot outlive a nested owned binding"
+    },
+    {
+      "id": "temporary-binding-1",
+      "family": "temporary-binding",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5be186c72f49aacee062741c8b89fbf7a402a4fc7f478476a25b9764aee60092",
+      "contrast": "binding an owner extends its usable scope"
+    },
+    {
+      "id": "temporary-binding-0",
+      "family": "temporary-binding",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0716"
+      ],
+      "source_sha256": "6d4e0ce896baadcff54c54bce199ba74f5762b2ef1422d7303ddc74554288f0f",
+      "contrast": "binding an owner extends its usable scope"
+    },
+    {
+      "id": "struct-lifetime-1",
+      "family": "struct-lifetime",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5c7ce1ad485f8b52c12426de71ab2c1e47d12c45923a33cc2c35a7b1b327e1ed",
+      "contrast": "reference-bearing structs require a named lifetime"
+    },
+    {
+      "id": "struct-lifetime-0",
+      "family": "struct-lifetime",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0106"
+      ],
+      "source_sha256": "bb9615cde1dcd7905391c8832fd69463a576e27be10765f64f6cf29fe3f9372f",
+      "contrast": "reference-bearing structs require a named lifetime"
+    },
+    {
+      "id": "static-requirement-1",
+      "family": "static-requirement",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "923242418681e6fe8788ed5a6f236379e830eb6a06bd1113a32fb4b0cfadf36a",
+      "contrast": "a borrowed slice cannot be promoted to static lifetime"
+    },
+    {
+      "id": "static-requirement-0",
+      "family": "static-requirement",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "LIFETIME"
+      ],
+      "source_sha256": "cc1089067945a5b0503d4562a789fd14178fd2c1b4c9db1d477b62df6e1888a7",
+      "contrast": "a borrowed slice cannot be promoted to static lifetime"
+    },
+    {
+      "id": "outlives-constraint-1",
+      "family": "outlives-constraint",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5826794b236b02a3e1e75da1a6c2bae607a2c8d2919666c7ef3e632211bbfe39",
+      "contrast": "returning a longer-lived reference requires the outlives relation"
+    },
+    {
+      "id": "outlives-constraint-0",
+      "family": "outlives-constraint",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "LIFETIME"
+      ],
+      "source_sha256": "9e01cc7974e365ad21e8eeaa2de44523c033be5ca2022c515f4c916c26d8678a",
+      "contrast": "returning a longer-lived reference requires the outlives relation"
+    },
+    {
+      "id": "closure-return-1",
+      "family": "closure-return",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "014facaa2d913105f079134b4ce00b25dec50eba1e24cdcc5e440aea0cbbe212",
+      "contrast": "returned move closure owns its captured environment"
+    },
+    {
+      "id": "closure-return-0",
+      "family": "closure-return",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0373"
+      ],
+      "source_sha256": "eff84cc802f3c09ba2ac4e0abb42c687640ccb77ef33cee7686f8892508f082a",
+      "contrast": "returned move closure owns its captured environment"
+    },
+    {
+      "id": "struct-owner-scope-1",
+      "family": "struct-owner-scope",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b3dc762fbae7faad982e1f5cf57d4cd54cadce07fb3915280aaa3a1f40dd5432",
+      "contrast": "a borrowed struct cannot escape its referent scope"
+    },
+    {
+      "id": "struct-owner-scope-0",
+      "family": "struct-owner-scope",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0597"
+      ],
+      "source_sha256": "b3d6c10370f07255d33e113aa9c1da6b52b54842a66a8072c20f61055ec8878f",
+      "contrast": "a borrowed struct cannot escape its referent scope"
+    },
+    {
+      "id": "iterator-return-1",
+      "family": "iterator-return",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b073e4f2be81979d6d4a79e4950faa8b8a19050b3b8a8bc6d761847fc84825b5",
+      "contrast": "returned iterator can own a local collection"
+    },
+    {
+      "id": "iterator-return-0",
+      "family": "iterator-return",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0515"
+      ],
+      "source_sha256": "54a78b897e86d68b81b44045962ab5bd69a8e1f58615a07c5ff5a90580a3dce9",
+      "contrast": "returned iterator can own a local collection"
+    },
+    {
+      "id": "method-elision-1",
+      "family": "method-elision",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8dbeb73b52f84a5b5c31164212d9fbe55d8ff90a444fdc573a445d1f673e900d",
+      "contrast": "explicit lifetime relates return to argument rather than receiver"
+    },
+    {
+      "id": "method-elision-0",
+      "family": "method-elision",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "LIFETIME"
+      ],
+      "source_sha256": "1aa96f03752402c152efa89e1de7ea2b754fe2dc9f758946d5a1420f6d4fe754",
+      "contrast": "explicit lifetime relates return to argument rather than receiver"
+    }
+  ]
+}
