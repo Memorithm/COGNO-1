@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "partition": "test",
+  "edition": "2021",
+  "cases": [
+    {
+      "id": "borrowck-and-init",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-and-init.rs",
+      "license": "MIT",
+      "raw_sha256": "d53a465df9bd38e70ca4d5f720a2b1a6aaa228718a0a4cf2598e9b2c5c1fffa7",
+      "source_sha256": "a1ad72efa8e0a86d57402b1e20d98b073fb2ab9ee472278562b6f7e43b214e98",
+      "expected_label": 0
+    },
+    {
+      "id": "borrowck-binding-mutbl",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-binding-mutbl.rs",
+      "license": "MIT",
+      "raw_sha256": "fba46da33f338e64ae90976cd8d89fa772aaf8e281ccb6ef2a7636c185ee29e4",
+      "source_sha256": "38a51cc3c71d8e31ad1484b034a11c3f9d19a95db6bb830635d7a90ebec947e1",
+      "expected_label": 1
+    },
+    {
+      "id": "borrowck-block-uninit",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-block-uninit.rs",
+      "license": "MIT",
+      "raw_sha256": "2f7aa1ff9b33e0e669afdbe56050fcab706b16dad9a63b51be3adfef8cca500a",
+      "source_sha256": "23878d143e2d445d912a8d73730c44e4b1a6ec9069f47a8e7e201a2bea68aa35",
+      "expected_label": 0
+    },
+    {
+      "id": "borrowck-assign-to-constants",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-assign-to-constants.rs",
+      "license": "MIT",
+      "raw_sha256": "0a20ac2457db7caf5c82925002453235231c67a2c2a5843a31e764f2a8852c08",
+      "source_sha256": "16d048a918a7912a6dcd3ec041565dcf68b67571912e6d4a2060f4bcb208d4ee",
+      "expected_label": 0
+    },
+    {
+      "id": "borrowck-assignment-to-static-mut",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-assignment-to-static-mut.rs",
+      "license": "MIT",
+      "raw_sha256": "749a58cfa8e789db437cf3100f08d9e29e9030054719b9bb3c7b8b15bc526133",
+      "source_sha256": "cb236d0691bc22707eba21acdf7e19d31a682b36d1b5158dc67c66e1d2addc72",
+      "expected_label": 1
+    },
+    {
+      "id": "assign-never-type",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/assign-never-type.rs",
+      "license": "MIT",
+      "raw_sha256": "1722edeb7f79fea513a59775a1e82f26adbd6441048c5a5567f4261cb96f0532",
+      "source_sha256": "89ca7e842215f07cb1bccefb6740ce7b6dec8cfe557348cda4f9150442dbd20d",
+      "expected_label": 1
+    },
+    {
+      "id": "borrow-immutable-deref-box",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrow-immutable-deref-box.rs",
+      "license": "MIT",
+      "raw_sha256": "19a064f1251666f4e5fdd4e984d569ed0a5083a7db9b3000b19c88a5c99d6162",
+      "source_sha256": "844646cce272c80c7a4eef91b9f87b478d7078b9674411286272d9650fa2aa3f",
+      "expected_label": 0
+    },
+    {
+      "id": "borrowck-borrow-from-temporary",
+      "project": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "path": "tests/ui/borrowck/borrowck-borrow-from-temporary.rs",
+      "license": "MIT",
+      "raw_sha256": "e8a28e685ebb642e9ed13a17e7557975505662e0bb336f856fc2c4fb76367d3c",
+      "source_sha256": "5ab5a35e9a927418017e0856895f4f831d0aeb43cda880724c082ca83889d791",
+      "expected_label": 0
+    }
+  ]
+}
