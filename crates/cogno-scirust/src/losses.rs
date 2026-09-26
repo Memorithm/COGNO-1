@@ -35,6 +35,7 @@ impl PairwiseLoss {
     /// Construct with a margin, a max number of pairs (§15 bounded), and a
     /// per-tensor element cap.
     pub fn try_new(margin: f32, max_pairs: usize, max_elements: usize) -> SciRustResult<Self> {
+        validate_margin(margin)?;
         if max_pairs == 0 || max_elements == 0 {
             return Err(crate::error::SciRustError::Empty);
         }
@@ -56,6 +57,7 @@ impl PairwiseLoss {
         preferred: Var,
         dispreferred: Var,
     ) -> SciRustResult<Var> {
+        validate_margin(self.margin)?;
         let preferred_len = tape.value_of(preferred).len();
         let dispreferred_len = tape.value_of(dispreferred).len();
         if preferred_len != dispreferred_len {
@@ -96,6 +98,7 @@ impl PairwiseLoss {
         preferred: Tensor,
         dispreferred: Tensor,
     ) -> SciRustResult<Var> {
+        validate_margin(self.margin)?;
         if preferred.data.len() != dispreferred.data.len() {
             return Err(crate::error::SciRustError::Shape {
                 lhs: preferred.shape.as_slice().to_vec(),
@@ -241,9 +244,7 @@ impl InfoNCE {
         max_candidates: usize,
         max_elements: usize,
     ) -> SciRustResult<Self> {
-        if temperature <= 0.0 || !temperature.is_finite() {
-            return Err(crate::error::SciRustError::NonFinite);
-        }
+        validate_temperature(temperature)?;
         if max_candidates < 2 || max_elements == 0 {
             return Err(crate::error::SciRustError::Empty);
         }
@@ -266,6 +267,7 @@ impl InfoNCE {
         similarities: Var,
         positive_idx: usize,
     ) -> SciRustResult<Var> {
+        validate_temperature(self.temperature)?;
         let n = tape.value_of(similarities).len();
         if n < 2 {
             return Err(crate::error::SciRustError::Empty);
@@ -310,6 +312,24 @@ impl InfoNCE {
         similarities: &[Var],
         positive_idx: usize,
     ) -> SciRustResult<Var> {
+        validate_temperature(self.temperature)?;
+        let n = similarities.len();
+        if n < 2 {
+            return Err(crate::error::SciRustError::Empty);
+        }
+        let maximum = self.max_candidates.min(self.max_elements);
+        if n > maximum {
+            return Err(crate::error::SciRustError::CapacityExceeded {
+                requested: n,
+                maximum,
+            });
+        }
+        if positive_idx >= n {
+            return Err(crate::error::SciRustError::Index {
+                idx: positive_idx,
+                len: n,
+            });
+        }
         let similarities = tape.stack_scalars(similarities)?;
         self.loss_similarities(tape, similarities, positive_idx)
     }
@@ -326,6 +346,7 @@ impl InfoNCE {
         keys: Tensor,
         positive_idx: usize,
     ) -> SciRustResult<Var> {
+        validate_temperature(self.temperature)?;
         let ks = keys.shape.as_slice();
         if ks.len() != 2 {
             return Err(crate::error::SciRustError::Shape {
@@ -366,6 +387,22 @@ impl InfoNCE {
         let sim_var = tape.variable(sim_tensor)?;
         self.loss_similarities(tape, sim_var, positive_idx)
     }
+}
+
+// A finite positive temperature can still have an infinite f32 reciprocal.
+// Reject it before constructing a graph containing infinite scaled logits.
+fn validate_temperature(temperature: f32) -> SciRustResult<()> {
+    if temperature <= 0.0 || !temperature.is_finite() || !temperature.recip().is_finite() {
+        return Err(crate::error::SciRustError::NonFinite);
+    }
+    Ok(())
+}
+
+fn validate_margin(margin: f32) -> SciRustResult<()> {
+    if !margin.is_finite() || margin < 0.0 {
+        return Err(crate::error::SciRustError::NonFinite);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
