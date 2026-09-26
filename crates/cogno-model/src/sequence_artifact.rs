@@ -459,6 +459,45 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
 
+/// Errors while ingesting a bounded artifact stream. No partial model is returned.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SequenceNeuralArtifactReadError {
+    Artifact(SequenceNeuralArtifactError),
+    Io(std::io::ErrorKind),
+    AllocationFailed,
+}
+
+/// Read at most the manifest length plus one byte, then use the canonical decoder.
+///
+/// The extra byte detects trailing data. Invalid manifest limits are rejected
+/// before reading or reserving a buffer. The caller controls I/O timeouts.
+pub fn read_sequence_neural_artifact<R: std::io::Read>(
+    manifest: &ModelManifest,
+    reader: R,
+) -> Result<SequenceClassifier, SequenceNeuralArtifactReadError> {
+    validate_manifest(manifest).map_err(SequenceNeuralArtifactReadError::Artifact)?;
+    manifest
+        .validate(manifest.expected_file_bytes)
+        .map_err(|error| SequenceNeuralArtifactReadError::Artifact(error.into()))?;
+    let limit = manifest.expected_file_bytes.checked_add(1).ok_or(
+        SequenceNeuralArtifactReadError::Artifact(
+            SequenceNeuralArtifactError::ArtifactSizeOverflow,
+        ),
+    )?;
+    let capacity = usize::try_from(limit).map_err(|_| {
+        SequenceNeuralArtifactReadError::Artifact(SequenceNeuralArtifactError::ArtifactSizeOverflow)
+    })?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| SequenceNeuralArtifactReadError::AllocationFailed)?;
+    let mut bounded = reader.take(limit);
+    std::io::Read::read_to_end(&mut bounded, &mut bytes)
+        .map_err(|error| SequenceNeuralArtifactReadError::Io(error.kind()))?;
+    load_sequence_neural_artifact(manifest, &bytes)
+        .map_err(SequenceNeuralArtifactReadError::Artifact)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -540,6 +579,49 @@ mod tests {
         assert!(matches!(
             load_sequence_neural_artifact(&artifact.manifest, &artifact.bytes),
             Err(SequenceNeuralArtifactError::InvalidParameterCount)
+        ));
+    }
+    #[test]
+    fn bounded_reader_preserves_canonical_decode_and_limits_consumption() {
+        let artifact = encode_sequence_neural_artifact(&model()).unwrap();
+        let loaded =
+            read_sequence_neural_artifact(&artifact.manifest, artifact.bytes.as_slice()).unwrap();
+        assert_eq!(
+            loaded.parameter_count() as u64,
+            artifact.manifest.parameter_count
+        );
+        let mut extended = artifact.bytes.clone();
+        extended.extend_from_slice(&[0; 64]);
+        let mut cursor = std::io::Cursor::new(extended);
+        assert!(read_sequence_neural_artifact(&artifact.manifest, &mut cursor).is_err());
+        assert_eq!(cursor.position(), artifact.bytes.len() as u64 + 1);
+        assert!(read_sequence_neural_artifact(
+            &artifact.manifest,
+            &artifact.bytes[..artifact.bytes.len() - 1]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn bounded_reader_rejects_manifest_before_io_and_preserves_io_error() {
+        struct Broken;
+        impl std::io::Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::PermissionDenied.into())
+            }
+        }
+        let artifact = encode_sequence_neural_artifact(&model()).unwrap();
+        assert!(matches!(
+            read_sequence_neural_artifact(&artifact.manifest, Broken),
+            Err(SequenceNeuralArtifactReadError::Io(
+                std::io::ErrorKind::PermissionDenied
+            ))
+        ));
+        let mut invalid = artifact.manifest;
+        invalid.expected_file_bytes = u64::MAX;
+        assert!(matches!(
+            read_sequence_neural_artifact(&invalid, Broken),
+            Err(SequenceNeuralArtifactReadError::Artifact(_))
         ));
     }
 }
