@@ -203,6 +203,149 @@ impl SequenceCognitiveGradients {
 }
 
 impl SequenceCognitiveHeads {
+    /// Classification-only NLL and connected shared-encoder gradients.
+    ///
+    /// Uses one encoder graph and requires no dummy observations for other
+    /// tasks. Inactive head gradients are exactly zero. This opt-in path does
+    /// not change the semantics or reports of the joint objective.
+    pub fn classification_loss_and_gradients(
+        &self,
+        observation: CognitiveClassification<'_>,
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        if observation.target_class >= self.config().num_classes {
+            return Err(SciRustError::Index {
+                idx: observation.target_class,
+                len: self.config().num_classes,
+            });
+        }
+        let hidden = self.config().encoder.hidden_dim;
+        let classes = self.config().num_classes;
+        let max_elements = self
+            .encoder()
+            .required_max_elements(observation.token_ids.len())?
+            .max(hidden.checked_mul(classes).ok_or(SciRustError::Overflow)?)
+            .max(classes);
+        let mut tape = Tape::new(SEQUENCE_ENCODER_TAPE_NODES + 16, max_elements);
+        let weights = tape.variable(Tensor::try_new(
+            Shape::try_new(&[hidden, classes])?,
+            self.classification_weights().to_vec(),
+            max_elements,
+        )?)?;
+        let bias = tape.variable(Tensor::try_new(
+            Shape::try_new(&[1, classes])?,
+            self.classification_bias().to_vec(),
+            max_elements,
+        )?)?;
+        let graph = self
+            .encoder()
+            .append_to_tape(&mut tape, observation.token_ids)?;
+        let logits = tape.matmul(graph.pooled(), weights)?;
+        let logits = tape.add(logits, bias)?;
+        let loss = nll_loss(
+            &mut tape,
+            logits,
+            observation.target_class,
+            classes,
+            max_elements,
+        )?;
+        tape.backward(loss)?;
+        let encoder = self.encoder().gradients_from_tape(&tape, graph);
+        let mut gradients = SequenceCognitiveGradients::zeros(self);
+        gradients
+            .token_embeddings
+            .copy_from_slice(encoder.token_embeddings());
+        gradients
+            .position_embeddings
+            .copy_from_slice(encoder.position_embeddings());
+        gradients
+            .mixing_weights
+            .copy_from_slice(encoder.mixing_weights());
+        gradients.classification_weights = tape.grad_of(weights).to_vec();
+        gradients.classification_bias = tape.grad_of(bias).to_vec();
+        gradients.validate_finite()?;
+        Ok((scalar_value(&tape, loss)?, gradients))
+    }
+
+    /// Update only the encoder and classification head. Inactive head parameters
+    /// and optimizer moments/counters are preserved, including weight decay.
+    /// Consequently this is not full-model parity with a zero-weight joint step,
+    /// which still applies optimizer updates to every head.
+    pub fn train_classification_step(
+        &mut self,
+        optimizer: &mut SequenceCognitiveAdamW,
+        observation: CognitiveClassification<'_>,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.classification_loss_and_gradients(observation)?;
+        for (state, length) in [
+            (
+                &optimizer.token_embeddings.state,
+                self.encoder().token_embeddings().len(),
+            ),
+            (
+                &optimizer.position_embeddings.state,
+                self.encoder().position_embeddings().len(),
+            ),
+            (
+                &optimizer.mixing_weights.state,
+                self.encoder().mixing_weights().len(),
+            ),
+            (
+                &optimizer.classification_weights.state,
+                self.classification_weights().len(),
+            ),
+            (
+                &optimizer.classification_bias.state,
+                self.classification_bias().len(),
+            ),
+        ] {
+            for actual in [state.m.len(), state.v.len(), state.v_hat.len()] {
+                if actual != length {
+                    return Err(SciRustError::Shape {
+                        lhs: vec![actual],
+                        rhs: vec![length],
+                    });
+                }
+            }
+        }
+        let mut next_optimizer = optimizer.clone();
+        let mut token = self.encoder().token_embeddings().to_vec();
+        let mut position = self.encoder().position_embeddings().to_vec();
+        let mut mixing = self.encoder().mixing_weights().to_vec();
+        let mut weights = self.classification_weights().to_vec();
+        let mut bias = self.classification_bias().to_vec();
+        next_optimizer
+            .token_embeddings
+            .step(&mut token, &gradients.token_embeddings)?;
+        next_optimizer
+            .position_embeddings
+            .step(&mut position, &gradients.position_embeddings)?;
+        next_optimizer
+            .mixing_weights
+            .step(&mut mixing, &gradients.mixing_weights)?;
+        next_optimizer
+            .classification_weights
+            .step(&mut weights, &gradients.classification_weights)?;
+        next_optimizer
+            .classification_bias
+            .step(&mut bias, &gradients.classification_bias)?;
+        let encoder = SequenceEncoder::from_parts(self.config().encoder, token, position, mixing)?;
+        let next = Self::from_parts(
+            self.config(),
+            encoder,
+            weights,
+            bias,
+            self.preference_weights().to_vec(),
+            self.preference_bias().to_vec(),
+            self.symbolic_weights().to_vec(),
+            self.symbolic_bias().to_vec(),
+            self.contradiction_weights().to_vec(),
+            self.contradiction_bias().to_vec(),
+        )?;
+        *self = next;
+        *optimizer = next_optimizer;
+        Ok(loss)
+    }
+
     /// Compute all five connected losses and their exact shared gradients with
     /// one reverse-mode sweep.
     pub fn joint_loss_and_gradients(
@@ -710,6 +853,38 @@ fn add_assign_checked(target: &mut [f32], source: &[f32]) -> SciRustResult<()> {
 mod tests {
     use super::*;
     use crate::{SequenceCognitiveConfig, SequenceEncoderConfig};
+
+    #[test]
+    fn classification_step_preserves_inactive_optimizer_state() {
+        let mut model = model();
+        let mut optimizer = SequenceCognitiveAdamW::try_new(0.003, &model).unwrap();
+        // Seed nonzero inactive moments/counters to cover switching objectives.
+        optimizer.preference_weights.state.m[0] = 0.2;
+        optimizer.symbolic_bias.state.step = 7;
+        optimizer.contradiction_weights.state.v[0] = 0.3;
+        let snapshot = |opt: &SequenceCognitiveAdamW| {
+            format!(
+                "{:?}{:?}{:?}{:?}{:?}{:?}",
+                opt.preference_weights,
+                opt.preference_bias,
+                opt.symbolic_weights,
+                opt.symbolic_bias,
+                opt.contradiction_weights,
+                opt.contradiction_bias
+            )
+        };
+        let before = snapshot(&optimizer);
+        model
+            .train_classification_step(
+                &mut optimizer,
+                CognitiveClassification {
+                    token_ids: &[1, 2],
+                    target_class: 0,
+                },
+            )
+            .unwrap();
+        assert_eq!(snapshot(&optimizer), before);
+    }
 
     fn model() -> SequenceCognitiveHeads {
         SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
