@@ -493,6 +493,21 @@ impl SequenceEncoderAdamW {
         model: &mut SequenceEncoder,
         gradients: &SequenceEncoderGradients,
     ) -> SciRustResult<()> {
+        // Numerical optimizers are atomic per tensor. Stage the enclosing model
+        // and all moments as well, so late tensor errors cannot partially train it.
+        let mut next_optimizer = self.clone();
+        let mut next_model = model.clone();
+        next_optimizer.step_candidate(&mut next_model, gradients)?;
+        *model = next_model;
+        *self = next_optimizer;
+        Ok(())
+    }
+
+    fn step_candidate(
+        &mut self,
+        model: &mut SequenceEncoder,
+        gradients: &SequenceEncoderGradients,
+    ) -> SciRustResult<()> {
         self.token_embeddings
             .step(&mut model.token_embeddings, &gradients.token_embeddings)?;
         self.position_embeddings.step(
@@ -605,6 +620,59 @@ fn validate_finite(values: &[f32]) -> SciRustResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn late_tensor_failure_is_atomic_and_retry_matches_clean_step() {
+        let mut model = SequenceEncoder::try_new(SequenceEncoderConfig {
+            vocab_size: 4,
+            max_tokens: 4,
+            embedding_dim: 2,
+            hidden_dim: 2,
+            seed: 1,
+        })
+        .unwrap();
+        let mut optimizer = SequenceEncoderAdamW::try_new(0.01, &model).unwrap();
+        let (_, good) = model
+            .loss_and_gradients_squared(&[1, 2], &[0.1, 0.2])
+            .unwrap();
+        let mut bad = good.clone();
+        bad.mixing_weights[0] = f32::NAN;
+        let before_model = model.clone();
+        let before_optimizer = format!("{optimizer:?}");
+        assert!(optimizer.step(&mut model, &bad).is_err());
+        assert_eq!(model, before_model);
+        assert_eq!(format!("{optimizer:?}"), before_optimizer);
+        let mut clean_model = model.clone();
+        let mut clean_optimizer = optimizer.clone();
+        optimizer.step(&mut model, &good).unwrap();
+        clean_optimizer.step(&mut clean_model, &good).unwrap();
+        assert_eq!(model, clean_model);
+        assert_eq!(format!("{optimizer:?}"), format!("{clean_optimizer:?}"));
+    }
+
+    #[test]
+    fn late_counter_overflow_preserves_all_tensors_and_moments() {
+        let mut model = SequenceEncoder::try_new(SequenceEncoderConfig {
+            vocab_size: 4,
+            max_tokens: 4,
+            embedding_dim: 2,
+            hidden_dim: 2,
+            seed: 1,
+        })
+        .unwrap();
+        let mut optimizer = SequenceEncoderAdamW::try_new(0.01, &model).unwrap();
+        let (_, gradients) = model
+            .loss_and_gradients_squared(&[1, 2], &[0.1, 0.2])
+            .unwrap();
+        optimizer.mixing_weights.state.step = u64::MAX;
+        let before_model = model.clone();
+        let before_optimizer = format!("{optimizer:?}");
+        assert_eq!(
+            optimizer.step(&mut model, &gradients),
+            Err(SciRustError::Overflow)
+        );
+        assert_eq!(model, before_model);
+        assert_eq!(format!("{optimizer:?}"), before_optimizer);
+    }
 
     #[test]
     fn deterministic_initialization_is_repeatable() {
