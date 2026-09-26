@@ -21,6 +21,21 @@ impl From<SciRustError> for BpeCognitiveError {
     }
 }
 
+/// Maximum examples in one synchronous classification request.
+pub const MAX_BPE_CLASSIFICATION_BATCH: usize = 64;
+/// Aggregate raw-byte bound, in addition to each tokenizer input bound.
+pub const MAX_BPE_CLASSIFICATION_BATCH_BYTES: usize = 262_144;
+
+/// A batch never returns partial predictions. An example error identifies its row.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BpeBatchError {
+    Capacity,
+    Example {
+        index: usize,
+        source: BpeCognitiveError,
+    },
+}
+
 /// Owns an immutable tokenizer and its matching numerical heads.
 /// Outputs are research signals, not policy, expertise or permission to act.
 #[derive(Clone, Debug, PartialEq)]
@@ -67,6 +82,46 @@ impl BpeCognitiveModel {
             .heads
             .classification_probabilities(&self.tokenizer.encode(bytes)?)?)
     }
+    /// Classify a bounded batch in input order, with exact scalar semantics.
+    /// Every input is admitted before any inference starts. No partial output is
+    /// exposed if an input or numerical computation fails. An empty batch is valid.
+    pub fn classify_batch(&self, inputs: &[&[u8]]) -> Result<Vec<Vec<f32>>, BpeBatchError> {
+        if inputs.len() > MAX_BPE_CLASSIFICATION_BATCH {
+            return Err(BpeBatchError::Capacity);
+        }
+        let total = inputs
+            .iter()
+            .try_fold(0usize, |total, input| total.checked_add(input.len()))
+            .ok_or(BpeBatchError::Capacity)?;
+        if total > MAX_BPE_CLASSIFICATION_BATCH_BYTES {
+            return Err(BpeBatchError::Capacity);
+        }
+        let encoded: Vec<_> = inputs
+            .iter()
+            .enumerate()
+            .map(|(index, bytes)| {
+                self.tokenizer
+                    .encode(bytes)
+                    .map_err(|source| BpeBatchError::Example {
+                        index,
+                        source: source.into(),
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        encoded
+            .iter()
+            .enumerate()
+            .map(|(index, tokens)| {
+                self.heads
+                    .classification_probabilities(tokens)
+                    .map_err(|source| BpeBatchError::Example {
+                        index,
+                        source: source.into(),
+                    })
+            })
+            .collect()
+    }
+
     pub fn preference(&self, bytes: &[u8]) -> Result<f32, BpeCognitiveError> {
         Ok(self
             .heads
@@ -125,6 +180,51 @@ pub(crate) mod tests {
         let hash = t.fingerprint();
         BpeCognitiveModel::from_heads(t, h, hash, 4).unwrap()
     }
+    #[test]
+    fn batch_matches_scalar_in_order_and_keeps_model_immutable() {
+        let model = fixture();
+        let before = model.clone();
+        let inputs: [&[u8]; 5] = [b"ab", b"", b"abab", b"\xff\0", b"ab"];
+        let expected: Vec<_> = inputs.iter().map(|s| model.classify(s).unwrap()).collect();
+        assert_eq!(model.classify_batch(&inputs).unwrap(), expected);
+        assert_eq!(model.classify_batch(&[]).unwrap(), Vec::<Vec<f32>>::new());
+        assert_eq!(
+            model
+                .classify_batch(&[b"a".as_slice(); MAX_BPE_CLASSIFICATION_BATCH])
+                .unwrap()
+                .len(),
+            MAX_BPE_CLASSIFICATION_BATCH
+        );
+        assert_eq!(model, before);
+    }
+
+    #[test]
+    fn batch_refuses_limits_and_reports_late_invalid_row() {
+        let model = fixture();
+        let before = model.clone();
+        assert_eq!(
+            model.classify_batch(&[b"a".as_slice(); MAX_BPE_CLASSIFICATION_BATCH + 1]),
+            Err(BpeBatchError::Capacity)
+        );
+        let big = vec![0; 16_384];
+        assert_eq!(
+            model.classify_batch(&[big.as_slice(); 17]),
+            Err(BpeBatchError::Capacity)
+        );
+        assert_eq!(
+            model.classify_batch(&[b"ab", &[0; 33]]),
+            Err(BpeBatchError::Example {
+                index: 1,
+                source: BpeCognitiveError::Tokenizer(BpeError::Capacity),
+            })
+        );
+        assert_eq!(model, before);
+        assert_eq!(
+            model.classify_batch(&[b"ab"]).unwrap(),
+            vec![model.classify(b"ab").unwrap()]
+        );
+    }
+
     #[test]
     fn binding_rejects_same_size_different_vocabulary_and_context() {
         let m = fixture();
