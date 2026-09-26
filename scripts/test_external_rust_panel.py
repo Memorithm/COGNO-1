@@ -2,11 +2,18 @@ import hashlib
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+import prepare_external_rust as external
 
 PANEL = Path(__file__).resolve().parents[1] / 'experiments/external-rust-panel'
 
 
 class PanelTests(unittest.TestCase):
+    def test_compiler_inputs_must_match_reviewed_inventory(self):
+        self.assertEqual(len(external.checked_panel()['cases']), 8)
+        with patch.object(external, 'PANEL_HASH', '0'*64):
+            with self.assertRaises(ValueError):
+                external.checked_panel()
     def test_pinned_sources_and_reviewed_transformation(self):
         panel = json.loads((PANEL / 'panel.json').read_text())
         self.assertEqual(panel['partition'], 'test')

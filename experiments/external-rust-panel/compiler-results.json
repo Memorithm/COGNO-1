@@ -1,0 +1,57 @@
+{
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "panel_sha256": "0a20b5c8fe9eb8e383901dd7d7cf7393d66926a195cc48f38e46193396e2cf81",
+  "program_execution": false,
+  "results": [
+    {
+      "case": "borrowck-and-init",
+      "label": 0,
+      "diagnostics": [
+        "E0381"
+      ]
+    },
+    {
+      "case": "borrowck-binding-mutbl",
+      "label": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "borrowck-block-uninit",
+      "label": 0,
+      "diagnostics": [
+        "E0381"
+      ]
+    },
+    {
+      "case": "borrowck-assign-to-constants",
+      "label": 0,
+      "diagnostics": [
+        "E0594"
+      ]
+    },
+    {
+      "case": "borrowck-assignment-to-static-mut",
+      "label": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "assign-never-type",
+      "label": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "borrow-immutable-deref-box",
+      "label": 0,
+      "diagnostics": [
+        "E0596"
+      ]
+    },
+    {
+      "case": "borrowck-borrow-from-temporary",
+      "label": 0,
+      "diagnostics": [
+        "E0515"
+      ]
+    }
+  ]
+}
