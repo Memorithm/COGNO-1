@@ -82,6 +82,7 @@ pub mod mlp;
 pub mod mlp_artifact;
 pub mod neural;
 pub mod readonly;
+pub mod rust_corpus;
 pub mod sequence_artifact;
 pub mod sequence_cognitive;
 mod sequence_cognitive_activation;
