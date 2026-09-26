@@ -22,6 +22,18 @@ compiler. Compile outcome is not runtime correctness. Code is never executed.
 Use edition 2021 and rustc 1.97.1; do not use upstream harness flags implicitly.
 The majority-class baseline is 5/8, or 62.5%.
 
+Compiler validation completed with `rustc 1.97.1 (8bab26f4f 2026-07-14)`:
+all eight original/derived pairs had identical outcomes and error codes, matching
+the three success/five failure expectations. `compiler-results.json` records the
+observations. Test-only CRUST001 digest:
+`c2285c3e478509399da4fe130f8d8c060d5dfba283d4d4eafa510857e540086d`.
+
+Reproduce with `python3 scripts/prepare_external_rust.py NEW_DIRECTORY`.
+The script refuses source bytes or inventory differing from the reviewed pins;
+it only emits compiler metadata, with a 20-second timeout per invocation. This
+is not a general-purpose sandbox for arbitrary Rust submissions. Output must be
+a new directory; failures before admission produce no accepted corpus.
+
 All three COGNO checkpoint identities were frozen in
 `experiments/bpe-rust-pilot/checkpoints.tsv` before this selection. The tokenizer
 and weights must not be fitted or retuned on this panel. Once its results have
