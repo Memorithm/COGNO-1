@@ -50,6 +50,33 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 corpus.admit(encoded(bad), {'MIT'})
 
+    def test_unicode_line_separators_remain_inside_jsonl_records(self):
+        rows = fixture()
+        source = 'fn unicode() { /* \u2028 and \u0085 stay source */ }\n'
+        rows[0]['source'] = source
+        rows[0]['sha256'] = hashlib.sha256(source.encode()).hexdigest()
+        data = ''.join(
+            json.dumps(row, ensure_ascii=False) + '\n' for row in rows
+        ).encode('utf-8')
+        admitted, _ = corpus.admit(data, {'MIT'})
+        self.assertEqual(admitted[0]['source'], source)
+
+    def test_manifest_binds_emitted_provenance_bytes(self):
+        data = encoded(fixture())
+        records, wire = corpus.admit(data, {'MIT'})
+        provenance = corpus.provenance_bytes(records)
+        manifest = corpus.build_manifest(
+            data, wire, provenance, records, {'MIT'}
+        )
+        self.assertEqual(
+            manifest['provenance_sha256'],
+            hashlib.sha256(provenance).hexdigest(),
+        )
+        self.assertNotEqual(
+            manifest['provenance_sha256'],
+            hashlib.sha256(provenance + b' ').hexdigest(),
+        )
+
     def test_duplicate_json_keys_and_bounds(self):
         for data in [b'', b'{}\n', b'{"label":0,"label":1}\n', b'x'*(corpus.LIMIT+1)]:
             with self.assertRaises(ValueError):
