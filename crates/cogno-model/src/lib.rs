@@ -109,6 +109,7 @@ pub mod simulator;
 pub mod tokenizer;
 pub mod training;
 pub mod training_data_policy;
+pub mod training_order;
 pub mod versioned_artifact;
 
 pub use artifact::{
