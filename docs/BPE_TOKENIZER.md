@@ -96,3 +96,9 @@ Retain all seed/split predictions, actual vocabulary/parameter counts and
 tokenizer bytes. Full-language corpus evaluation, fast encoding kernels,
 scalable tokenizer training and an untouched project-separated quality panel
 remain required before promotion.
+
+`scripts/check_bpe_evidence.py` checks exported predictions against the complete
+frozen reference, with absolute probability tolerance 1e-6, and optionally checks
+the three-seed checkpoint inventory. The isolated offline workflow executes this
+regression gate after training/reload. See `experiments/bpe-rust-pilot/README.md`
+for measured checkpoint identities, limitations and reproduction commands.

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -112,8 +113,12 @@ def verify(bundle):
         run(cargo + ['run', '--release', '--frozen', '-p', 'cogno-model', '--example',
                      'rust_expert_pilot', '--', 'experiments/rust-expert-pilot/corpus.tsv',
                      str(temp / 'checkpoints')], work, env=env)
-        run(cargo + ['run', '--release', '--frozen', '-p', 'cogno-model', '--example',
-                     'bpe_rust_probe', '--', str(temp / 'bpe-checkpoints')], work, env=env)
+        predictions = temp / 'bpe-predictions.csv'
+        with predictions.open('w') as output:
+            run(cargo + ['run', '--release', '--frozen', '-p', 'cogno-model', '--example',
+                         'bpe_rust_probe', '--', str(temp / 'bpe-checkpoints')], work, env=env, stdout=output)
+        run([sys.executable, 'scripts/check_bpe_evidence.py', str(predictions),
+             '--checkpoints', str(temp / 'bpe-checkpoints')], work, env=env)
     # Verification never modifies the delivered source or checkpoints.
     verify_inventory(bundle)
 
