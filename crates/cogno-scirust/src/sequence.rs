@@ -1,12 +1,14 @@
 //! Bounded differentiable sequence encoder for the COGNO neural substrate.
 //!
-//! The encoder deliberately uses only the existing safe `Tape` primitives:
+//! Training uses the existing safe `Tape` primitives:
 //! bounded one-hot token/position matrices select trainable embeddings through
 //! matrix multiplication, token and position embeddings are combined, a
 //! trainable projection plus ReLU creates contextualized token features, and a
 //! fixed averaging row performs differentiable pooling. This gives COGNO an
 //! order-sensitive trainable sequence representation without FFI, unsafe code,
-//! hidden allocation growth or a second autodiff implementation.
+//! hidden allocation growth or a second autodiff implementation. Read-only
+//! inference uses direct embedding lookup and streaming projection/pooling;
+//! the unchanged tape graph remains its numerical reference.
 
 use crate::error::{ensure_finite, SciRustError, SciRustResult};
 use crate::{AdamW, Optimizer, Shape, Tape, Tensor, Var};
@@ -305,10 +307,36 @@ impl SequenceEncoder {
     /// Read the pooled hidden representation without mutating model state.
     pub fn forward(&self, token_ids: &[u16]) -> SciRustResult<Vec<f32>> {
         self.validate_tokens(token_ids)?;
-        let max_elements = self.required_max_elements(token_ids.len())?;
-        let mut tape = Tape::new(SEQUENCE_ENCODER_TAPE_NODES, max_elements);
-        let graph = self.append_to_tape(&mut tape, token_ids)?;
-        Ok(tape.value_of(graph.pooled).as_slice().to_vec())
+        // Preserve the same admission bounds as the training/reference graph.
+        self.required_max_elements(token_ids.len())?;
+        validate_finite(&self.token_embeddings)?;
+        validate_finite(&self.position_embeddings)?;
+        validate_finite(&self.mixing_weights)?;
+        let width = self.config.embedding_dim;
+        let hidden = self.config.hidden_dim;
+        let scale = (token_ids.len() as f32).recip();
+        ensure_finite(scale)?;
+        let mut combined = vec![0.0_f32; width];
+        let mut pooled = vec![0.0_f32; hidden];
+        for (position, &token) in token_ids.iter().enumerate() {
+            for (k, value) in combined.iter_mut().enumerate() {
+                // The zero additions also match the reference selector's
+                // accumulation for signed-zero embedding entries.
+                *value = (0.0 + self.token_embeddings[usize::from(token) * width + k])
+                    + (0.0 + self.position_embeddings[position * width + k]);
+                ensure_finite(*value)?;
+            }
+            for (j, output) in pooled.iter_mut().enumerate() {
+                let mut mixed = 0.0_f32;
+                for (k, value) in combined.iter().enumerate() {
+                    mixed += value * self.mixing_weights[k * hidden + j];
+                }
+                ensure_finite(mixed)?;
+                *output += scale * mixed.max(0.0);
+            }
+        }
+        validate_finite(&pooled)?;
+        Ok(pooled)
     }
 
     /// Mean-squared representation loss and exact encoder gradients.

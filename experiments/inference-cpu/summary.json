@@ -1,0 +1,120 @@
+{
+  "baseline_commit": "14fffd91d4b97438b165ac6ac6d6638728585e39",
+  "compiler": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "profile": "repository release: opt-level=s, lto=false, codegen-units=1",
+  "run_order": [
+    "before",
+    "after",
+    "before-repeat"
+  ],
+  "exact_output_parity": true,
+  "measurements": [
+    {
+      "seed": 1,
+      "tokens": 16,
+      "median_us": {
+        "before": 163.022,
+        "after": 27.0375,
+        "before-repeat": 173.623
+      },
+      "speedup": 6.029477577438742
+    },
+    {
+      "seed": 1,
+      "tokens": 64,
+      "median_us": {
+        "before": 646.9775,
+        "after": 70.948,
+        "before-repeat": 692.242
+      },
+      "speedup": 9.119037886903085
+    },
+    {
+      "seed": 1,
+      "tokens": 128,
+      "median_us": {
+        "before": 1308.741,
+        "after": 146.5725,
+        "before-repeat": 1375.752
+      },
+      "speedup": 8.928966893516861
+    },
+    {
+      "seed": 7,
+      "tokens": 16,
+      "median_us": {
+        "before": 173.6685,
+        "after": 23.37,
+        "before-repeat": 173.504
+      },
+      "speedup": 7.424219084296105
+    },
+    {
+      "seed": 7,
+      "tokens": 64,
+      "median_us": {
+        "before": 691.331,
+        "after": 100.126,
+        "before-repeat": 692.1355
+      },
+      "speedup": 6.904610191159139
+    },
+    {
+      "seed": 7,
+      "tokens": 128,
+      "median_us": {
+        "before": 1379.141,
+        "after": 196.5455,
+        "before-repeat": 1337.5525
+      },
+      "speedup": 6.805307168060322
+    },
+    {
+      "seed": 42,
+      "tokens": 16,
+      "median_us": {
+        "before": 173.9075,
+        "after": 29.3605,
+        "before-repeat": 161.4965
+      },
+      "speedup": 5.500468316275268
+    },
+    {
+      "seed": 42,
+      "tokens": 64,
+      "median_us": {
+        "before": 677.688,
+        "after": 99.386,
+        "before-repeat": 675.9055
+      },
+      "speedup": 6.800811985591532
+    },
+    {
+      "seed": 42,
+      "tokens": 128,
+      "median_us": {
+        "before": 1468.834,
+        "after": 195.0085,
+        "before-repeat": 1318.1745
+      },
+      "speedup": 6.7595745826463975
+    }
+  ],
+  "sha256": {
+    "experiments/inference-cpu/before-repeat.csv": "a64becd7318edb42c69bbb60d37f10629852d72723755d0141f3401b9671e206",
+    "experiments/inference-cpu/before.csv": "e2642136c5e172b46be40fb147334d669b26fcf231d3d0785a989a8279e8878d",
+    "experiments/inference-cpu/after.csv": "326e2a260d0cc3606a1724e944e7390234ceffd3771ec7d8212b96bdd0503fdb",
+    "crates/cogno-scirust/src/sequence.rs": "3f40f8955296223c61088695151be169fe88fe4e9dd20f98539644712d642396",
+    "crates/cogno-scirust/examples/inference_probe.rs": "a0c5c90c1449b15f967f2f994edad0f2da130ba0d51703288eb57c581f6bfea3"
+  },
+  "binary_sha256": {
+    "before": "45ebad703344bd5e39bc5110f8ebd19d786f519c50a229eb5809d0007f24dc7b",
+    "after": "c45d38565f3187669b3269617037369326cfc22ab240bc4ba903cb35d810b716"
+  },
+  "probe_source_snapshots": [
+    "baseline-probe.rs.txt",
+    "candidate-probe.rs.txt"
+  ]
+}
