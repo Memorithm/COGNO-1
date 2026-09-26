@@ -255,3 +255,112 @@ fn validate_state(state: &ParamState, param: &[f32], grad: &[f32]) -> SciRustRes
     }
     Ok(())
 }
+
+/// Maximum number of gradient elements inspected by one global clipping call.
+pub const MAX_CLIPPED_GRADIENT_ELEMENTS: usize = 1_048_576;
+
+/// Clip all supplied tensors by a single global L2 norm, returning the norm
+/// before clipping. No optimizer state or parameters are touched.
+///
+/// Uses f64 accumulation and scaling to avoid overflow on finite f32 gradients.
+/// Validates the entire bounded input before mutation; invalid inputs leave every
+/// tensor unchanged. Empty tensors are allowed, but the total must be nonzero.
+pub fn clip_global_gradient_norm(
+    gradients: &mut [&mut [f32]],
+    max_norm: f64,
+) -> SciRustResult<f64> {
+    if !max_norm.is_finite() || max_norm <= 0.0 {
+        return Err(SciRustError::NonFinite);
+    }
+    let mut count = 0usize;
+    let mut squared = 0.0f64;
+    for tensor in gradients.iter() {
+        count = count
+            .checked_add(tensor.len())
+            .ok_or(SciRustError::Overflow)?;
+        if count > MAX_CLIPPED_GRADIENT_ELEMENTS {
+            return Err(SciRustError::CapacityExceeded {
+                requested: count,
+                maximum: MAX_CLIPPED_GRADIENT_ELEMENTS,
+            });
+        }
+        for &value in tensor.iter() {
+            if !value.is_finite() {
+                return Err(SciRustError::NonFinite);
+            }
+            squared += f64::from(value) * f64::from(value);
+        }
+    }
+    if count == 0 {
+        return Err(SciRustError::Empty);
+    }
+    let norm = squared.sqrt();
+    if norm > max_norm {
+        let scale = max_norm / norm;
+        for tensor in gradients.iter_mut() {
+            for value in tensor.iter_mut() {
+                *value = (f64::from(*value) * scale) as f32;
+            }
+        }
+    }
+    Ok(norm)
+}
+
+#[cfg(test)]
+mod clipping_tests {
+    use super::*;
+
+    #[test]
+    fn clips_across_tensor_boundaries_with_one_scale() {
+        let mut left = [3.0];
+        let mut right = [4.0, 0.0];
+        assert_eq!(
+            clip_global_gradient_norm(&mut [&mut left, &mut right], 2.5).unwrap(),
+            5.0
+        );
+        assert_eq!(left, [1.5]);
+        assert_eq!(right, [2.0, 0.0]);
+        assert_eq!(
+            clip_global_gradient_norm(&mut [&mut left, &mut right], 3.0).unwrap(),
+            2.5
+        );
+        assert_eq!(left, [1.5]);
+    }
+
+    #[test]
+    fn rejects_late_corruption_without_partial_mutation() {
+        let mut left = [3.0, 4.0];
+        let mut right = [f32::INFINITY];
+        assert_eq!(
+            clip_global_gradient_norm(&mut [&mut left, &mut right], 1.0),
+            Err(SciRustError::NonFinite)
+        );
+        assert_eq!(left, [3.0, 4.0]);
+        assert_eq!(right, [f32::INFINITY]);
+        assert!(clip_global_gradient_norm(&mut [&mut left], 0.0).is_err());
+        assert_eq!(left, [3.0, 4.0]);
+        assert_eq!(
+            clip_global_gradient_norm(&mut [], 1.0),
+            Err(SciRustError::Empty)
+        );
+        let mut large = vec![0.0; MAX_CLIPPED_GRADIENT_ELEMENTS + 1];
+        assert!(matches!(
+            clip_global_gradient_norm(&mut [&mut large], 1.0),
+            Err(SciRustError::CapacityExceeded { .. })
+        ));
+    }
+
+    #[test]
+    fn extreme_finite_and_zero_gradients_are_supported() {
+        let mut extreme = [f32::MAX, -f32::MAX];
+        let norm = clip_global_gradient_norm(&mut [&mut extreme], 1.0).unwrap();
+        assert!(norm > f64::from(f32::MAX));
+        assert!((f64::from(extreme[0]).hypot(f64::from(extreme[1])) - 1.0).abs() < 1e-7);
+        let mut zero = [0.0, -0.0];
+        assert_eq!(
+            clip_global_gradient_norm(&mut [&mut zero], 1.0).unwrap(),
+            0.0
+        );
+        assert_eq!(zero[1].to_bits(), (-0.0f32).to_bits());
+    }
+}
