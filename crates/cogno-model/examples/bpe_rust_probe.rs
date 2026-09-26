@@ -1,9 +1,24 @@
 //! Matched diagnostic byte/BPE probe; no runtime activation or expert claim.
 #![forbid(unsafe_code)]
-use cogno_model::{bpe_tokenizer::BpeTokenizer, ByteTokenizer};
+use cogno_model::{
+    bpe_checkpoint::{checkpoint_hash, encode_checkpoint, load_checkpoint},
+    bpe_cognitive::BpeCognitiveModel,
+    bpe_tokenizer::BpeTokenizer,
+    ByteTokenizer,
+};
 use cogno_scirust::*;
+use std::io::Write;
 
 fn main() -> Result<(), String> {
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    if args.len() > 1 {
+        return Err("usage: bpe_rust_probe [NEW_OUTPUT_DIRECTORY]".into());
+    }
+    let output = args.first().map(std::path::PathBuf::from);
+    if let Some(dir) = &output {
+        std::fs::create_dir(dir).map_err(|e| format!("new output directory: {e}"))?;
+    }
+    let mut inventory = String::from("seed\tfile\tbytes\tsha256\n");
     let corpus = include_str!("../../../experiments/rust-expert-pilot/corpus.tsv");
     let rows: Vec<_> = corpus
         .lines()
@@ -144,8 +159,67 @@ fn main() -> Result<(), String> {
                         .map_err(|e| format!("{e:?}"))?;
                 }
             }
-            emit(&model, "trained")?;
+            if arm == "bpe" {
+                let frozen =
+                    BpeCognitiveModel::from_heads(bpe.clone(), model, bpe.fingerprint(), 2)
+                        .map_err(|e| format!("{e:?}"))?;
+                let bytes = encode_checkpoint(&frozen);
+                let hash = checkpoint_hash(&bytes);
+                let hex = hash.iter().map(|b| format!("{b:02x}")).collect::<String>();
+                let filename = format!("bpe-seed-{seed}.cbpc");
+                let persisted = if let Some(dir) = &output {
+                    let path = dir.join(&filename);
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&path)
+                        .map_err(|e| e.to_string())?;
+                    file.write_all(&bytes).map_err(|e| e.to_string())?;
+                    file.sync_all().map_err(|e| e.to_string())?;
+                    std::fs::read(path).map_err(|e| e.to_string())?
+                } else {
+                    bytes.clone()
+                };
+                let restored = load_checkpoint(&persisted, hash).map_err(|e| format!("{e:?}"))?;
+                if restored != frozen {
+                    return Err("trained checkpoint state mismatch".into());
+                }
+                for r in &rows {
+                    let observe = |m: &BpeCognitiveModel| {
+                        Ok::<_, cogno_model::bpe_cognitive::BpeCognitiveError>((
+                            m.classify(r.3)?,
+                            m.preference(r.3)?,
+                            m.symbolic(r.3)?,
+                            m.contradiction(r.3, b"ab")?,
+                            m.retrieve(r.3, &[b"a", b"b"])?,
+                        ))
+                    };
+                    if observe(&frozen).map_err(|e| format!("{e:?}"))?
+                        != observe(&restored).map_err(|e| format!("{e:?}"))?
+                    {
+                        return Err("trained checkpoint signal mismatch".into());
+                    }
+                }
+                emit(restored.heads(), "trained")?;
+                inventory.push_str(&format!("{seed}\t{filename}\t{}\t{hex}\n", bytes.len()));
+                eprintln!(
+                    "checkpoint seed={seed} bytes={} sha256={hex} all_signals_equal=true",
+                    bytes.len()
+                );
+            } else {
+                emit(&model, "trained")?;
+            }
         }
+    }
+    if let Some(dir) = output {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join("checkpoints.tsv"))
+            .map_err(|e| e.to_string())?;
+        file.write_all(inventory.as_bytes())
+            .map_err(|e| e.to_string())?;
+        file.sync_all().map_err(|e| e.to_string())?;
     }
     Ok(())
 }

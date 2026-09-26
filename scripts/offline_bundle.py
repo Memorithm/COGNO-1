@@ -113,7 +113,7 @@ def verify(bundle):
                      'rust_expert_pilot', '--', 'experiments/rust-expert-pilot/corpus.tsv',
                      str(temp / 'checkpoints')], work, env=env)
         run(cargo + ['run', '--release', '--frozen', '-p', 'cogno-model', '--example',
-                     'bpe_rust_probe'], work, env=env)
+                     'bpe_rust_probe', '--', str(temp / 'bpe-checkpoints')], work, env=env)
     # Verification never modifies the delivered source or checkpoints.
     verify_inventory(bundle)
 

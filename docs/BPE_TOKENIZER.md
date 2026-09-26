@@ -70,6 +70,19 @@ training-resumption checkpoint. All five signal paths are tested after reload.
 cargo +1.97.1 run --release --locked -p cogno-model --example bpe_rust_probe
 ```
 
+An optional new output directory exports each trained BPE seed checkpoint plus
+`checkpoints.tsv` (seed, filename, size and SHA-256). Existing directories are
+refused; failures can leave partial outputs and are never silently cleaned up.
+The probe reloads each checkpoint and requires exact state equality and successful
+equal outputs for all five signals on all 24 rows before reporting predictions.
+Without a directory it performs the same check in memory. The offline CI uses
+the on-disk path. Only classification was trained: the other signals check
+persistence correctness, not their quality. Example:
+
+```sh
+cargo +1.97.1 run --release --locked -p cogno-model --example bpe_rust_probe -- /tmp/new-bpe-checkpoints
+```
+
 The frozen 24-snippet Rust fixture is diagnostic data already examined in the
 earlier pilot, **not a new untouched holdout**. Train BPE on its 16 training
 snippets only, target vocabulary 384, context 128. Byte and BPE arms use seeds
