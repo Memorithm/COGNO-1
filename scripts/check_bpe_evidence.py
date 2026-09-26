@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = ROOT / 'experiments/bpe-rust-pilot/predictions.csv'
+CHECKPOINT_REFERENCE = ROOT / 'experiments/bpe-rust-pilot/checkpoints.tsv'
 FIELDS = 'arm,seed,stage,split,family,target,prediction,p_compile,tokens,parameters'.split(',')
 KEY = ('arm', 'seed', 'stage', 'split', 'family', 'target')
 
@@ -66,28 +67,44 @@ def check_predictions(path):
     return summary
 
 
-def check_checkpoints(directory):
+def checkpoint_rows(path):
+    reader = csv.DictReader(
+        io.StringIO(bounded_read(path, 16384).decode('utf-8')),
+        delimiter='\t',
+    )
+    if reader.fieldnames != ['seed', 'file', 'bytes', 'sha256']:
+        raise ValueError('invalid checkpoint inventory columns')
+    rows = {}
+    for row in reader:
+        seed = row['seed']
+        if seed not in {'1', '7', '42'} or seed in rows:
+            raise ValueError('invalid or duplicate checkpoint seed')
+        if row['file'] != f'bpe-seed-{seed}.cbpc':
+            raise ValueError('unexpected checkpoint filename')
+        if not row['bytes'].isdigit() or int(row['bytes']) > 2_097_152:
+            raise ValueError('invalid checkpoint size')
+        if not re.fullmatch('[0-9a-f]{64}', row['sha256']):
+            raise ValueError('invalid checkpoint digest')
+        rows[seed] = row
+    if rows.keys() != {'1', '7', '42'}:
+        raise ValueError('incomplete checkpoint inventory')
+    return rows
+
+
+def check_checkpoints(directory, reference=CHECKPOINT_REFERENCE):
     directory = Path(directory)
     if directory.is_symlink() or not directory.is_dir():
         raise ValueError('invalid checkpoint directory')
-    reader = csv.DictReader(io.StringIO(bounded_read(directory / 'checkpoints.tsv', 16384).decode()), delimiter='\t')
-    if reader.fieldnames != ['seed', 'file', 'bytes', 'sha256']:
-        raise ValueError('invalid checkpoint inventory columns')
-    seen = set()
-    for row in reader:
-        seed = row['seed']
-        if seed not in {'1', '7', '42'} or seed in seen:
-            raise ValueError('invalid or duplicate checkpoint seed')
-        seen.add(seed)
-        if row['file'] != f'bpe-seed-{seed}.cbpc':
-            raise ValueError('unexpected checkpoint filename')
+    expected = checkpoint_rows(reference)
+    actual = checkpoint_rows(directory / 'checkpoints.tsv')
+    if actual != expected:
+        raise ValueError('checkpoint inventory differs from frozen evidence')
+    for seed, row in actual.items():
         data = bounded_read(directory / row['file'], 2_097_152)
         if int(row['bytes']) != len(data) or data[:8] != b'CBPC0001':
             raise ValueError('checkpoint size/schema mismatch')
-        if not re.fullmatch('[0-9a-f]{64}', row['sha256']) or hashlib.sha256(data).hexdigest() != row['sha256']:
+        if hashlib.sha256(data).hexdigest() != row['sha256']:
             raise ValueError('checkpoint digest mismatch')
-    if seen != {'1', '7', '42'}:
-        raise ValueError('incomplete checkpoint inventory')
 
 
 def main():
