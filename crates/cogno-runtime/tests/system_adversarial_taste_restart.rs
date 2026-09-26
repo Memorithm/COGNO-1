@@ -11,6 +11,7 @@ use cogno_runtime::{
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const RESTART_MANIFEST_DOMAIN: &[u8; 16] = b"COGNO-RST-MAN-V1";
@@ -20,10 +21,42 @@ fn temp_root() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("time")
         .as_nanos();
-    std::env::temp_dir().join(format!(
-        "cogno-system-adversarial-restart-{}-{nonce}",
-        std::process::id()
-    ))
+    reserve_temp_root(nonce)
+}
+
+// Clock readings need not be unique across test threads. Reserve each directory
+// atomically as well, so stale directories or another process cannot be reused.
+fn reserve_temp_root(nonce: u128) -> PathBuf {
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+    for _ in 0..1_024 {
+        let sequence = NEXT_ROOT.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "cogno-system-adversarial-restart-{}-{nonce}-{sequence}",
+            std::process::id()
+        ));
+        match fs::create_dir(&root) {
+            Ok(()) => return root,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => panic!("reserve test directory: {error}"),
+        }
+    }
+    panic!("could not reserve an isolated test directory")
+}
+
+#[test]
+fn equal_clock_readings_still_reserve_distinct_test_directories() {
+    let workers: Vec<_> = (0..32)
+        .map(|_| std::thread::spawn(|| reserve_temp_root(123)))
+        .collect();
+    let roots: std::collections::BTreeSet<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().expect("directory worker"))
+        .collect();
+    assert_eq!(roots.len(), 32);
+    for root in roots {
+        assert!(root.is_dir());
+        fs::remove_dir(root).expect("cleanup reserved directory");
+    }
 }
 
 fn digest_hex(bytes: &[u8]) -> String {
