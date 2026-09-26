@@ -1,0 +1,30 @@
+{
+  "selection": {
+    "arm": "cycle_mix",
+    "validation_nll": 0.6954014193740949
+  },
+  "scores": [
+    {
+      "arm": "full",
+      "validation_nll": 1.054817456422698
+    },
+    {
+      "arm": "byte_mix",
+      "validation_nll": 0.7085677189768949
+    },
+    {
+      "arm": "half_mix",
+      "validation_nll": 0.7210850771990486
+    },
+    {
+      "arm": "cycle_mix",
+      "validation_nll": 0.6954014193740949
+    }
+  ],
+  "seeds": [
+    1,
+    7,
+    42
+  ],
+  "expert_claim": false
+}

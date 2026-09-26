@@ -1,0 +1,430 @@
+{
+  "byte_mix": {
+    "1": {
+      "test": {
+        "confusion": {
+          "fn": 2,
+          "fp": 4,
+          "tn": 4,
+          "tp": 6
+        },
+        "correct": 10,
+        "count": 16,
+        "nll": 0.6912639978805442
+      },
+      "train": {
+        "confusion": {
+          "fn": 5,
+          "fp": 5,
+          "tn": 27,
+          "tp": 27
+        },
+        "correct": 54,
+        "count": 64,
+        "nll": 0.6014651513438738
+      },
+      "validation": {
+        "confusion": {
+          "fn": 2,
+          "fp": 6,
+          "tn": 2,
+          "tp": 6
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.6907483772313788
+      }
+    },
+    "42": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 7,
+          "tn": 1,
+          "tp": 7
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.7052181167695432
+      },
+      "train": {
+        "confusion": {
+          "fn": 5,
+          "fp": 1,
+          "tn": 31,
+          "tp": 27
+        },
+        "correct": 58,
+        "count": 64,
+        "nll": 0.5675279895161469
+      },
+      "validation": {
+        "confusion": {
+          "fn": 4,
+          "fp": 7,
+          "tn": 1,
+          "tp": 4
+        },
+        "correct": 5,
+        "count": 16,
+        "nll": 0.7115596184654883
+      }
+    },
+    "7": {
+      "test": {
+        "confusion": {
+          "fn": 4,
+          "fp": 7,
+          "tn": 1,
+          "tp": 4
+        },
+        "correct": 5,
+        "count": 16,
+        "nll": 0.7028334436154386
+      },
+      "train": {
+        "confusion": {
+          "fn": 6,
+          "fp": 5,
+          "tn": 27,
+          "tp": 26
+        },
+        "correct": 53,
+        "count": 64,
+        "nll": 0.569096208181379
+      },
+      "validation": {
+        "confusion": {
+          "fn": 5,
+          "fp": 3,
+          "tn": 5,
+          "tp": 3
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.7233951612338174
+      }
+    }
+  },
+  "cycle_mix": {
+    "1": {
+      "test": {
+        "confusion": {
+          "fn": 4,
+          "fp": 1,
+          "tn": 7,
+          "tp": 4
+        },
+        "correct": 11,
+        "count": 16,
+        "nll": 0.6904974932749776
+      },
+      "train": {
+        "confusion": {
+          "fn": 11,
+          "fp": 4,
+          "tn": 28,
+          "tp": 21
+        },
+        "correct": 49,
+        "count": 64,
+        "nll": 0.6779827373711037
+      },
+      "validation": {
+        "confusion": {
+          "fn": 6,
+          "fp": 4,
+          "tn": 4,
+          "tp": 2
+        },
+        "correct": 6,
+        "count": 16,
+        "nll": 0.6934929929856409
+      }
+    },
+    "42": {
+      "test": {
+        "confusion": {
+          "fn": 4,
+          "fp": 3,
+          "tn": 5,
+          "tp": 4
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 0.6916232707913018
+      },
+      "train": {
+        "confusion": {
+          "fn": 7,
+          "fp": 4,
+          "tn": 28,
+          "tp": 25
+        },
+        "correct": 53,
+        "count": 64,
+        "nll": 0.6623601913971748
+      },
+      "validation": {
+        "confusion": {
+          "fn": 6,
+          "fp": 3,
+          "tn": 5,
+          "tp": 2
+        },
+        "correct": 7,
+        "count": 16,
+        "nll": 0.6942693905043821
+      }
+    },
+    "7": {
+      "test": {
+        "confusion": {
+          "fn": 4,
+          "fp": 4,
+          "tn": 4,
+          "tp": 4
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.6923250445218087
+      },
+      "train": {
+        "confusion": {
+          "fn": 11,
+          "fp": 3,
+          "tn": 29,
+          "tp": 21
+        },
+        "correct": 50,
+        "count": 64,
+        "nll": 0.651200071093334
+      },
+      "validation": {
+        "confusion": {
+          "fn": 6,
+          "fp": 3,
+          "tn": 5,
+          "tp": 2
+        },
+        "correct": 7,
+        "count": 16,
+        "nll": 0.6984418746322617
+      }
+    }
+  },
+  "full": {
+    "1": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 7,
+          "tn": 1,
+          "tp": 7
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 1.0060479494322414
+      },
+      "train": {
+        "confusion": {
+          "fn": 0,
+          "fp": 2,
+          "tn": 30,
+          "tp": 32
+        },
+        "correct": 62,
+        "count": 64,
+        "nll": 0.17320463576848769
+      },
+      "validation": {
+        "confusion": {
+          "fn": 2,
+          "fp": 5,
+          "tn": 3,
+          "tp": 6
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 1.102653114221297
+      }
+    },
+    "42": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 8,
+          "tn": 0,
+          "tp": 7
+        },
+        "correct": 7,
+        "count": 16,
+        "nll": 1.027747922396097
+      },
+      "train": {
+        "confusion": {
+          "fn": 0,
+          "fp": 1,
+          "tn": 31,
+          "tp": 32
+        },
+        "correct": 63,
+        "count": 64,
+        "nll": 0.17933048744737842
+      },
+      "validation": {
+        "confusion": {
+          "fn": 2,
+          "fp": 6,
+          "tn": 2,
+          "tp": 6
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 1.0746118427611155
+      }
+    },
+    "7": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 6,
+          "tn": 2,
+          "tp": 7
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 0.8619041495719717
+      },
+      "train": {
+        "confusion": {
+          "fn": 0,
+          "fp": 1,
+          "tn": 31,
+          "tp": 32
+        },
+        "correct": 63,
+        "count": 64,
+        "nll": 0.1929692744679853
+      },
+      "validation": {
+        "confusion": {
+          "fn": 2,
+          "fp": 6,
+          "tn": 2,
+          "tp": 6
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.9871874122856813
+      }
+    }
+  },
+  "half_mix": {
+    "1": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 6,
+          "tn": 2,
+          "tp": 7
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 0.6824663117097093
+      },
+      "train": {
+        "confusion": {
+          "fn": 1,
+          "fp": 10,
+          "tn": 22,
+          "tp": 31
+        },
+        "correct": 53,
+        "count": 64,
+        "nll": 0.5687680387240637
+      },
+      "validation": {
+        "confusion": {
+          "fn": 1,
+          "fp": 7,
+          "tn": 1,
+          "tp": 7
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.7209636494638713
+      }
+    },
+    "42": {
+      "test": {
+        "confusion": {
+          "fn": 3,
+          "fp": 4,
+          "tn": 4,
+          "tp": 5
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 0.6974476327836674
+      },
+      "train": {
+        "confusion": {
+          "fn": 7,
+          "fp": 3,
+          "tn": 29,
+          "tp": 25
+        },
+        "correct": 54,
+        "count": 64,
+        "nll": 0.5258917358046034
+      },
+      "validation": {
+        "confusion": {
+          "fn": 7,
+          "fp": 1,
+          "tn": 7,
+          "tp": 1
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.7209366512730458
+      }
+    },
+    "7": {
+      "test": {
+        "confusion": {
+          "fn": 1,
+          "fp": 7,
+          "tn": 1,
+          "tp": 7
+        },
+        "correct": 8,
+        "count": 16,
+        "nll": 0.713575594875616
+      },
+      "train": {
+        "confusion": {
+          "fn": 2,
+          "fp": 9,
+          "tn": 23,
+          "tp": 30
+        },
+        "correct": 53,
+        "count": 64,
+        "nll": 0.5244813414650452
+      },
+      "validation": {
+        "confusion": {
+          "fn": 2,
+          "fp": 5,
+          "tn": 3,
+          "tp": 6
+        },
+        "correct": 9,
+        "count": 16,
+        "nll": 0.7213549308602288
+      }
+    }
+  }
+}

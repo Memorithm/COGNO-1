@@ -25,6 +25,10 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p 'test_select_rust_ablation.py' -v
           python3 -m unittest discover -s scripts -p 'test_rust_ablation.py' -v
+      - name: Curriculum campaign selection and evidence tests
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_curriculum_probe_selection.py' -v
+          python3 -m unittest discover -s scripts -p 'test_curriculum_probe_evidence.py' -v
       - name: Prepare locked source distribution
         run: python3 scripts/offline_bundle.py pack "$RUNNER_TEMP/cogno-offline"
       - name: Build, test and train without network or Cargo cache
