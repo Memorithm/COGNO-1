@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "domain": "macros",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "48c87e0f80d9efdad4c3b67b4335041aaa8ba896bbe0b1c2645bd0e3f9d2055f",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "expression-result-1",
+      "source_sha256": "ccf3354678280d4b3911066d58cf10eaa6be73ce8ff94fbb4a829350117fe311",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "expression-result-0",
+      "source_sha256": "48faa43550f2f2d567042ee1bb6ee30aa07101c81f8c8a99ca41b1a5200d8d4c",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "hygiene-local-1",
+      "source_sha256": "941f53ebfb049c42dc5e15990a7015145f0d2023c8ac25deed47950904605a88",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "hygiene-local-0",
+      "source_sha256": "fc5b4523b733d697e723056b37f91e19612e45f5b7ebc6ed76225bc6fc8b4207",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0425"
+      ]
+    },
+    {
+      "id": "repeated-element-1",
+      "source_sha256": "1ac8fdfa0f6505b91e718f2d54f65c682d1c6b9ae594de837cb401645785ee2d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "repeated-element-0",
+      "source_sha256": "aeadcaf1610b9662c9e496794bba2992c009d6651ef195a47ecd0f377d474cc8",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "generated-return-1",
+      "source_sha256": "ae4671c01e5090e0dc510d14f62a90cf260eb89561cab5df5a396717e85f0eab",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "generated-return-0",
+      "source_sha256": "2157c2a759d723c4e6df98c445738f0accc03af1929eeca0fda0638080c72b1f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "generated-field-1",
+      "source_sha256": "3a381c5de56aef468dadb758e0982a79847297b1b499344b323f826979c6d7c6",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "generated-field-0",
+      "source_sha256": "c67ba58703124c362e47d017d79e705720c585b13590b341c9eef474b837fe19",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0609"
+      ]
+    },
+    {
+      "id": "mutable-expansion-1",
+      "source_sha256": "b215bbf25fc632f6aba5a911243376d16a6ac2be0029e2ac979a3acdcbd5f5ba",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "mutable-expansion-0",
+      "source_sha256": "d004d394af1da38739e6141a800c2d76162cc5eb128528c4207238ce05463f90",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0384"
+      ]
+    },
+    {
+      "id": "macro-move-1",
+      "source_sha256": "b681332b30c47c7c600fd23847b8ba053db846a75e2c7fff579affcdd7c1d1eb",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "macro-move-0",
+      "source_sha256": "8117ccc2a58922f09c4167bbf68b0d84f384d1b8317268194e1ce99267511f9d",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0382"
+      ]
+    },
+    {
+      "id": "macro-bound-1",
+      "source_sha256": "f58a378dd86332e3690ce1a7de0098f9dffbc38c5e4c6d3d05ded24fd355d001",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "macro-bound-0",
+      "source_sha256": "5da957f56ba2c37a535df9a9b9ee9b7e5c48ecb283caad40448c8a55caa0f30a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0599"
+      ]
+    },
+    {
+      "id": "nested-expansion-1",
+      "source_sha256": "8b21d8c628077041954ecbe4427964b537a4249d6bc3ee2e30664e695c68f9e1",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "nested-expansion-0",
+      "source_sha256": "eacd59814c7b31f778998e72a2279dd833b2203845a7727a2422fa332a6cd829",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "macro-method-1",
+      "source_sha256": "0d3cdf6fc71b0b50c00199a3228aef47e6e7e3942593fd964051aef6ddcd5b22",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "macro-method-0",
+      "source_sha256": "2c2c740fceb64c5fe72642c10526a253db7fd0e625eb82a25f684e455ccb4a4e",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0599"
+      ]
+    },
+    {
+      "id": "generated-pattern-1",
+      "source_sha256": "580996c297bdbc20b5a44b3c13a1aaa5abb5497c33909ee90e4c74b3446c2429",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "generated-pattern-0",
+      "source_sha256": "199a12eb9153c8e68f45d69d20a1f32ab743d59dd721c4492fefdddd10cb46df",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0004"
+      ]
+    },
+    {
+      "id": "macro-const-1",
+      "source_sha256": "b769612c96cf0131f47ea9d55d11e49b660c79c7f51173f63815cdad989522a4",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "macro-const-0",
+      "source_sha256": "fc40a681959c2051394e567af281313c50bd9a08ca6d2d65863c89e613fe24ab",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0015"
+      ]
+    }
+  ]
+}

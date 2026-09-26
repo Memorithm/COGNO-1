@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "macros",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "expression-result-1",
+      "family": "expression-result",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "ccf3354678280d4b3911066d58cf10eaa6be73ce8ff94fbb4a829350117fe311",
+      "contrast": "expression macro expansion obeys expected type"
+    },
+    {
+      "id": "expression-result-0",
+      "family": "expression-result",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "48faa43550f2f2d567042ee1bb6ee30aa07101c81f8c8a99ca41b1a5200d8d4c",
+      "contrast": "expression macro expansion obeys expected type"
+    },
+    {
+      "id": "hygiene-local-1",
+      "family": "hygiene-local",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "941f53ebfb049c42dc5e15990a7015145f0d2023c8ac25deed47950904605a88",
+      "contrast": "macro receives call-site local explicitly"
+    },
+    {
+      "id": "hygiene-local-0",
+      "family": "hygiene-local",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0425"
+      ],
+      "source_sha256": "fc5b4523b733d697e723056b37f91e19612e45f5b7ebc6ed76225bc6fc8b4207",
+      "contrast": "macro receives call-site local explicitly"
+    },
+    {
+      "id": "repeated-element-1",
+      "family": "repeated-element",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "1ac8fdfa0f6505b91e718f2d54f65c682d1c6b9ae594de837cb401645785ee2d",
+      "contrast": "repetition still requires homogeneous array element types"
+    },
+    {
+      "id": "repeated-element-0",
+      "family": "repeated-element",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "aeadcaf1610b9662c9e496794bba2992c009d6651ef195a47ecd0f377d474cc8",
+      "contrast": "repetition still requires homogeneous array element types"
+    },
+    {
+      "id": "generated-return-1",
+      "family": "generated-return",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "ae4671c01e5090e0dc510d14f62a90cf260eb89561cab5df5a396717e85f0eab",
+      "contrast": "generated function body must match declared output"
+    },
+    {
+      "id": "generated-return-0",
+      "family": "generated-return",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "2157c2a759d723c4e6df98c445738f0accc03af1929eeca0fda0638080c72b1f",
+      "contrast": "generated function body must match declared output"
+    },
+    {
+      "id": "generated-field-1",
+      "family": "generated-field",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "3a381c5de56aef468dadb758e0982a79847297b1b499344b323f826979c6d7c6",
+      "contrast": "macro-generated field accesses must exist"
+    },
+    {
+      "id": "generated-field-0",
+      "family": "generated-field",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0609"
+      ],
+      "source_sha256": "c67ba58703124c362e47d017d79e705720c585b13590b341c9eef474b837fe19",
+      "contrast": "macro-generated field accesses must exist"
+    },
+    {
+      "id": "mutable-expansion-1",
+      "family": "mutable-expansion",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b215bbf25fc632f6aba5a911243376d16a6ac2be0029e2ac979a3acdcbd5f5ba",
+      "contrast": "macro assignment respects call-site mutability"
+    },
+    {
+      "id": "mutable-expansion-0",
+      "family": "mutable-expansion",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0384"
+      ],
+      "source_sha256": "d004d394af1da38739e6141a800c2d76162cc5eb128528c4207238ce05463f90",
+      "contrast": "macro assignment respects call-site mutability"
+    },
+    {
+      "id": "macro-move-1",
+      "family": "macro-move",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b681332b30c47c7c600fd23847b8ba053db846a75e2c7fff579affcdd7c1d1eb",
+      "contrast": "duplicated macro operand can move a value twice"
+    },
+    {
+      "id": "macro-move-0",
+      "family": "macro-move",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "8117ccc2a58922f09c4167bbf68b0d84f384d1b8317268194e1ce99267511f9d",
+      "contrast": "duplicated macro operand can move a value twice"
+    },
+    {
+      "id": "macro-bound-1",
+      "family": "macro-bound",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "f58a378dd86332e3690ce1a7de0098f9dffbc38c5e4c6d3d05ded24fd355d001",
+      "contrast": "generated generic implementation requires its trait bound"
+    },
+    {
+      "id": "macro-bound-0",
+      "family": "macro-bound",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "5da957f56ba2c37a535df9a9b9ee9b7e5c48ecb283caad40448c8a55caa0f30a",
+      "contrast": "generated generic implementation requires its trait bound"
+    },
+    {
+      "id": "nested-expansion-1",
+      "family": "nested-expansion",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8b21d8c628077041954ecbe4427964b537a4249d6bc3ee2e30664e695c68f9e1",
+      "contrast": "nested macros preserve expression type requirements"
+    },
+    {
+      "id": "nested-expansion-0",
+      "family": "nested-expansion",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "eacd59814c7b31f778998e72a2279dd833b2203845a7727a2422fa332a6cd829",
+      "contrast": "nested macros preserve expression type requirements"
+    },
+    {
+      "id": "macro-method-1",
+      "family": "macro-method",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "0d3cdf6fc71b0b50c00199a3228aef47e6e7e3942593fd964051aef6ddcd5b22",
+      "contrast": "method invocation in expansion must resolve"
+    },
+    {
+      "id": "macro-method-0",
+      "family": "macro-method",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "2c2c740fceb64c5fe72642c10526a253db7fd0e625eb82a25f684e455ccb4a4e",
+      "contrast": "method invocation in expansion must resolve"
+    },
+    {
+      "id": "generated-pattern-1",
+      "family": "generated-pattern",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "580996c297bdbc20b5a44b3c13a1aaa5abb5497c33909ee90e4c74b3446c2429",
+      "contrast": "generated match must be exhaustive"
+    },
+    {
+      "id": "generated-pattern-0",
+      "family": "generated-pattern",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0004"
+      ],
+      "source_sha256": "199a12eb9153c8e68f45d69d20a1f32ab743d59dd721c4492fefdddd10cb46df",
+      "contrast": "generated match must be exhaustive"
+    },
+    {
+      "id": "macro-const-1",
+      "family": "macro-const",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b769612c96cf0131f47ea9d55d11e49b660c79c7f51173f63815cdad989522a4",
+      "contrast": "macro expansion in const must be const-evaluable"
+    },
+    {
+      "id": "macro-const-0",
+      "family": "macro-const",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0015"
+      ],
+      "source_sha256": "fc40a681959c2051394e567af281313c50bd9a08ca6d2d65863c89e613fe24ab",
+      "contrast": "macro expansion in const must be const-evaluable"
+    }
+  ]
+}
