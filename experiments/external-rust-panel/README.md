@@ -58,3 +58,21 @@ Reproduce with `scripts/evaluate_external_rust.py --executable PATH_TO_bpe_exter
 --checkpoints CHECKPOINT_DIRECTORY --output NEW_DIRECTORY`. It validates the frozen
 checkpoint inventory, rechecks compiler labels, admits only test rows, then runs
 three separate inference processes. No refused input is truncated or omitted.
+
+## Frozen regression gate
+
+`scripts/verify_external_rust.py` reruns the compiler checks and evaluation,
+compares all 24 seed/case rows to these frozen files (absolute probability
+tolerance 1e-6), compares the full compiler report and aggregate metrics, and
+requires wrong model/corpus hashes to fail before producing any predictions.
+It is invoked by the source-distribution verification inside network-isolated
+CI, using the pinned compiler binary and newly regenerated frozen checkpoints.
+No upstream repository is contacted in that verification. The retained MIT
+license travels with the source bundle.
+The verifier also rejects exact original/derived source overlap with any of the
+24 pinned earlier diagnostic records. This does not detect semantic near duplicates.
+
+This panel is now observed regression data. Subsequent model selection must use
+training/validation sources distinct from it, followed by a new unopened panel
+for a generalization claim. First priorities exposed by this result are the
+constant negative prediction and one context refusal, not financial deployment.

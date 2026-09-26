@@ -123,6 +123,10 @@ def verify(bundle):
              '--examples-dir', str(temp / 'target' / 'release' / 'examples'),
              '--checkpoints', str(temp / 'bpe-checkpoints'),
              '--output', str(temp / 'rust-evaluation')], work, env=env)
+        run([sys.executable, 'scripts/verify_external_rust.py',
+             '--executable', str(temp / 'target/release/examples/bpe_external_eval'),
+             '--checkpoints', str(temp / 'bpe-checkpoints'),
+             '--output', str(temp / 'external-rust'), '--rustc', binaries['rustc']], work, env=env)
     # Verification never modifies the delivered source or checkpoints.
     verify_inventory(bundle)
 

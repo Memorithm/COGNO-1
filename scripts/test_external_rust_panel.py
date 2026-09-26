@@ -5,11 +5,18 @@ import unittest
 from unittest.mock import patch
 import prepare_external_rust as external
 from evaluate_external_rust import summarize
+from verify_external_rust import compare_predictions
 
 PANEL = Path(__file__).resolve().parents[1] / 'experiments/external-rust-panel'
 
 
 class PanelTests(unittest.TestCase):
+    def test_frozen_regression_rejects_missing_duplicate_and_altered_evidence(self):
+        row = dict(source_sha256='a', target='1', status='accepted', prediction='0', p_compile='0.2', tokens='5')
+        compare_predictions([row], [row])
+        for rows in [[], [row, row], [dict(row, p_compile='nan')], [dict(row, prediction='1')], [dict(row, tokens='6')]]:
+            with self.assertRaises(ValueError):
+                compare_predictions(rows, [row])
     def test_refusals_remain_in_denominator_and_bad_evidence_fails(self):
         rows = [dict(source_sha256='a', target='1', status='accepted', prediction='1', p_compile='0.8', tokens='5'),
                 dict(source_sha256='b', target='0', status='capacity', prediction='', p_compile='', tokens='')]
