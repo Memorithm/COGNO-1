@@ -39,7 +39,7 @@ class EvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     evidence.check_checkpoints(temp)
 
-    def test_inventory_detects_corruption_and_symlinks(self):
+    def test_inventory_detects_corruption_self_report_drift_and_symlinks(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             data = b'CBPC0001inventory-test-only'
@@ -48,16 +48,36 @@ class EvidenceTests(unittest.TestCase):
                 name = f'bpe-seed-{seed}.cbpc'
                 (directory / name).write_bytes(data)
                 rows.append(f'{seed}\t{name}\t{len(data)}\t{hashlib.sha256(data).hexdigest()}')
-            (directory / 'checkpoints.tsv').write_text('\n'.join(rows) + '\n')
-            evidence.check_checkpoints(directory)
+            inventory = '\n'.join(rows) + '\n'
+            generated = directory / 'checkpoints.tsv'
+            frozen = directory / 'frozen.tsv'
+            generated.write_text(inventory)
+            frozen.write_text(inventory)
+            evidence.check_checkpoints(directory, frozen)
+
             target = directory / 'bpe-seed-1.cbpc'
-            target.write_bytes(data[:-1] + b'x')
+            changed = data[:-1] + b'x'
+            target.write_bytes(changed)
             with self.assertRaises(ValueError):
-                evidence.check_checkpoints(directory)
+                evidence.check_checkpoints(directory, frozen)
+
+            # Updating the generated digest alongside changed bytes must not
+            # bypass the independently committed frozen inventory.
+            drifted = rows.copy()
+            drifted[1] = (
+                f'1\tbpe-seed-1.cbpc\t{len(changed)}\t'
+                f'{hashlib.sha256(changed).hexdigest()}'
+            )
+            generated.write_text('\n'.join(drifted) + '\n')
+            with self.assertRaises(ValueError):
+                evidence.check_checkpoints(directory, frozen)
+
             target.unlink()
             target.symlink_to(directory / 'bpe-seed-7.cbpc')
+            generated.write_text(inventory)
             with self.assertRaises(ValueError):
-                evidence.check_checkpoints(directory)
+                evidence.check_checkpoints(directory, frozen)
+
 
 
 if __name__ == '__main__':
