@@ -22,3 +22,12 @@ The external panel is already observed regression data; it is not a new holdout.
 Increasing context changes position-table parameter count and initialization
 offsets; this is not a matched-parameter/compute comparison or a speed benchmark.
 No existing baseline artifacts are rewritten. No runtime activation is granted.
+
+Reproduction (Rust 1.97.1): admit the diagnostic corpus with
+`scripts/prepare_rust_diagnostic.py`, then run
+`bpe_training_ablation CORPUS CORPUS_SHA NEW_OUTPUT_DIR` and
+`python3 scripts/select_rust_ablation.py NEW_OUTPUT_DIR/predictions.csv`.
+The trainer accepts only the hash-checked three-partition corpus. Only training
+rows enter BPE fitting and optimizer batches. Checkpoints are persisted and
+reloaded with exact state equality before reporting predictions. The manifest
+binds every checkpoint to its corpus, tokenizer, seed, order and context.
