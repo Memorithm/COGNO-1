@@ -45,6 +45,55 @@ pub fn validate_training_corpus(corpus: &Corpus) -> Result<(), TrainingDataGover
     corpus.validate_data_classifications()
 }
 
+/// Classification-only import preflight result. This is not admission authority;
+/// each actual example must still pass its corpus's normal admission gates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TrainingDataClassCounts {
+    pub public: usize,
+    pub internal: usize,
+    pub confidential: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrainingDataPreflightError {
+    InvalidLimit,
+    TooManyExamples,
+    Governance(TrainingDataGovernanceError),
+}
+
+/// Audit an import's classifications without storing payloads. Iteration stops
+/// at the first rejection, and consumes at most `maximum_examples + 1` items.
+/// The caller must provide a finite count cap no greater than the review cap.
+pub fn preflight_training_data_classes(
+    classes: impl IntoIterator<Item = DataClassification>,
+    maximum_examples: usize,
+    attestation: Option<HostConfidentialTrainingAttestation>,
+) -> Result<TrainingDataClassCounts, TrainingDataPreflightError> {
+    if maximum_examples == 0 || maximum_examples > crate::MAX_META_REVIEW_EXAMPLES {
+        return Err(TrainingDataPreflightError::InvalidLimit);
+    }
+    let policy = attestation.map_or(
+        TrainingDataAdmissionPolicy::DEFAULT,
+        TrainingDataAdmissionPolicy::with_confidential_authorization,
+    );
+    let mut counts = TrainingDataClassCounts::default();
+    for (index, data_class) in classes.into_iter().enumerate() {
+        if index == maximum_examples {
+            return Err(TrainingDataPreflightError::TooManyExamples);
+        }
+        policy
+            .validate(data_class, index)
+            .map_err(TrainingDataPreflightError::Governance)?;
+        match data_class {
+            DataClassification::Public => counts.public += 1,
+            DataClassification::Internal => counts.internal += 1,
+            DataClassification::Confidential => counts.confidential += 1,
+            DataClassification::Secret => unreachable!("policy rejects secret before counting"),
+        }
+    }
+    Ok(counts)
+}
+
 /// Crate-owned admission policy shared by every model training corpus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct TrainingDataAdmissionPolicy {
@@ -127,6 +176,57 @@ mod tests {
         assert_eq!(
             authorized.validate(DataClassification::Secret, 11),
             Err(TrainingDataGovernanceError::SecretTrainingData { index: 11 })
+        );
+    }
+    #[test]
+    fn import_preflight_counts_classes_and_never_authorizes_secret() {
+        let auth =
+            Some(HostConfidentialTrainingAttestation::authorize_confidential_training_data());
+        assert_eq!(
+            preflight_training_data_classes(
+                [
+                    DataClassification::Public,
+                    DataClassification::Internal,
+                    DataClassification::Confidential
+                ],
+                3,
+                auth
+            ),
+            Ok(TrainingDataClassCounts {
+                public: 1,
+                internal: 1,
+                confidential: 1
+            })
+        );
+        assert_eq!(
+            preflight_training_data_classes([DataClassification::Secret], 1, auth),
+            Err(TrainingDataPreflightError::Governance(
+                TrainingDataGovernanceError::SecretTrainingData { index: 0 }
+            ))
+        );
+        assert!(matches!(
+            preflight_training_data_classes([DataClassification::Confidential], 1, None),
+            Err(TrainingDataPreflightError::Governance(_))
+        ));
+    }
+
+    #[test]
+    fn import_preflight_bounds_even_infinite_iterators() {
+        let consumed = std::cell::Cell::new(0);
+        let input = std::iter::repeat(DataClassification::Public)
+            .inspect(|_| consumed.set(consumed.get() + 1));
+        assert_eq!(
+            preflight_training_data_classes(input, 2, None),
+            Err(TrainingDataPreflightError::TooManyExamples)
+        );
+        assert_eq!(consumed.get(), 3);
+        assert_eq!(
+            preflight_training_data_classes([], 0, None),
+            Err(TrainingDataPreflightError::InvalidLimit)
+        );
+        assert_eq!(
+            preflight_training_data_classes([], usize::MAX, None),
+            Err(TrainingDataPreflightError::InvalidLimit)
         );
     }
 }
