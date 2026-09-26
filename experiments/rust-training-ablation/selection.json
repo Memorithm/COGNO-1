@@ -1,0 +1,35 @@
+{
+  "selection": {
+    "context": 256,
+    "order": "ordered",
+    "validation_nll": 0.6640802953734471
+  },
+  "seeds": [
+    1,
+    7,
+    42
+  ],
+  "scores": [
+    {
+      "context": 128,
+      "order": "ordered",
+      "validation_nll": 0.7422854077161869
+    },
+    {
+      "context": 128,
+      "order": "shuffled",
+      "validation_nll": 0.7501577692347943
+    },
+    {
+      "context": 256,
+      "order": "ordered",
+      "validation_nll": 0.6640802953734471
+    },
+    {
+      "context": 256,
+      "order": "shuffled",
+      "validation_nll": 0.6678071910204949
+    }
+  ],
+  "limitation": "Exploratory previously observed diagnostic; no expert or generalization claim"
+}
