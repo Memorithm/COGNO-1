@@ -408,6 +408,21 @@ impl SequenceSymbolicAdamW {
         model: &mut SequenceSymbolicHead,
         gradients: &SequenceSymbolicGradients,
     ) -> SciRustResult<()> {
+        // Numerical optimizers are atomic per tensor. Stage the enclosing model
+        // and all moments as well, so late tensor errors cannot partially train it.
+        let mut next_optimizer = self.clone();
+        let mut next_model = model.clone();
+        next_optimizer.step_candidate(&mut next_model, gradients)?;
+        *model = next_model;
+        *self = next_optimizer;
+        Ok(())
+    }
+
+    fn step_candidate(
+        &mut self,
+        model: &mut SequenceSymbolicHead,
+        gradients: &SequenceSymbolicGradients,
+    ) -> SciRustResult<()> {
         self.encoder.step(&mut model.encoder, &gradients.encoder)?;
         self.head_weights
             .step(&mut model.head_weights, &gradients.head_weights)?;
@@ -472,6 +487,45 @@ fn validate_finite(values: &[f32]) -> SciRustResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn late_tensor_failure_is_atomic_and_retry_matches_clean_step() {
+        let mut model = controlled_head();
+        let mut optimizer = SequenceSymbolicAdamW::try_new(0.01, &model).unwrap();
+        let (_, good) = model
+            .target_loss_and_gradients(&[1, 2], &[1.0, 0.0])
+            .unwrap();
+        let mut bad = good.clone();
+        bad.head_bias[0] = f32::NAN;
+        let before_model = model.clone();
+        let before_optimizer = format!("{optimizer:?}");
+        assert!(optimizer.step(&mut model, &bad).is_err());
+        assert_eq!(model, before_model);
+        assert_eq!(format!("{optimizer:?}"), before_optimizer);
+        let mut clean_model = model.clone();
+        let mut clean_optimizer = optimizer.clone();
+        optimizer.step(&mut model, &good).unwrap();
+        clean_optimizer.step(&mut clean_model, &good).unwrap();
+        assert_eq!(model, clean_model);
+        assert_eq!(format!("{optimizer:?}"), format!("{clean_optimizer:?}"));
+    }
+
+    #[test]
+    fn late_counter_overflow_preserves_all_tensors_and_moments() {
+        let mut model = controlled_head();
+        let mut optimizer = SequenceSymbolicAdamW::try_new(0.01, &model).unwrap();
+        let (_, gradients) = model
+            .target_loss_and_gradients(&[1, 2], &[1.0, 0.0])
+            .unwrap();
+        optimizer.head_bias.state.step = u64::MAX;
+        let before_model = model.clone();
+        let before_optimizer = format!("{optimizer:?}");
+        assert_eq!(
+            optimizer.step(&mut model, &gradients),
+            Err(SciRustError::Overflow)
+        );
+        assert_eq!(model, before_model);
+        assert_eq!(format!("{optimizer:?}"), before_optimizer);
+    }
 
     fn controlled_head() -> SequenceSymbolicHead {
         let encoder_config = SequenceEncoderConfig {
