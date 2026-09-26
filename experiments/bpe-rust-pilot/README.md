@@ -35,3 +35,33 @@ not. No latency measurement was made, and compression is not a speed benchmark.
 This is classification-only training through the cognitive numerical heads,
 not code generation and not qualification of all five objectives. Production
 V1–V4 loaders and activation remain unchanged; CBPE0001 is tokenizer-only.
+
+## Checkpoint integration batch
+
+The subsequent batch adds paired decoding, an immutable research model binding,
+CBPC0001 inference checkpoints and post-training reload checks. On 2026-09-26,
+Rust 1.97.1 release, all three trained checkpoints were 17,912 bytes each.
+`checkpoints.tsv` records the locally measured identities; binaries are regenerated
+by the probe, not checked into Git. Every prediction remained identical to the
+original CSV. Successful outputs for all five signals and every weight were
+exactly preserved across reload; this adds no evidence of model quality.
+
+```sh
+cargo +1.97.1 run --release --locked -p cogno-model --example bpe_rust_probe -- /tmp/new-bpe-checkpoints > /tmp/bpe-predictions.csv
+python3 scripts/check_bpe_evidence.py /tmp/bpe-predictions.csv --checkpoints /tmp/new-bpe-checkpoints
+```
+
+The evidence checker requires the complete frozen row set, unchanged categorical
+outputs/token/parameter counts and absolute probability drift <=1e-6. This is a
+regression check on reused diagnostic data, not a general quality benchmark.
+It checks inventory sizes, digests and filenames; semantic binary validation is
+performed by the Rust loader during the probe. A self-supplied inventory is not
+authentication. CPU/compiler changes may require investigating numerical drift;
+do not replace the reference merely to turn a failed check green.
+
+The isolated offline workflow now runs this verification too. No datasets are
+downloaded at inference time. Production activation, independent project-separated
+Rust evaluation, scalable corpus/tokenizer training and Thor execution remain
+outside this completed integration batch. The bounded byte-preserving format and
+inventory verification can be reused by other ecosystem research pilots without
+adding a running SciRust or RemoteOps service to model inference.
