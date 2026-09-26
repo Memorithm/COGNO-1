@@ -1,0 +1,35 @@
+//! Synthetic CPU latency probe; does not measure financial or language quality.
+use cogno_scirust::*;
+use std::hint::black_box;
+use std::time::Instant;
+
+fn main() -> Result<(), SciRustError> {
+    println!("seed,tokens,sample,elapsed_ns,p0,p1,p2");
+    for seed in [1,7,42] {
+        let mut model=SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
+            encoder:SequenceEncoderConfig {vocab_size:259,max_tokens:128,embedding_dim:32,hidden_dim:64,seed},
+            num_classes:3,num_rules:2,classification_seed:1,preference_seed:2,symbolic_seed:3,contradiction_seed:4,
+        })?;
+        let mut optimizer=SequenceCognitiveAdamW::try_new(0.001,&model)?;
+        let a=[1,2,3,4]; let b=[4,3,2,1]; let candidates: [&[u16];2]=[&a,&b];
+        let batch=SequenceCognitiveBatch {
+            classification:CognitiveClassification{token_ids:&a,target_class:0},
+            preference:CognitivePreference{preferred:&a,dispreferred:&b,margin:1.0},
+            symbolic:CognitiveSymbolic{token_ids:&a,targets:&[1.0,0.0]},
+            contradiction:CognitiveContradiction{pair_token_ids:&b,contradicts:true},
+            retrieval:CognitiveRetrieval{query:&a,candidates:&candidates,positive_idx:0,temperature:1.0},
+        };
+        for _ in 0..8 {model.train_joint_step(&mut optimizer,batch,SequenceCognitiveLossWeights::default())?;}
+        for len in [16,64,128] {
+            let tokens:Vec<u16>=(0..len).map(|i| ((i*17+seed as usize)%259) as u16).collect();
+            for _ in 0..5 {black_box(model.classification_probabilities(&tokens)?);}
+            for sample in 0..100 {
+                let start=Instant::now();
+                let p=black_box(model.classification_probabilities(black_box(&tokens))?);
+                let elapsed=start.elapsed().as_nanos();
+                println!("{seed},{len},{sample},{elapsed},{},{},{}",p[0],p[1],p[2]);
+            }
+        }
+    }
+    Ok(())
+}

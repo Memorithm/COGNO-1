@@ -240,6 +240,9 @@ contrôlées par le gate §24.
 
 ## Documentation
 
+- `docs/INFERENCE_PERFORMANCE.md` — optimisation CPU et mesures reproductibles ;
+- `experiments/rust-expert-pilot/README.md` — premier diagnostic Rust, sans qualification expert ;
+
 - `docs/ARCHITECTURE.md` — séparation d'autorité et pipeline obligatoire ;
 - `docs/MODEL_CARD.md` — architecture neuronale, V4, Meta et limites ;
 - `docs/THREAT_MODEL.md` — modèle de menace ;

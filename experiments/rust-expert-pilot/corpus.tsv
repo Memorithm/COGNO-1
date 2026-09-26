@@ -1,0 +1,24 @@
+train	move	1	fn f(){let a=String::new();let b=a.clone();drop(a);drop(b);}
+train	move	0	fn f(){let a=String::new();let b=a;drop(a);drop(b);}
+train	borrow	1	fn f(){let mut a=0;let b=&mut a;*b+=1;let c=&mut a;*c+=1;}
+train	borrow	0	fn f(){let mut a=0;let b=&mut a;let c=&mut a;*b+=1;*c+=1;}
+train	lifetime	1	fn f<'a>(x:&'a str)->&'a str{x}
+train	lifetime	0	fn f<'a>(x:&str)->&'a str{x}
+train	send	1	fn f<T:Send>(){} fn g(){f::<std::sync::Arc<u8>>();}
+train	send	0	fn f<T:Send>(){} fn g(){f::<std::rc::Rc<u8>>();}
+train	sync	1	fn f<T:Sync>(){} fn g(){f::<std::sync::Mutex<u8>>();}
+train	sync	0	fn f<T:Sync>(){} fn g(){f::<std::cell::Cell<u8>>();}
+train	sized	1	fn f<T:?Sized>(_:&T){} fn g(x:&str){f(x);}
+train	sized	0	fn f<T:Sized>(_:&T){} fn g(x:&str){f(x);}
+train	associated	1	fn f<T:Iterator<Item=u8>>(x:T)->Vec<u8>{x.collect()}
+train	associated	0	fn f<T:Iterator<Item=u16>>(x:T)->Vec<u8>{x.collect()}
+train	const_generic	1	fn f<const N:usize>(x:[u8;N])->[u8;N]{x}
+train	const_generic	0	fn f<const N:usize>(x:[u8;N])->[u8;3]{x}
+validation	dyn_compatibility	1	trait A{fn f(&self);} fn g(_: &dyn A){}
+validation	dyn_compatibility	0	trait A{fn f<T>(&self);} fn g(_: &dyn A){}
+validation	pin_unpin	1	fn f(x:std::pin::Pin<Box<u8>>){let _=std::pin::Pin::into_inner(x);}
+validation	pin_unpin	0	fn f(x:std::pin::Pin<Box<std::marker::PhantomPinned>>){let _=std::pin::Pin::into_inner(x);}
+test	gat	1	trait A{type B<'a> where Self:'a;fn f<'a>(&'a self)->Self::B<'a>;}
+test	gat	0	trait A{type B<'a>;fn f<'a>(&'a self)->Self::B<'a>;}
+test	hrtb	1	fn f<F:for<'a> Fn(&'a u8)>(f:F){let x=0;f(&x);}
+test	hrtb	0	fn f<F:Fn(&'static u8)>(f:F){let x=0;f(&x);}
