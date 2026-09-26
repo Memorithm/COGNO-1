@@ -1,0 +1,31 @@
+name: Rust curriculum ownership
+on:
+  pull_request:
+    paths:
+      - 'experiments/rust-curriculum/ownership/**'
+      - 'scripts/test_curriculum_ownership.py'
+      - 'scripts/admit_rust_corpus.py'
+      - '.github/workflows/rust-curriculum-ownership.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/rust-curriculum/ownership/**'
+      - 'scripts/test_curriculum_ownership.py'
+      - 'scripts/admit_rust_corpus.py'
+      - '.github/workflows/rust-curriculum-ownership.yml'
+permissions:
+  contents: read
+concurrency:
+  group: curriculum-ownership-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  compiler-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - name: Recompile every fixture and reject invalid evidence
+        run: python3 -m unittest discover -s scripts -p 'test_curriculum_ownership.py' -v
