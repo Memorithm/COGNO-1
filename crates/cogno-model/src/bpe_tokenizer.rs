@@ -157,6 +157,25 @@ impl BpeTokenizer {
         Ok(ids)
     }
 
+    /// Measure framed length even when it exceeds this artifact's context cap.
+    /// The raw input byte bound still applies. This never authorizes inference.
+    pub fn required_tokens(&self, bytes: &[u8]) -> Result<usize, BpeError> {
+        Ok(self.raw(bytes)?.len() + 2)
+    }
+
+    /// Measure an independently encoded pair, including BOS/SEP/EOS.
+    pub fn required_pair_tokens(&self, left: &[u8], right: &[u8]) -> Result<usize, BpeError> {
+        if left
+            .len()
+            .checked_add(right.len())
+            .ok_or(BpeError::Capacity)?
+            > MAX_BPE_BYTES
+        {
+            return Err(BpeError::Capacity);
+        }
+        Ok(self.raw(left)?.len() + self.raw(right)?.len() + 3)
+    }
+
     /// Encode one payload without truncation, including BOS/EOS.
     pub fn encode(&self, bytes: &[u8]) -> Result<Vec<u16>, BpeError> {
         let ids = self.raw(bytes)?;
@@ -317,6 +336,24 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn preflight_counts_do_not_relax_context_admission() {
+        let t = BpeTokenizer::from_merges(3, &[(97, 97)]).unwrap();
+        let identity = t.fingerprint();
+        assert_eq!(
+            t.required_tokens(b"aa").unwrap(),
+            t.encode(b"aa").unwrap().len()
+        );
+        assert_eq!(t.required_tokens(b"aaaa").unwrap(), 4);
+        assert_eq!(t.encode(b"aaaa"), Err(BpeError::Capacity));
+        assert_eq!(t.required_pair_tokens(b"a", b"a").unwrap(), 5);
+        assert_eq!(t.encode_pair(b"a", b"a"), Err(BpeError::Capacity));
+        assert!(t.required_tokens(&vec![0; MAX_BPE_BYTES + 1]).is_err());
+        assert!(t
+            .required_pair_tokens(&vec![0; MAX_BPE_BYTES], b"a")
+            .is_err());
+        assert_eq!(t.fingerprint(), identity);
+    }
     #[test]
     fn pair_roundtrip_and_hostile_framing() {
         let t = BpeTokenizer::train(&[b"abababab"], 280, 512).unwrap();
