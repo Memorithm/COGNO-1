@@ -25,3 +25,9 @@ must travel through a trusted inventory; self-reported hashes are not signatures
 The existing 24-snippet pilot is reused diagnostic data. Grouping its synthetic
 families is not evidence of generalization to independent real-world projects.
 No training or quality gain is established by passing corpus admission.
+
+`cogno_model::rust_corpus::RustCorpus::read` accepts a bounded stream and an
+independent expected corpus digest. It rechecks wire grammar, per-source hashes,
+UTF-8, sizes, duplicates, project separation and both labels in every split.
+It does not read or authenticate the provenance sidecar. No new Cargo dependency
+is needed. This reader is a consistency boundary, not runtime activation authority.
