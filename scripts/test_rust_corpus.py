@@ -24,6 +24,13 @@ def encoded(rows):
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_evaluation_only_rejects_training_and_default_rejects_missing_splits(self):
+        rows = [r for r in fixture() if r['split'] == 'test']
+        self.assertEqual(len(corpus.admit(encoded(rows), {'MIT'}, True)[0]), 2)
+        with self.assertRaises(ValueError):
+            corpus.admit(encoded(rows), {'MIT'})
+        with self.assertRaises(ValueError):
+            corpus.admit(encoded(fixture()), {'MIT'}, True)
     def test_fresh_process_evidence_rejects_missing_duplicate_nan_and_wrong_labels(self):
         row = dict(source_sha256='a'*64, split='test', project='synthetic/a', target='1', prediction='0', p_compile='0.2')
         expected = {row['source_sha256']: row}
