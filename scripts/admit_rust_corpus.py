@@ -28,12 +28,10 @@ def admit(data, approved_licenses):
     lines = data.split(b'\n')
     if lines[-1:] == [b'']:
         lines.pop()
-    if not lines:
-        raise ValueError('record count or empty line')
-    for raw_line in lines:
-        if len(records) >= 4096 or not raw_line:
+    for line in lines:
+        if len(records) >= 4096 or not line:
             raise ValueError('record count or empty line')
-        r = json.loads(raw_line.decode('utf-8'), object_pairs_hook=unique_object)
+        r = json.loads(line.decode('utf-8'), object_pairs_hook=unique_object)
         if not isinstance(r, dict):
             raise ValueError('record object required')
         for field in ('project', 'revision', 'license', 'classification', 'compiler', 'provenance', 'split', 'sha256'):
@@ -71,24 +69,26 @@ def admit(data, approved_licenses):
 
 
 def provenance_bytes(records):
-    return ''.join(
-        json.dumps(record, sort_keys=True) + '\n' for record in records
-    ).encode('utf-8')
+    return ''.join(json.dumps(r, sort_keys=True) + '\n' for r in records).encode('utf-8')
 
 
 def build_manifest(data, wire, provenance, records, approved_licenses):
-    return {
-        'schema': 1,
-        'input_sha256': hashlib.sha256(data).hexdigest(),
-        'corpus_sha256': hashlib.sha256(wire).hexdigest(),
-        'provenance_sha256': hashlib.sha256(provenance).hexdigest(),
-        'records': len(records),
-        'approved_licenses': sorted(set(approved_licenses)),
-        'counts': {
-            split: sum(record['split'] == split for record in records)
-            for split in SPLITS
-        },
-    }
+    return {'schema': 1, 'input_sha256': hashlib.sha256(data).hexdigest(),
+            'corpus_sha256': hashlib.sha256(wire).hexdigest(),
+            'provenance_sha256': hashlib.sha256(provenance).hexdigest(), 'records': len(records),
+            'approved_licenses': sorted(set(approved_licenses)),
+            'counts': {s: sum(r['split'] == s for r in records) for s in SPLITS}}
+
+
+def write_admitted(data, output, licenses):
+    records, wire = admit(data, set(licenses))
+    output.mkdir()
+    (output / 'corpus.crust').write_bytes(wire)
+    provenance = provenance_bytes(records)
+    (output / 'provenance.jsonl').write_bytes(provenance)
+    manifest = build_manifest(data, wire, provenance, records, licenses)
+    (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    return manifest
 
 
 def main():
@@ -99,13 +99,7 @@ def main():
     args = parser.parse_args()
     with args.input.open('rb') as stream:
         data = stream.read(LIMIT + 1)
-    records, wire = admit(data, set(args.licenses))
-    args.output.mkdir()
-    (args.output / 'corpus.crust').write_bytes(wire)
-    provenance = provenance_bytes(records)
-    (args.output / 'provenance.jsonl').write_bytes(provenance)
-    manifest = build_manifest(data, wire, provenance, records, args.licenses)
-    (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    manifest = write_admitted(data, args.output, args.licenses)
     print(json.dumps(manifest, sort_keys=True))
 
 

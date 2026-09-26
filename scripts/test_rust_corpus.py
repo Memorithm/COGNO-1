@@ -1,7 +1,11 @@
 import hashlib
 import json
 import unittest
+import tempfile
+from pathlib import Path
 import admit_rust_corpus as corpus
+import prepare_rust_diagnostic as diagnostic
+from verify_rust_pipeline import check_result
 
 
 def fixture():
@@ -20,6 +24,39 @@ def encoded(rows):
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_unicode_line_separators_remain_inside_jsonl_records(self):
+        rows = fixture()
+        source = 'fn unicode() { /* \u2028 and \u0085 stay source */ }\n'
+        rows[0]['source'] = source
+        rows[0]['sha256'] = hashlib.sha256(source.encode()).hexdigest()
+        data = ''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in rows).encode('utf-8')
+        admitted, _ = corpus.admit(data, {'MIT'})
+        self.assertEqual(admitted[0]['source'], source)
+
+    def test_manifest_binds_emitted_provenance_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / 'admitted'
+            manifest = corpus.write_admitted(encoded(fixture()), output, {'MIT'})
+            provenance = (output / 'provenance.jsonl').read_bytes()
+            self.assertEqual(manifest['provenance_sha256'], hashlib.sha256(provenance).hexdigest())
+            self.assertNotEqual(manifest['provenance_sha256'], hashlib.sha256(provenance + b' ').hexdigest())
+
+    def test_fresh_process_evidence_rejects_missing_duplicate_nan_and_wrong_labels(self):
+        row = dict(source_sha256='a'*64, split='test', project='synthetic/a', target='1', prediction='0', p_compile='0.2')
+        expected = {row['source_sha256']: row}
+        check_result([row], expected)
+        for rows in [[], [row, row], [dict(row, target='0')], [dict(row, p_compile='nan')], [dict(row, source_sha256='b'*64)]]:
+            with self.assertRaises(ValueError):
+                check_result(rows, expected)
+    def test_reused_fixture_and_no_overwrite(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / 'diagnostic'
+            manifest = diagnostic.prepare(output)
+            self.assertEqual(manifest['counts'], {'train': 16, 'validation': 4, 'test': 4})
+            before = (output / 'corpus.crust').read_bytes()
+            with self.assertRaises(FileExistsError):
+                diagnostic.prepare(output)
+            self.assertEqual(before, (output / 'corpus.crust').read_bytes())
     def test_lossless_export_and_determinism(self):
         rows, wire = corpus.admit(encoded(fixture()), {'MIT'})
         self.assertEqual(len(rows), 6)
@@ -37,33 +74,6 @@ class AdmissionTests(unittest.TestCase):
         for bad in [rows[:-1], rows + [rows[0]]]:
             with self.assertRaises(ValueError):
                 corpus.admit(encoded(bad), {'MIT'})
-
-    def test_unicode_line_separators_remain_inside_jsonl_records(self):
-        rows = fixture()
-        source = 'fn unicode() { /* \u2028 and \u0085 stay source */ }\n'
-        rows[0]['source'] = source
-        rows[0]['sha256'] = hashlib.sha256(source.encode()).hexdigest()
-        data = ''.join(
-            json.dumps(row, ensure_ascii=False) + '\n' for row in rows
-        ).encode('utf-8')
-        admitted, _ = corpus.admit(data, {'MIT'})
-        self.assertEqual(admitted[0]['source'], source)
-
-    def test_manifest_binds_emitted_provenance_bytes(self):
-        data = encoded(fixture())
-        records, wire = corpus.admit(data, {'MIT'})
-        provenance = corpus.provenance_bytes(records)
-        manifest = corpus.build_manifest(
-            data, wire, provenance, records, {'MIT'}
-        )
-        self.assertEqual(
-            manifest['provenance_sha256'],
-            hashlib.sha256(provenance).hexdigest(),
-        )
-        self.assertNotEqual(
-            manifest['provenance_sha256'],
-            hashlib.sha256(provenance + b' ').hexdigest(),
-        )
 
     def test_duplicate_json_keys_and_bounds(self):
         for data in [b'', b'{}\n', b'{"label":0,"label":1}\n', b'x'*(corpus.LIMIT+1)]:
