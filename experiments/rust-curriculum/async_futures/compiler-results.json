@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "domain": "async_futures",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "8799f53a78131fbbf5b8a3f41a6b616870aed573a8658d02d438c352aba8f1fc",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "await-context-1",
+      "source_sha256": "8d29601b79a7fbb07a19cf3c40a4ca69464c890938a20e7ab1d12d888024cbda",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "await-context-0",
+      "source_sha256": "42b5b65538f793ba890532b7cff0c77072ab477744844db679744f94029f64b2",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0728"
+      ]
+    },
+    {
+      "id": "await-future-1",
+      "source_sha256": "d45782ddb43052a926ff9a6c9d78690c96e920f667c7136e20c8d13b0b33737c",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "await-future-0",
+      "source_sha256": "0967acbc51f56fa6c20d41fb94a97d9bedb1c5355ae3fa8fba1e8c9b91465698",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "future-output-1",
+      "source_sha256": "e4577cd9381c4f707874a29539df70fdb1437ad46982ed1e32c40a9f160ae4a5",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "future-output-0",
+      "source_sha256": "027296ec0c645926abeba08c2f58103b62985803468f3c7f7cb32a24b6020d98",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "future-value-1",
+      "source_sha256": "6c65af1e918483549dbf0929c6d29689138cd090270bd91e589b3f35253629fe",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "future-value-0",
+      "source_sha256": "9f2e1cc04f36983143e6406b1419620d29e60aad328e089769d43ba492a0d48a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "future-bound-1",
+      "source_sha256": "f80acd9240438701ac5efa2c7429e23bafb1d46b014c6eda5e59f02bafdeec92",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "future-bound-0",
+      "source_sha256": "47e320f9d827b8a945a928372b5d8ed7447be026fad0a7cf29f9e4873fe4fb80",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0271"
+      ]
+    },
+    {
+      "id": "async-move-1",
+      "source_sha256": "7a60e1fcf6ac61833dea9853b247aaa6fb3f569e135aaa1314331411ecd8591c",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "async-move-0",
+      "source_sha256": "75d8bade38bb77e350216bd2c6c6c0f06032d01bedb69dfe228a709086b031ce",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0373"
+      ]
+    },
+    {
+      "id": "await-once-1",
+      "source_sha256": "03dd03a164a97605ee28e383f950a1d6ed05c668a9f30677237daf19d8d2281c",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "await-once-0",
+      "source_sha256": "4db534cd9ee0dedbc6c67bafd7d40fb5554a07ef71962e87989c5bfd128a18f6",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0382"
+      ]
+    },
+    {
+      "id": "async-question-1",
+      "source_sha256": "6a5d027a4b62e33cdf55ad14ca5f63511306e1ec856448d7e9b3c903d25c3456",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "async-question-0",
+      "source_sha256": "9402451f199b0b1008868c76865cb98ade640538120bc5a114bc7e44a5f27c02",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "ready-pin-1",
+      "source_sha256": "1e55e7923a605bbe45314162055439afcaf7fd0a574513ad4a9bab4ff52d4a80",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "ready-pin-0",
+      "source_sha256": "3ee0644b4275853b2bef5515640d2c6b41dc2e8c039530957a097ae61f5c51b8",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0599"
+      ]
+    },
+    {
+      "id": "boxed-future-1",
+      "source_sha256": "369811c2330e8d7be3ee360cbcfae91a3311d94a745c93cf5f82b31261df8208",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "boxed-future-0",
+      "source_sha256": "d0afed51356c7bf45eec79ee4ae92781f329a55af8ba7c23289a9cc0644341a5",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "opaque-futures-1",
+      "source_sha256": "5b9beaf9e6d66ac15874f0b7e30a90e9ea8b57fa5b4fbbe7655d62fb8046c41f",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "opaque-futures-0",
+      "source_sha256": "d8d01c0712e009ab06af5f325bf81ec95db27e668377f3d7faf492ac6efe57bb",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "poll-return-1",
+      "source_sha256": "105115e913ca76d0f29ecac8f6977cb610a41f8f5054bba95880944c18630841",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "poll-return-0",
+      "source_sha256": "62f719425135ae7ce98044c65d62f911f39740b82a82de9a7212fe1ce12236bb",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    }
+  ]
+}

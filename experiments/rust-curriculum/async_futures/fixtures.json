@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "async_futures",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "await-context-1",
+      "family": "await-context",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8d29601b79a7fbb07a19cf3c40a4ca69464c890938a20e7ab1d12d888024cbda",
+      "contrast": "await requires async context"
+    },
+    {
+      "id": "await-context-0",
+      "family": "await-context",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0728"
+      ],
+      "source_sha256": "42b5b65538f793ba890532b7cff0c77072ab477744844db679744f94029f64b2",
+      "contrast": "await requires async context"
+    },
+    {
+      "id": "await-future-1",
+      "family": "await-future",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "d45782ddb43052a926ff9a6c9d78690c96e920f667c7136e20c8d13b0b33737c",
+      "contrast": "await operand implements IntoFuture"
+    },
+    {
+      "id": "await-future-0",
+      "family": "await-future",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "0967acbc51f56fa6c20d41fb94a97d9bedb1c5355ae3fa8fba1e8c9b91465698",
+      "contrast": "await operand implements IntoFuture"
+    },
+    {
+      "id": "future-output-1",
+      "family": "future-output",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "e4577cd9381c4f707874a29539df70fdb1437ad46982ed1e32c40a9f160ae4a5",
+      "contrast": "async return type constrains awaited output"
+    },
+    {
+      "id": "future-output-0",
+      "family": "future-output",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "027296ec0c645926abeba08c2f58103b62985803468f3c7f7cb32a24b6020d98",
+      "contrast": "async return type constrains awaited output"
+    },
+    {
+      "id": "future-value-1",
+      "family": "future-value",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "6c65af1e918483549dbf0929c6d29689138cd090270bd91e589b3f35253629fe",
+      "contrast": "calling async function produces a future rather than output"
+    },
+    {
+      "id": "future-value-0",
+      "family": "future-value",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "9f2e1cc04f36983143e6406b1419620d29e60aad328e089769d43ba492a0d48a",
+      "contrast": "calling async function produces a future rather than output"
+    },
+    {
+      "id": "future-bound-1",
+      "family": "future-bound",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "f80acd9240438701ac5efa2c7429e23bafb1d46b014c6eda5e59f02bafdeec92",
+      "contrast": "Future output associated type must match"
+    },
+    {
+      "id": "future-bound-0",
+      "family": "future-bound",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0271"
+      ],
+      "source_sha256": "47e320f9d827b8a945a928372b5d8ed7447be026fad0a7cf29f9e4873fe4fb80",
+      "contrast": "Future output associated type must match"
+    },
+    {
+      "id": "async-move-1",
+      "family": "async-move",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "7a60e1fcf6ac61833dea9853b247aaa6fb3f569e135aaa1314331411ecd8591c",
+      "contrast": "returned async block owns its captured data"
+    },
+    {
+      "id": "async-move-0",
+      "family": "async-move",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0373"
+      ],
+      "source_sha256": "75d8bade38bb77e350216bd2c6c6c0f06032d01bedb69dfe228a709086b031ce",
+      "contrast": "returned async block owns its captured data"
+    },
+    {
+      "id": "await-once-1",
+      "family": "await-once",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "03dd03a164a97605ee28e383f950a1d6ed05c668a9f30677237daf19d8d2281c",
+      "contrast": "await consumes an owned future"
+    },
+    {
+      "id": "await-once-0",
+      "family": "await-once",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "4db534cd9ee0dedbc6c67bafd7d40fb5554a07ef71962e87989c5bfd128a18f6",
+      "contrast": "await consumes an owned future"
+    },
+    {
+      "id": "async-question-1",
+      "family": "async-question",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "6a5d027a4b62e33cdf55ad14ca5f63511306e1ec856448d7e9b3c903d25c3456",
+      "contrast": "async output must support Result propagation"
+    },
+    {
+      "id": "async-question-0",
+      "family": "async-question",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "9402451f199b0b1008868c76865cb98ade640538120bc5a114bc7e44a5f27c02",
+      "contrast": "async output must support Result propagation"
+    },
+    {
+      "id": "ready-pin-1",
+      "family": "ready-pin",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "1e55e7923a605bbe45314162055439afcaf7fd0a574513ad4a9bab4ff52d4a80",
+      "contrast": "Future poll receiver must be pinned"
+    },
+    {
+      "id": "ready-pin-0",
+      "family": "ready-pin",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "3ee0644b4275853b2bef5515640d2c6b41dc2e8c039530957a097ae61f5c51b8",
+      "contrast": "Future poll receiver must be pinned"
+    },
+    {
+      "id": "boxed-future-1",
+      "family": "boxed-future",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "369811c2330e8d7be3ee360cbcfae91a3311d94a745c93cf5f82b31261df8208",
+      "contrast": "boxed dynamic Future requires pinning for await"
+    },
+    {
+      "id": "boxed-future-0",
+      "family": "boxed-future",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "d0afed51356c7bf45eec79ee4ae92781f329a55af8ba7c23289a9cc0644341a5",
+      "contrast": "boxed dynamic Future requires pinning for await"
+    },
+    {
+      "id": "opaque-futures-1",
+      "family": "opaque-futures",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5b9beaf9e6d66ac15874f0b7e30a90e9ea8b57fa5b4fbbe7655d62fb8046c41f",
+      "contrast": "different async blocks need type erasure for a homogeneous collection"
+    },
+    {
+      "id": "opaque-futures-0",
+      "family": "opaque-futures",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "d8d01c0712e009ab06af5f325bf81ec95db27e668377f3d7faf492ac6efe57bb",
+      "contrast": "different async blocks need type erasure for a homogeneous collection"
+    },
+    {
+      "id": "poll-return-1",
+      "family": "poll-return",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "105115e913ca76d0f29ecac8f6977cb610a41f8f5054bba95880944c18630841",
+      "contrast": "Future poll must return Poll of its output"
+    },
+    {
+      "id": "poll-return-0",
+      "family": "poll-return",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "62f719425135ae7ce98044c65d62f911f39740b82a82de9a7212fe1ce12236bb",
+      "contrast": "Future poll must return Poll of its output"
+    }
+  ]
+}
