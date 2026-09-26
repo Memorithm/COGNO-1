@@ -33,7 +33,8 @@ python3 /path/to/cogno-offline/source/scripts/offline_bundle.py verify /path/to/
 
 Verification creates a disposable copy with empty Cargo home and target directory,
 uses the already installed pinned compiler directly, and runs release build,
-workspace tests and the existing Rust classification training/inference pilot
+workspace tests, the existing Rust classification training/inference pilot,
+and the experimental byte/BPE training comparison
 with `--frozen`. Original bundle files and checkpoints remain unchanged.
 
 Cargo offline mode blocks Cargo downloads; it is **not a network sandbox for

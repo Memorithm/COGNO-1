@@ -240,6 +240,8 @@ contrôlées par le gate §24.
 
 ## Documentation
 
+- `docs/BPE_TOKENIZER.md` — BPE borné expérimental, format séparé et diagnostic Rust ;
+
 - `docs/OFFLINE_DISTRIBUTION.md` — distribution autonome, dépendances embarquées et qualification hors réseau ;
 
 - `docs/INFERENCE_PERFORMANCE.md` — optimisation CPU et mesures reproductibles ;
