@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "concurrency",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "thread-owned-1",
+      "family": "thread-owned",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "42efac89670c7b6b9e8751761acd443c2652ffb9799e9ded4fc04a32e00248c2",
+      "contrast": "thread closure must own captured local data"
+    },
+    {
+      "id": "thread-owned-0",
+      "family": "thread-owned",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0373"
+      ],
+      "source_sha256": "a570505bf535bb6ed001b52c220c69fbc85a35840c04efb59361c180451e7932",
+      "contrast": "thread closure must own captured local data"
+    },
+    {
+      "id": "thread-send-1",
+      "family": "thread-send",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b28941d785e0ef95e674ce7c050ee85380e670facc08d76e9ae01fd33fbfaf1c",
+      "contrast": "thread captures must be Send"
+    },
+    {
+      "id": "thread-send-0",
+      "family": "thread-send",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "02d114e496e97c39823e790ea672dbefca5b9415150512f7d73b3a2f36235f72",
+      "contrast": "thread captures must be Send"
+    },
+    {
+      "id": "shared-cell-1",
+      "family": "shared-cell",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "07c29b48269d91fb440becf1695c08b5fd33c35bd5db25dac785cb7ba8512652",
+      "contrast": "shared cell requires synchronization to satisfy Sync"
+    },
+    {
+      "id": "shared-cell-0",
+      "family": "shared-cell",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "7c31d3f3ad90b53308f10e995a8d10eefb983de0c043347d4bc9de55258ff613",
+      "contrast": "shared cell requires synchronization to satisfy Sync"
+    },
+    {
+      "id": "arc-refcell-1",
+      "family": "arc-refcell",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "4d2b97cd2e619ffb7383750dd8d2303b91b67482bd50b62d6ea3609db1877248",
+      "contrast": "Arc does not make RefCell synchronized"
+    },
+    {
+      "id": "arc-refcell-0",
+      "family": "arc-refcell",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "65ae722a46d29fae919e062c1966750dad284ec9c7c2fb7aef0900db32e28c3b",
+      "contrast": "Arc does not make RefCell synchronized"
+    },
+    {
+      "id": "channel-item-1",
+      "family": "channel-item",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5ecf0efae22163d435c30fa3143b8152e822432395a3ed0000e4faf78a9474d4",
+      "contrast": "channel send requires declared message type"
+    },
+    {
+      "id": "channel-item-0",
+      "family": "channel-item",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "cb3e60260e4e0fe69334b605b4e273214e5b3308774bf7a9bf6cc20e41cdfe91",
+      "contrast": "channel send requires declared message type"
+    },
+    {
+      "id": "channel-owner-1",
+      "family": "channel-owner",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "cc632ee2ccff4a650e5590a487d6f2402a80c00dc590a59308ae48b0fcbeab1a",
+      "contrast": "sending transfers ownership unless cloned"
+    },
+    {
+      "id": "channel-owner-0",
+      "family": "channel-owner",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "a017a79b0c16630a9bdaa2cda79e7b5997a151a58205236c93432d7e20b71f4f",
+      "contrast": "sending transfers ownership unless cloned"
+    },
+    {
+      "id": "scoped-borrow-1",
+      "family": "scoped-borrow",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "6bcea4a11295c0cd3fe91acf947908c03a2692e6a4f8cceb8a88f2e14a5dc8a7",
+      "contrast": "scoped threads permit local borrowed data"
+    },
+    {
+      "id": "scoped-borrow-0",
+      "family": "scoped-borrow",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0373"
+      ],
+      "source_sha256": "4626c7ccdd06a37da68a3349c164b350e0c1f36ad70471ef0c2cc106c5e9bde0",
+      "contrast": "scoped threads permit local borrowed data"
+    },
+    {
+      "id": "join-consumes-1",
+      "family": "join-consumes",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "cfe2a6288daf5550316a4c308eeca8e9f9e808aa30c4426c7c38c50971034df5",
+      "contrast": "joining consumes the handle"
+    },
+    {
+      "id": "join-consumes-0",
+      "family": "join-consumes",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "ebe89bf7ecba3dcb34990fcc516f6e99adad9c8af02b96435180fcb4ff6c6ff4",
+      "contrast": "joining consumes the handle"
+    },
+    {
+      "id": "mutex-mut-guard-1",
+      "family": "mutex-mut-guard",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "9582c2c7f75d53053629c97f4ab91ccf66e5f996491ffbc88f99e33ed1598598",
+      "contrast": "mutating protected data requires mutable guard binding"
+    },
+    {
+      "id": "mutex-mut-guard-0",
+      "family": "mutex-mut-guard",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0596"
+      ],
+      "source_sha256": "11d0fe3b0056224f142d7d6be9b1cabcc14149ce51dd6a480f34fb7332049aa0",
+      "contrast": "mutating protected data requires mutable guard binding"
+    },
+    {
+      "id": "rwlock-write-1",
+      "family": "rwlock-write",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "f5c32c33ef9dee55b6dcabfcbbe5162e74e23030e5ffe56809766b5175b843b1",
+      "contrast": "write guard allows mutation while read guard does not"
+    },
+    {
+      "id": "rwlock-write-0",
+      "family": "rwlock-write",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0594"
+      ],
+      "source_sha256": "1ef05486d4ce0cc0915746e05ca562c123646c0c6e5ccd87efb4730e13d66ba5",
+      "contrast": "write guard allows mutation while read guard does not"
+    },
+    {
+      "id": "atomic-argument-1",
+      "family": "atomic-argument",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "ab91ba96b679224f2a7c3c83bdac98ce442125bb7f6bbddf7c2e265bbb6567e2",
+      "contrast": "atomic store value must match atomic type"
+    },
+    {
+      "id": "atomic-argument-0",
+      "family": "atomic-argument",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "549c83ee764832a3aa1c3e33f88caaf5aed9454268aba0d6072f154e68ce0523",
+      "contrast": "atomic store value must match atomic type"
+    },
+    {
+      "id": "thread-output-send-1",
+      "family": "thread-output-send",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "c731763f2ed59d2727d39414960f4b28d9d48bb2a2b082f2910a6ffa0198f653",
+      "contrast": "thread return values also require Send"
+    },
+    {
+      "id": "thread-output-send-0",
+      "family": "thread-output-send",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "c0c4862d9900757fe910558fd79860d5ed91ce5e710abc182043cdd0fa281941",
+      "contrast": "thread return values also require Send"
+    }
+  ]
+}
