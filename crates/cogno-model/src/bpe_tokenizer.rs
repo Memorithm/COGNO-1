@@ -200,8 +200,40 @@ impl BpeTokenizer {
         if ids.len() > self.max_tokens {
             return Err(BpeError::Capacity);
         }
+        let payload = &ids[1..ids.len() - 1];
+        let size = self.decoded_size(payload)?;
+        Ok(self.decode_payload(payload, size))
+    }
+
+    /// Decode exactly one BOS/left/SEP/right/EOS frame, bounding both sides together.
+    pub fn decode_pair(&self, ids: &[u16]) -> Result<(Vec<u8>, Vec<u8>), BpeError> {
+        if ids.len() < 3 || ids.first() != Some(&BOS_TOKEN) || ids.last() != Some(&EOS_TOKEN) {
+            return Err(BpeError::InvalidFraming);
+        }
+        if ids.len() > self.max_tokens {
+            return Err(BpeError::Capacity);
+        }
+        let payload = &ids[1..ids.len() - 1];
+        let separator = payload
+            .iter()
+            .position(|&id| id == SEP_TOKEN)
+            .ok_or(BpeError::InvalidFraming)?;
+        let left = &payload[..separator];
+        let right = &payload[separator + 1..];
+        let left_size = self.decoded_size(left)?;
+        let right_size = self.decoded_size(right)?;
+        if left_size + right_size > MAX_BPE_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        Ok((
+            self.decode_payload(left, left_size),
+            self.decode_payload(right, right_size),
+        ))
+    }
+
+    fn decoded_size(&self, ids: &[u16]) -> Result<usize, BpeError> {
         let mut size = 0usize;
-        for &id in &ids[1..ids.len() - 1] {
+        for &id in ids {
             if (BOS_TOKEN..=SEP_TOKEN).contains(&id) {
                 return Err(BpeError::InvalidFraming);
             }
@@ -214,11 +246,15 @@ impl BpeTokenizer {
                 return Err(BpeError::Capacity);
             }
         }
+        Ok(size)
+    }
+
+    fn decode_payload(&self, ids: &[u16], size: usize) -> Vec<u8> {
         let mut out = Vec::with_capacity(size);
-        for &id in &ids[1..ids.len() - 1] {
+        for &id in ids {
             out.extend_from_slice(&self.pieces[usize::from(id)]);
         }
-        Ok(out)
+        out
     }
 
     /// Canonical little-endian schema: magic, max_tokens, merge count, pairs.
@@ -281,6 +317,36 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pair_roundtrip_and_hostile_framing() {
+        let t = BpeTokenizer::train(&[b"abababab"], 280, 512).unwrap();
+        for (left, right) in [(b"".as_slice(), b"".as_slice()), (b"ab\xff", b"\0ab")] {
+            assert_eq!(
+                t.decode_pair(&t.encode_pair(left, right).unwrap()).unwrap(),
+                (left.to_vec(), right.to_vec())
+            );
+        }
+        for ids in [
+            vec![BOS_TOKEN, EOS_TOKEN],
+            vec![BOS_TOKEN, 97, EOS_TOKEN],
+            vec![BOS_TOKEN, SEP_TOKEN, SEP_TOKEN, EOS_TOKEN],
+            vec![BOS_TOKEN, BOS_TOKEN, SEP_TOKEN, EOS_TOKEN],
+            vec![BOS_TOKEN, SEP_TOKEN, 999, EOS_TOKEN],
+        ] {
+            assert!(t.decode_pair(&ids).is_err());
+        }
+        let mut rules = vec![(97, 97)];
+        for id in 259..268 {
+            rules.push((id, id));
+        }
+        let t = BpeTokenizer::from_merges(512, &rules).unwrap();
+        let mut ids = vec![BOS_TOKEN];
+        ids.extend([268; 8]);
+        ids.push(SEP_TOKEN);
+        ids.extend([268; 9]);
+        ids.push(EOS_TOKEN);
+        assert_eq!(t.decode_pair(&ids), Err(BpeError::Capacity));
+    }
     #[test]
     fn lossless_all_bytes_and_unseen_identifiers() {
         let t = BpeTokenizer::train(&[b"fn main() {} fn main() {}"], 300, 512).unwrap();
