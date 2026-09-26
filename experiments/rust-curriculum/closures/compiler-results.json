@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "domain": "closures",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "15570d73c545865920c57c7f99e8026e13cedd1148858b131bf5f760a642cc86",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "fn-mut-capture-1",
+      "source_sha256": "261dd2b15c52d783afba1361b1d11e87565fde21ab17508e812ed7199a7db5e8",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "fn-mut-capture-0",
+      "source_sha256": "f81911c1089c49759d2378b81a4dfcaa67ccd352eec0b0e9bc277f829434f3fe",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0594"
+      ]
+    },
+    {
+      "id": "fn-once-consume-1",
+      "source_sha256": "d4caaa6a79c2e76ca4b039da99d6c330ea6a782f13a930631bb6a17086d79b3d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "fn-once-consume-0",
+      "source_sha256": "df17bda75cfbb4d0766f85c76feda2ac40df6aacbea3c0e82cee7e593d083509",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0507"
+      ]
+    },
+    {
+      "id": "binding-mutability-1",
+      "source_sha256": "890d7441e490ba85a84551c5322ce1acfdb9ff73df5e3415b004ba652e8427b4",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "binding-mutability-0",
+      "source_sha256": "c93ddaaf93c1c22f5cda66eae45c8780cb3a2ea3606ccfcee4380d857981692f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0596"
+      ]
+    },
+    {
+      "id": "capture-to-pointer-1",
+      "source_sha256": "14130ed0cfae841f6e7d2f4fcda250986c12851c01bafdec5179beab45fa28ef",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "capture-to-pointer-0",
+      "source_sha256": "38c7737f08f1c9c44c543a92656131732ba3d6feee7b9abfd2db4171939f66fb",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "return-type-1",
+      "source_sha256": "6401d8be2a670d33dc8374c23b970036819438899b132ca646cf937422944b9d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "return-type-0",
+      "source_sha256": "53b6c267093e21202b63774063821794ea689344181d4076e4214a5527874d7a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "argument-lock-1",
+      "source_sha256": "9227ecc18400877f140d58869a2862a71b8e9423d5bd501e345f1d2825c752a6",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "argument-lock-0",
+      "source_sha256": "92cbb55f17d478cfc95642da23df249ac4ec718b6497bb104b8f0fd6d63a5f87",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "call-once-1",
+      "source_sha256": "4bf9607ad03168ce8968348a5b967eb7fc5374ea78b03e344cd631378517f5ac",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "call-once-0",
+      "source_sha256": "fc50f6a9e774885b44fb63c6960592b07882babee967ef5be0725ef0cdd2aeef",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0382"
+      ]
+    },
+    {
+      "id": "move-owner-1",
+      "source_sha256": "b0b98fd60479a708cfa48cfa84bff3baef674cae5353a4453938235a0ba8a826",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "move-owner-0",
+      "source_sha256": "b221624f47bb0ff576fb419a66e50d4d829cd2eb310e14aafedf8ac55b94cb66",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0382"
+      ]
+    },
+    {
+      "id": "boxed-lifetime-1",
+      "source_sha256": "e9c2f7f9ee92bcaca74b2f1d0c03312f5e796363b6dc1ccb22b9df4460846872",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "boxed-lifetime-0",
+      "source_sha256": "f02673446d4acf3f91350666a56127963381a06ece3a04d72ce85c1824f1450e",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0373"
+      ]
+    },
+    {
+      "id": "send-capture-1",
+      "source_sha256": "68e5bbc5f58aa1668456e7c5cd819672cf1b8de58f02d8d76d7b84b5d0db833a",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "send-capture-0",
+      "source_sha256": "b029168f8fbbbcf02f58af44fa7241f11c2e8a7d89be4d9338c39602fa792e8d",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "argument-arity-1",
+      "source_sha256": "1cbc4ee855c33bc83b85fe557aaaf99000d7442a04e8d1c5601343bd143db7e9",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "argument-arity-0",
+      "source_sha256": "8d3e7182569306ed8340608fa26006a6c4c2ac49e17837b6f8a847da29780384",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0057"
+      ]
+    },
+    {
+      "id": "mutable-reference-1",
+      "source_sha256": "dd4ed2bbd95cf791ce3df9a3627b16d008cb3ed14049555f34afa1b4c98a411d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "mutable-reference-0",
+      "source_sha256": "b7112d55fc06abb30315a8c014125712bc3d3381396f2a56ed2051035956e3fe",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0594"
+      ]
+    }
+  ]
+}
