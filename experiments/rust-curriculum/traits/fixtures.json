@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "traits",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "clone-bound-1",
+      "family": "clone-bound",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "9f3801527e7405af9854a282370e49c4eaecf2bcf9442dadacd2ede197af5c7c",
+      "contrast": "generic cloning requires a Clone bound"
+    },
+    {
+      "id": "clone-bound-0",
+      "family": "clone-bound",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "bb3aa751b9f05ff6bdd3f083e452f3b3ebc8b87d48579713044ceb353fb12286",
+      "contrast": "generic cloning requires a Clone bound"
+    },
+    {
+      "id": "display-bound-1",
+      "family": "display-bound",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "267a1cc2d0155fd688d41fd4352be7c3c7bbe72bd2b797e54e08eb07e3b3fe18",
+      "contrast": "formatting requires Display rather than only Debug"
+    },
+    {
+      "id": "display-bound-0",
+      "family": "display-bound",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "164a9dcf53d2a85dc827543cbb1e13f93cd65a78332c2b6979d604fac4eace17",
+      "contrast": "formatting requires Display rather than only Debug"
+    },
+    {
+      "id": "associated-item-1",
+      "family": "associated-item",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "7722ba6a728fd1f249057199e28592231117789e2e7d8e6d8e77d855f8ad202e",
+      "contrast": "associated type constraint enables numeric addition"
+    },
+    {
+      "id": "associated-item-0",
+      "family": "associated-item",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "fe9645997b650216d3feffa8e5384ac04b37263d9f87589d17689a99000d6d7b",
+      "contrast": "associated type constraint enables numeric addition"
+    },
+    {
+      "id": "copy-derive-1",
+      "family": "copy-derive",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "1f2af845c72fc3d745538eb17e2532cd11f73d6ebc5db663949e76b9496ccac7",
+      "contrast": "String fields prevent implementing Copy"
+    },
+    {
+      "id": "copy-derive-0",
+      "family": "copy-derive",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0204"
+      ],
+      "source_sha256": "2f7b4843a03779904fa1ca275420dd974522933230b4db8d5fac0fddbadf4fc4",
+      "contrast": "String fields prevent implementing Copy"
+    },
+    {
+      "id": "default-bound-1",
+      "family": "default-bound",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "3f9fd1fb67f870f6c39cdcbb94031d673fb1428ddcfc2cf3047c068794cc5cc1",
+      "contrast": "constructing generic default requires its trait bound"
+    },
+    {
+      "id": "default-bound-0",
+      "family": "default-bound",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0599"
+      ],
+      "source_sha256": "fc85621b056b4f07e2fc39f3d471efca34565c091194e04a10d304eaef9515da",
+      "contrast": "constructing generic default requires its trait bound"
+    },
+    {
+      "id": "trait-method-1",
+      "family": "trait-method",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5b429c8b15791a850251da919b09f3ac1c50b7d7dbaabe828aa012abf3ed5cd2",
+      "contrast": "trait implementation must supply required method"
+    },
+    {
+      "id": "trait-method-0",
+      "family": "trait-method",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0046"
+      ],
+      "source_sha256": "a91b67bf7a7a2470cf162700ecafdd7e00fb7ed6503cd6e98f0daba95257c0b1",
+      "contrast": "trait implementation must supply required method"
+    },
+    {
+      "id": "implementation-type-1",
+      "family": "implementation-type",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "5d3fb4a5524e47e9eadf3e9edf2a0133b04ba889b7895ba1fe130eaddaefae3c",
+      "contrast": "method implementation must match declared return type"
+    },
+    {
+      "id": "implementation-type-0",
+      "family": "implementation-type",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0053"
+      ],
+      "source_sha256": "b6fd2162258e2c26804223b0b107000a865656c145f30c010a6ccc300425c2a8",
+      "contrast": "method implementation must match declared return type"
+    },
+    {
+      "id": "where-clause-1",
+      "family": "where-clause",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "9fcd8b9de2954597fc5e02c7e6fcd19cad48cc8d4c972f8fbfb817bff7143773",
+      "contrast": "generic ordering needs a PartialOrd bound"
+    },
+    {
+      "id": "where-clause-0",
+      "family": "where-clause",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0369"
+      ],
+      "source_sha256": "cba6ea48e444e21c602c562d076e25c77d757f3cf2b4320ad86b3b3e4fc0ab55",
+      "contrast": "generic ordering needs a PartialOrd bound"
+    },
+    {
+      "id": "sized-relaxation-1",
+      "family": "sized-relaxation",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "ad6fe0e4c5747225a89fb4dbdcd9533fc633b86574e0ed7b9cbe876c91a99df6",
+      "contrast": "str requires relaxing an implicit Sized bound"
+    },
+    {
+      "id": "sized-relaxation-0",
+      "family": "sized-relaxation",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "13b1c53bd158036cbdd9554bda8a0d0d80b0782750bec19a37697f015920f73e",
+      "contrast": "str requires relaxing an implicit Sized bound"
+    },
+    {
+      "id": "const-generic-shape-1",
+      "family": "const-generic-shape",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "9462fb94b4a43d08acaef83991b34b34f0b381ea68b193a1e9c07db89982bd48",
+      "contrast": "const generic array length must match call argument"
+    },
+    {
+      "id": "const-generic-shape-0",
+      "family": "const-generic-shape",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "f60498f9a7982fa042f3d21a27815959088d7ed2c100f824462eed8666ecfc05",
+      "contrast": "const generic array length must match call argument"
+    },
+    {
+      "id": "send-bound-1",
+      "family": "send-bound",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "3164cbb212bf6482d184db9ad57aaa557ce5d3f940a2206b2f55a53368c94d1b",
+      "contrast": "Arc satisfies Send for a thread-safe payload whereas Rc does not"
+    },
+    {
+      "id": "send-bound-0",
+      "family": "send-bound",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "source_sha256": "5c8da560fef4528145e6407dbe51d8fc581318ad8e8ee71575bae6b092619fb8",
+      "contrast": "Arc satisfies Send for a thread-safe payload whereas Rc does not"
+    },
+    {
+      "id": "associated-type-definition-1",
+      "family": "associated-type-definition",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b54bacd11f3ddba85a60580715244b76443fc85a58ff1374c04e7b4a05cf2a86",
+      "contrast": "implementation must define an associated output type"
+    },
+    {
+      "id": "associated-type-definition-0",
+      "family": "associated-type-definition",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0046"
+      ],
+      "source_sha256": "a4eeb8864e04c36160916641f442289778628d377cbb9a5d57e7d1f53de5dff9",
+      "contrast": "implementation must define an associated output type"
+    }
+  ]
+}
