@@ -130,6 +130,9 @@ def verify(bundle):
         run([sys.executable, 'scripts/verify_rust_ablation.py',
              '--examples-dir', str(temp / 'target/release/examples'),
              '--output', str(temp / 'rust-ablation'), '--rustc', binaries['rustc']], work, env=env)
+        run([sys.executable, 'scripts/verify_curriculum_probe.py',
+             '--executable', str(temp / 'target/release/examples/bpe_curriculum_probe'),
+             '--output', str(temp / 'curriculum-probe'), '--rustc', binaries['rustc']], work, env=env)
     # Verification never modifies the delivered source or checkpoints.
     verify_inventory(bundle)
 
