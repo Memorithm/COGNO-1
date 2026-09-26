@@ -37,8 +37,6 @@ checkpoint. `bpe_rust_probe` exercises the real shared cognitive numerical heads
 using BPE token IDs and a matching embedding vocabulary. It does not add BPE to
 the production `SequenceCognitiveModel` or runtime activation surfaces.
 
-The next integration must bind this fingerprint and vocabulary to the weights
-in a distinct versioned model format, including pair framing and all five heads.
 Silently changing token IDs under an existing V4 checkpoint is prohibited.
 
 `bpe_cognitive::BpeCognitiveModel` now freezes the tokenizer together with the
@@ -47,6 +45,24 @@ fingerprint, exact vocabulary and context, and retrieval candidate cap. Byte
 entrypoints cover all five signals, including separately framed contradiction
 pairs. This consistency check is not training provenance or an activation proof;
 there is no runtime backend registration or production promotion through it.
+
+## Research inference checkpoint
+
+`bpe_checkpoint` supplies a distinct `CBPC0001` container: 96-byte header,
+embedded CBPE0001 tokenizer, and eleven little-endian f32 tensors in encoder,
+classification, preference, symbolic, contradiction order (retrieval shares the
+encoder). Header fields are magic (8), seven u16 dimensions/cap (14), five u64
+initialization seeds (40), tokenizer length u16 (2), tokenizer SHA-256 (32).
+The vocabulary and context must match the embedded tokenizer exactly.
+
+`load_checkpoint(bytes, expected_hash)` checks the whole-file SHA-256 against
+an independently supplied expected digest, bounds before reconstruction, exact
+payload length, tokenizer identity, dimensions and finite weights. The digest
+must come from a trusted inventory to provide useful integrity assurance;
+recomputing it from untrusted input supplies no authenticity. This format is
+not registered in the production version dispatcher and is not a V5 promotion.
+It contains inference state, not optimizer moments, corpus provenance or a
+training-resumption checkpoint. All five signal paths are tested after reload.
 
 ## Diagnostic experiment
 
