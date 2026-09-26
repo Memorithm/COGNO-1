@@ -40,9 +40,91 @@ pub fn epoch_order(count: usize, seed: u64, epoch: u64) -> Result<Vec<usize>, Or
     Ok(order)
 }
 
+/// Errors for binary-label interleaving, distinct from the label-free shuffler.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InterleavedOrderError {
+    Order(OrderError),
+    InvalidLabel { index: usize },
+    MissingClass,
+}
+
+/// Shuffle training indices once, then alternate classes while both remain.
+/// Remaining majority rows form the tail. Every index occurs exactly once:
+/// there is no oversampling, weighting or claim of class balance for unequal counts.
+/// Inputs must contain only training labels and both binary classes.
+pub fn binary_interleaved_epoch_order(
+    labels: &[usize],
+    seed: u64,
+    epoch: u64,
+) -> Result<Vec<usize>, InterleavedOrderError> {
+    let order = epoch_order(labels.len(), seed, epoch).map_err(InterleavedOrderError::Order)?;
+    let mut classes = [Vec::new(), Vec::new()];
+    for index in order {
+        let class = labels[index];
+        if class > 1 {
+            return Err(InterleavedOrderError::InvalidLabel { index });
+        }
+        classes[class].push(index);
+    }
+    if classes.iter().any(Vec::is_empty) {
+        return Err(InterleavedOrderError::MissingClass);
+    }
+    let first = (seed.wrapping_add(epoch) & 1) as usize;
+    let mut result = Vec::with_capacity(labels.len());
+    for position in 0..classes[0].len().max(classes[1].len()) {
+        for class in [first, 1 - first] {
+            if let Some(&index) = classes[class].get(position) {
+                result.push(index);
+            }
+        }
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn interleaving_preserves_every_row_and_alternates_without_oversampling() {
+        for labels in [vec![0, 0, 0, 1, 1, 1], vec![0, 0, 0, 0, 1, 1], vec![0, 1]] {
+            let order = binary_interleaved_epoch_order(&labels, 42, 7).unwrap();
+            assert_eq!(
+                order,
+                binary_interleaved_epoch_order(&labels, 42, 7).unwrap()
+            );
+            let mut sorted = order.clone();
+            sorted.sort_unstable();
+            assert_eq!(sorted, (0..labels.len()).collect::<Vec<_>>());
+            let minority = labels
+                .iter()
+                .filter(|&&label| label == 1)
+                .count()
+                .min(labels.iter().filter(|&&label| label == 0).count());
+            for pair in order[..minority * 2].chunks_exact(2) {
+                assert_ne!(labels[pair[0]], labels[pair[1]]);
+            }
+        }
+    }
+    #[test]
+    fn interleaving_rejects_invalid_classes_and_capacity() {
+        assert_eq!(
+            binary_interleaved_epoch_order(&[], 0, 0),
+            Err(InterleavedOrderError::Order(OrderError::Empty))
+        );
+        assert_eq!(
+            binary_interleaved_epoch_order(&[0, 0], 0, 0),
+            Err(InterleavedOrderError::MissingClass)
+        );
+        assert!(matches!(
+            binary_interleaved_epoch_order(&[0, 2, 1], 0, 0),
+            Err(InterleavedOrderError::InvalidLabel { index: 1 })
+        ));
+        assert_eq!(
+            binary_interleaved_epoch_order(&vec![0; 4097], 0, 0),
+            Err(InterleavedOrderError::Order(OrderError::Capacity))
+        );
+    }
+
     #[test]
     fn each_training_row_exactly_once_and_reproducible() {
         for count in [1, 2, 16, 4096] {
