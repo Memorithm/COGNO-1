@@ -36,6 +36,15 @@ pub enum BpeBatchError {
     },
 }
 
+/// Three single-payload research signals evaluated with one tokenization.
+/// Numerical encoders remain independent; this is not a fused-kernel API.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BpePayloadSignals {
+    pub classification: Vec<f32>,
+    pub preference: f32,
+    pub symbolic: Vec<f32>,
+}
+
 /// Owns an immutable tokenizer and its matching numerical heads.
 /// Outputs are research signals, not policy, expertise or permission to act.
 #[derive(Clone, Debug, PartialEq)]
@@ -122,6 +131,17 @@ impl BpeCognitiveModel {
             .collect()
     }
 
+    /// Admit/tokenize once for all single-payload heads. A failure returns no
+    /// partial result, and neither model weights nor tokenizer state changes.
+    pub fn payload_signals(&self, bytes: &[u8]) -> Result<BpePayloadSignals, BpeCognitiveError> {
+        let tokens = self.tokenizer.encode(bytes)?;
+        Ok(BpePayloadSignals {
+            classification: self.heads.classification_probabilities(&tokens)?,
+            preference: self.heads.preference_score(&tokens)?,
+            symbolic: self.heads.symbolic_satisfactions(&tokens)?,
+        })
+    }
+
     pub fn preference(&self, bytes: &[u8]) -> Result<f32, BpeCognitiveError> {
         Ok(self
             .heads
@@ -180,6 +200,23 @@ pub(crate) mod tests {
         let hash = t.fingerprint();
         BpeCognitiveModel::from_heads(t, h, hash, 4).unwrap()
     }
+    #[test]
+    fn combined_payload_signals_match_scalar_and_reject_overflow() {
+        let model = fixture();
+        let before = model.clone();
+        for payload in [b"ab".as_slice(), b"", b"\xff\0", b"abab"] {
+            let signals = model.payload_signals(payload).unwrap();
+            assert_eq!(signals.classification, model.classify(payload).unwrap());
+            assert_eq!(signals.preference, model.preference(payload).unwrap());
+            assert_eq!(signals.symbolic, model.symbolic(payload).unwrap());
+        }
+        assert_eq!(
+            model.payload_signals(&[0; 31]),
+            Err(BpeCognitiveError::Tokenizer(BpeError::Capacity))
+        );
+        assert_eq!(model, before);
+    }
+
     #[test]
     fn batch_matches_scalar_in_order_and_keeps_model_immutable() {
         let model = fixture();
