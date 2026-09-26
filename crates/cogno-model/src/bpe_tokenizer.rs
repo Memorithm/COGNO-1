@@ -188,6 +188,33 @@ impl BpeTokenizer {
         Ok(out)
     }
 
+    /// Training augmentation only: apply exactly the first `merge_count` ranks.
+    /// Zero exposes byte fallback IDs; the full prefix is identical to `encode`.
+    /// This does not mutate the tokenizer or change its inference/artifact contract.
+    /// Invalid prefixes and sequences exceeding the usual context cap are refused.
+    pub fn encode_with_merge_prefix(
+        &self,
+        bytes: &[u8],
+        merge_count: usize,
+    ) -> Result<Vec<u16>, BpeError> {
+        if merge_count > self.merges.len() {
+            return Err(BpeError::InvalidConfig);
+        }
+        if bytes.len() > MAX_BPE_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        let mut ids: Vec<u16> = bytes.iter().map(|&b| u16::from(b)).collect();
+        for (rank, &pair) in self.merges[..merge_count].iter().enumerate() {
+            merge(&mut ids, pair, (BASE + rank) as u16);
+        }
+        if ids.len() + 2 > self.max_tokens {
+            return Err(BpeError::Capacity);
+        }
+        ids.insert(0, BOS_TOKEN);
+        ids.push(EOS_TOKEN);
+        Ok(ids)
+    }
+
     /// Encode independently on each side; no merge can cross SEP.
     pub fn encode_pair(&self, left: &[u8], right: &[u8]) -> Result<Vec<u16>, BpeError> {
         if left
@@ -340,6 +367,49 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn training_prefix_preserves_full_inference_and_exposes_fallback() {
+        let tokenizer = BpeTokenizer::from_merges(512, &[(97, 98), (259, 259)]).unwrap();
+        let before = tokenizer.to_bytes();
+        for bytes in [b"abab".as_slice(), b"", b"\xff\0ab", b"aaaaaaaa"] {
+            assert_eq!(
+                tokenizer.encode_with_merge_prefix(bytes, 2),
+                tokenizer.encode(bytes)
+            );
+            for count in 0..=2 {
+                let encoded = tokenizer.encode_with_merge_prefix(bytes, count).unwrap();
+                assert_eq!(tokenizer.decode(&encoded).unwrap(), bytes);
+            }
+        }
+        assert_eq!(
+            tokenizer.encode_with_merge_prefix(b"abab", 0).unwrap(),
+            vec![256, 97, 98, 97, 98, 257]
+        );
+        assert_eq!(
+            tokenizer.encode_with_merge_prefix(b"abab", 1).unwrap(),
+            vec![256, 259, 259, 257]
+        );
+        assert_eq!(tokenizer.to_bytes(), before);
+    }
+
+    #[test]
+    fn training_prefix_rejects_capacity_without_truncation() {
+        let tokenizer = BpeTokenizer::from_merges(3, &[(97, 98)]).unwrap();
+        assert!(tokenizer.encode(b"ab").is_ok());
+        assert_eq!(
+            tokenizer.encode_with_merge_prefix(b"ab", 0),
+            Err(BpeError::Capacity)
+        );
+        assert_eq!(
+            tokenizer.encode_with_merge_prefix(b"", 2),
+            Err(BpeError::InvalidConfig)
+        );
+        assert_eq!(
+            tokenizer.encode_with_merge_prefix(&vec![97; MAX_BPE_BYTES + 1], 1),
+            Err(BpeError::Capacity)
+        );
+    }
+
     fn reference_merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
         let mut out = Vec::new();
         let mut i = 0;
