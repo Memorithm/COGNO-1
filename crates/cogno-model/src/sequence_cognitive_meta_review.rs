@@ -793,7 +793,7 @@ const fn evidence_complete(evidence: MetaModelEvidence) -> bool {
         && evidence.anti_poisoning_working
 }
 
-fn cognitive_fingerprint(example: &SequenceCognitiveExample) -> Fingerprint {
+pub(crate) fn cognitive_fingerprint(example: &SequenceCognitiveExample) -> Fingerprint {
     let mut hash = Sha256::new();
     hash.update(b"cogno-sequence-cognitive-review-v4\0");
     hash_bytes(&mut hash, &example.classification_payload);
