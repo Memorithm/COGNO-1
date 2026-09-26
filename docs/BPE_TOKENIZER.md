@@ -13,6 +13,11 @@ Sources inspected: Memorithm/scirust commit
 
 ## Contract
 
+`required_tokens` and `required_pair_tokens` measure framed length before the
+context cap is applied, while preserving the 16 KiB input bound. They support
+coverage diagnosis only: encoding and inference still reject overlength inputs,
+and neither tokenizer identity nor existing checkpoint behavior changes.
+
 - No new dependencies. SHA-256 uses the already present model dependency.
 - Arbitrary bytes round-trip exactly: no Unicode normalization, whitespace
   stripping or lossy UTF-8 conversion. Invalid tokens/framing are errors.
