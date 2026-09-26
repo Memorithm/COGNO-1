@@ -10,3 +10,10 @@ This validates JSONL admission → lossless wire → Rust parsing → coverage. 
 does not validate compiler labels independently, acquire new projects, measure
 inference speed or establish expert Rust performance. Byte totals include two
 framing tokens per accepted record. Synthetic families are not real projects.
+
+Fresh-process evaluation additionally checked 72 predictions across nine evaluator
+processes (three checkpoint seeds and three partitions). Every categorical result
+matched the frozen reference; probability tolerance was 1e-6. Expected checkpoint
+digests came from the committed inventory, not the generated inventory. Two wrong
+digest requests are required to fail before output. The isolated offline workflow
+runs this complete regression. No new quality claim follows from reproducing it.
