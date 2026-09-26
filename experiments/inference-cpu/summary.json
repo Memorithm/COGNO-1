@@ -121,6 +121,7 @@
   ],
   "measured_probe_sources": {
     "before": "experiments/inference-cpu/baseline-probe.rs.txt",
-    "after": "experiments/inference-cpu/candidate-probe.rs.txt"
+    "after": "experiments/inference-cpu/candidate-probe.rs.txt",
+    "before-repeat": "experiments/inference-cpu/baseline-probe.rs.txt"
   }
 }
