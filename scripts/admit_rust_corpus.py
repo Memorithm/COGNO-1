@@ -65,6 +65,19 @@ def admit(data, approved_licenses):
     return records, wire.encode('ascii')
 
 
+def write_admitted(data, output, licenses):
+    records, wire = admit(data, set(licenses))
+    output.mkdir()
+    (output / 'corpus.crust').write_bytes(wire)
+    (output / 'provenance.jsonl').write_text(''.join(json.dumps(r, sort_keys=True) + '\n' for r in records))
+    manifest = {'schema': 1, 'input_sha256': hashlib.sha256(data).hexdigest(),
+                'corpus_sha256': hashlib.sha256(wire).hexdigest(), 'records': len(records),
+                'approved_licenses': sorted(set(licenses)),
+                'counts': {s: sum(r['split'] == s for r in records) for s in SPLITS}}
+    (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    return manifest
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path)
@@ -73,15 +86,7 @@ def main():
     args = parser.parse_args()
     with args.input.open('rb') as stream:
         data = stream.read(LIMIT + 1)
-    records, wire = admit(data, set(args.licenses))
-    args.output.mkdir()
-    (args.output / 'corpus.crust').write_bytes(wire)
-    (args.output / 'provenance.jsonl').write_text(''.join(json.dumps(r, sort_keys=True) + '\n' for r in records))
-    manifest = {'schema': 1, 'input_sha256': hashlib.sha256(data).hexdigest(),
-                'corpus_sha256': hashlib.sha256(wire).hexdigest(), 'records': len(records),
-                'approved_licenses': sorted(set(args.licenses)),
-                'counts': {s: sum(r['split'] == s for r in records) for s in SPLITS}}
-    (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    manifest = write_admitted(data, args.output, args.licenses)
     print(json.dumps(manifest, sort_keys=True))
 
 
