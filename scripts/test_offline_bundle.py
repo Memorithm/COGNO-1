@@ -15,7 +15,14 @@ class BundleTests(unittest.TestCase):
             source.mkdir()
             file = source / 'example'
             file.write_text('original')
-            manifest = dict(schema='cogno-offline-bundle/v1', source_sha256=inventory(source))
+            (source / 'rust-toolchain.toml').write_text(
+                '[toolchain]\nchannel = "1.97.1"\n'
+            )
+            manifest = dict(
+                schema='cogno-offline-bundle/v1',
+                toolchain='1.97.1',
+                source_sha256=inventory(source),
+            )
             (root / 'manifest.json').write_text(json.dumps(manifest))
             verify_inventory(root)
             file.write_text('modified')
@@ -37,6 +44,36 @@ class BundleTests(unittest.TestCase):
             (root / 'link').symlink_to('/nonexistent')
             with self.assertRaises(ValueError):
                 inventory(root)
+
+    def test_source_root_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'target'
+            target.mkdir()
+            (target / 'rust-toolchain.toml').write_text(
+                '[toolchain]\nchannel = "1.97.1"\n'
+            )
+            source = root / 'source'
+            source.symlink_to(target, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                inventory(source)
+
+    def test_manifest_toolchain_must_match_inventoried_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'rust-toolchain.toml').write_text(
+                '[toolchain]\nchannel = "1.97.1"\n'
+            )
+            manifest = dict(
+                schema='cogno-offline-bundle/v1',
+                toolchain='stable',
+                source_sha256=inventory(source),
+            )
+            (root / 'manifest.json').write_text(json.dumps(manifest))
+            with self.assertRaises(ValueError):
+                verify_inventory(root)
 
     def test_existing_destination_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as tmp:
