@@ -1,6 +1,7 @@
 //! AdamW / AMSGrad optimizers with checked arithmetic (COGNO-1 §SciRust #7).
 //!
-//! No `panic!`; the step count and weight updates saturate rather than wrap.
+//! Invalid steps fail before changing parameters or optimizer state; counters
+//! use checked arithmetic rather than wrapping.
 //! The optimizer is pluggable so future variants (Lion, signSGD) layer in
 //! without touching the autograd.
 
@@ -60,6 +61,21 @@ impl AdamW {
 
 impl Optimizer for AdamW {
     fn step(&mut self, param: &mut [f32], grad: &[f32]) -> SciRustResult<()> {
+        validate_state(&self.state, param, grad)?;
+        validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
+        // Stage the entire update: even arithmetic overflow at the last element
+        // must leave both moments and parameters available for a safe retry.
+        let mut next = self.clone();
+        let mut values = param.to_vec();
+        next.step_candidate(&mut values, grad)?;
+        param.copy_from_slice(&values);
+        *self = next;
+        Ok(())
+    }
+}
+
+impl AdamW {
+    fn step_candidate(&mut self, param: &mut [f32], grad: &[f32]) -> SciRustResult<()> {
         if param.len() != grad.len() {
             return Err(SciRustError::Shape {
                 lhs: vec![param.len()],
@@ -91,6 +107,8 @@ impl Optimizer for AdamW {
             }
             self.state.m[i] = b1 * self.state.m[i] + (1.0 - b1) * g;
             self.state.v[i] = b2 * self.state.v[i] + (1.0 - b2) * g * g;
+            crate::error::ensure_finite(self.state.m[i])?;
+            crate::error::ensure_finite(self.state.v[i])?;
             let m_hat = self.state.m[i] / bias1;
             let v_hat = self.state.v[i] / bias2;
             // Decoupled weight decay: param -= lr * (wd * param + m_hat / (sqrt(v_hat) + eps))
@@ -137,6 +155,21 @@ impl AmsGrad {
 
 impl Optimizer for AmsGrad {
     fn step(&mut self, param: &mut [f32], grad: &[f32]) -> SciRustResult<()> {
+        validate_state(&self.state, param, grad)?;
+        validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
+        // Stage the entire update: even arithmetic overflow at the last element
+        // must leave both moments and parameters available for a safe retry.
+        let mut next = self.clone();
+        let mut values = param.to_vec();
+        next.step_candidate(&mut values, grad)?;
+        param.copy_from_slice(&values);
+        *self = next;
+        Ok(())
+    }
+}
+
+impl AmsGrad {
+    fn step_candidate(&mut self, param: &mut [f32], grad: &[f32]) -> SciRustResult<()> {
         if param.len() != grad.len() {
             return Err(SciRustError::Shape {
                 lhs: vec![param.len()],
@@ -163,6 +196,8 @@ impl Optimizer for AmsGrad {
             }
             self.state.m[i] = b1 * self.state.m[i] + (1.0 - b1) * g;
             self.state.v[i] = b2 * self.state.v[i] + (1.0 - b2) * g * g;
+            crate::error::ensure_finite(self.state.m[i])?;
+            crate::error::ensure_finite(self.state.v[i])?;
             self.state.v_hat[i] = self.state.v_hat[i].max(self.state.v[i]);
             let denom = self.state.v_hat[i].sqrt() + eps;
             let update = self.state.m[i] / denom;
@@ -192,6 +227,30 @@ fn validate_hyperparams(lr: f32, beta1: f32, beta2: f32, eps: f32, wd: f32) -> S
         && wd >= 0.0
         && wd.is_finite();
     if !ok {
+        return Err(SciRustError::NonFinite);
+    }
+    Ok(())
+}
+
+fn validate_state(state: &ParamState, param: &[f32], grad: &[f32]) -> SciRustResult<()> {
+    for length in [grad.len(), state.m.len(), state.v.len(), state.v_hat.len()] {
+        if length != param.len() {
+            return Err(SciRustError::Shape {
+                lhs: vec![length],
+                rhs: vec![param.len()],
+            });
+        }
+    }
+    for &value in param
+        .iter()
+        .chain(grad)
+        .chain(&state.m)
+        .chain(&state.v)
+        .chain(&state.v_hat)
+    {
+        crate::error::ensure_finite(value)?;
+    }
+    if state.v.iter().chain(&state.v_hat).any(|&value| value < 0.0) {
         return Err(SciRustError::NonFinite);
     }
     Ok(())
