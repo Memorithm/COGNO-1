@@ -25,6 +25,29 @@ pub enum BpeCheckpointError {
     Weights,
 }
 
+/// Bounded reader failure, distinguished from a malformed checkpoint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BpeCheckpointReadError {
+    Io(std::io::ErrorKind),
+    Artifact(BpeCheckpointError),
+}
+
+/// Read at most the artifact limit plus one byte, then apply normal digest and
+/// structural validation. Callers supply an independently trusted expected hash.
+/// The reader must provide its own timeout when backed by a blocking transport.
+pub fn read_checkpoint(
+    reader: impl std::io::Read,
+    expected_hash: [u8; 32],
+) -> Result<BpeCognitiveModel, BpeCheckpointReadError> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    reader
+        .take((MAX_BPE_CHECKPOINT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| BpeCheckpointReadError::Io(error.kind()))?;
+    load_checkpoint(&bytes, expected_hash).map_err(BpeCheckpointReadError::Artifact)
+}
+
 /// Full checkpoint identity, covering header, tokenizer and all weights.
 pub fn checkpoint_hash(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
@@ -274,6 +297,36 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::*;
     use crate::bpe_cognitive::tests::fixture;
+    #[test]
+    fn bounded_reader_matches_slice_loading_and_stops_oversized_stream() {
+        let model = crate::bpe_cognitive::tests::fixture();
+        let bytes = encode_checkpoint(&model);
+        let hash = checkpoint_hash(&bytes);
+        assert_eq!(read_checkpoint(bytes.as_slice(), hash).unwrap(), model);
+        assert_eq!(
+            read_checkpoint(bytes.as_slice(), [0; 32]),
+            Err(BpeCheckpointReadError::Artifact(BpeCheckpointError::Hash))
+        );
+        let mut stream = std::io::repeat(0);
+        assert_eq!(
+            read_checkpoint(&mut stream, [0; 32]),
+            Err(BpeCheckpointReadError::Artifact(BpeCheckpointError::Size))
+        );
+        struct Broken;
+        impl std::io::Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            }
+        }
+        assert_eq!(
+            read_checkpoint(Broken, hash),
+            Err(BpeCheckpointReadError::Io(
+                std::io::ErrorKind::PermissionDenied
+            ))
+        );
+        assert!(read_checkpoint(&bytes[..bytes.len() - 1], hash).is_err());
+    }
+
     #[test]
     fn inspection_matches_model_metadata_without_exposing_weights() {
         let model = fixture();
