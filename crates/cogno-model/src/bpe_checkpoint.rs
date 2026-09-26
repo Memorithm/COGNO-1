@@ -80,11 +80,39 @@ pub fn encode_checkpoint(model: &BpeCognitiveModel) -> Vec<u8> {
     out
 }
 
-/// Reject wrong digest, unknown schema, excess bytes, incompatible vocabulary or nonfinite tensors.
-pub fn load_checkpoint(
+/// Verified descriptive data, with no model activation or training authority.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BpeCheckpointMetadata {
+    pub config: SequenceCognitiveConfig,
+    pub candidate_cap: usize,
+    pub parameter_count: usize,
+    pub checkpoint_bytes: usize,
+    pub checkpoint_hash: [u8; 32],
+    pub tokenizer_hash: [u8; 32],
+}
+
+/// Validate the complete artifact without allocating numerical tensors.
+/// The expected hash must come from the same trusted inventory as for loading.
+/// Configuration, tokenizer binding, exact length and every weight are checked.
+pub fn inspect_checkpoint(
     bytes: &[u8],
     expected_hash: [u8; 32],
-) -> Result<BpeCognitiveModel, BpeCheckpointError> {
+) -> Result<BpeCheckpointMetadata, BpeCheckpointError> {
+    let (metadata, _, mut reader) = parse_checkpoint(bytes, expected_hash)?;
+    let raw = reader.take(metadata.parameter_count * 4)?;
+    if raw
+        .chunks_exact(4)
+        .any(|b| !f32::from_le_bytes([b[0], b[1], b[2], b[3]]).is_finite())
+    {
+        return Err(BpeCheckpointError::Weights);
+    }
+    Ok(metadata)
+}
+
+fn parse_checkpoint(
+    bytes: &[u8],
+    expected_hash: [u8; 32],
+) -> Result<(BpeCheckpointMetadata, BpeTokenizer, Reader<'_>), BpeCheckpointError> {
     use BpeCheckpointError as E;
     if !(HEADER..=MAX_BPE_CHECKPOINT_BYTES).contains(&bytes.len()) {
         return Err(E::Size);
@@ -150,6 +178,33 @@ pub fn load_checkpoint(
     {
         return Err(E::Tokenizer);
     }
+    let metadata = BpeCheckpointMetadata {
+        config: c,
+        candidate_cap: cap,
+        parameter_count: count,
+        checkpoint_bytes: bytes.len(),
+        checkpoint_hash: expected_hash,
+        tokenizer_hash,
+    };
+    Ok((metadata, t, r))
+}
+
+/// Reject wrong digest, unknown schema, excess bytes, incompatible vocabulary or nonfinite tensors.
+pub fn load_checkpoint(
+    bytes: &[u8],
+    expected_hash: [u8; 32],
+) -> Result<BpeCognitiveModel, BpeCheckpointError> {
+    use BpeCheckpointError as E;
+    let (metadata, t, mut r) = parse_checkpoint(bytes, expected_hash)?;
+    let c = metadata.config;
+    let vocab_size = c.encoder.vocab_size;
+    let max_tokens = c.encoder.max_tokens;
+    let embedding_dim = c.encoder.embedding_dim;
+    let hidden_dim = c.encoder.hidden_dim;
+    let num_classes = c.num_classes;
+    let num_rules = c.num_rules;
+    let tokenizer_hash = metadata.tokenizer_hash;
+    let cap = metadata.candidate_cap;
     let encoder = SequenceEncoder::from_parts(
         c.encoder,
         r.floats(vocab_size * embedding_dim)?,
@@ -219,6 +274,64 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::*;
     use crate::bpe_cognitive::tests::fixture;
+    #[test]
+    fn inspection_matches_model_metadata_without_exposing_weights() {
+        let model = fixture();
+        let bytes = encode_checkpoint(&model);
+        let metadata = inspect_checkpoint(&bytes, checkpoint_hash(&bytes)).unwrap();
+        assert_eq!(metadata.config, model.heads().config());
+        assert_eq!(metadata.parameter_count, model.heads().parameter_count());
+        assert_eq!(metadata.candidate_cap, model.candidate_cap());
+        assert_eq!(metadata.tokenizer_hash, model.tokenizer().fingerprint());
+        assert_eq!(metadata.checkpoint_bytes, bytes.len());
+        assert_eq!(metadata.checkpoint_hash, checkpoint_hash(&bytes));
+        assert_eq!(
+            inspect_checkpoint(&bytes, [0; 32]),
+            Err(BpeCheckpointError::Hash)
+        );
+    }
+
+    #[test]
+    fn inspector_and_loader_agree_on_corruption_and_nonfinite_weights() {
+        let bytes = encode_checkpoint(&fixture());
+        for end in [0, 7, 95, 96, bytes.len() - 1] {
+            let raw = &bytes[..end];
+            assert_eq!(
+                inspect_checkpoint(raw, checkpoint_hash(raw)).unwrap_err(),
+                load_checkpoint(raw, checkpoint_hash(raw)).unwrap_err()
+            );
+        }
+        for offset in [0, 7, 8, 10, 12, 14, 16, 18, 20, 62, 64, 96] {
+            let mut raw = bytes.clone();
+            raw[offset] ^= 255;
+            assert_eq!(
+                inspect_checkpoint(&raw, checkpoint_hash(&raw)).unwrap_err(),
+                load_checkpoint(&raw, checkpoint_hash(&raw)).unwrap_err()
+            );
+        }
+        let token_bytes = u16::from_le_bytes([bytes[62], bytes[63]]) as usize;
+        for offset in [HEADER + token_bytes, bytes.len() - 4] {
+            for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+                let mut raw = bytes.clone();
+                raw[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+                assert_eq!(
+                    inspect_checkpoint(&raw, checkpoint_hash(&raw)),
+                    Err(BpeCheckpointError::Weights)
+                );
+                assert_eq!(
+                    load_checkpoint(&raw, checkpoint_hash(&raw)),
+                    Err(BpeCheckpointError::Weights)
+                );
+            }
+        }
+        let mut trailing = bytes;
+        trailing.extend_from_slice(&[0; 4]);
+        assert_eq!(
+            inspect_checkpoint(&trailing, checkpoint_hash(&trailing)),
+            Err(BpeCheckpointError::Size)
+        );
+    }
+
     #[test]
     fn exact_state_and_all_signal_roundtrip() {
         let m = fixture();
