@@ -62,6 +62,7 @@
 
 pub mod artifact;
 pub mod backend;
+pub mod bpe_cognitive;
 pub mod bpe_tokenizer;
 pub mod meta_candidate;
 #[path = "meta_data_review.rs"]

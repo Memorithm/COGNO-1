@@ -41,6 +41,13 @@ The next integration must bind this fingerprint and vocabulary to the weights
 in a distinct versioned model format, including pair framing and all five heads.
 Silently changing token IDs under an existing V4 checkpoint is prohibited.
 
+`bpe_cognitive::BpeCognitiveModel` now freezes the tokenizer together with the
+numerical heads for research inference. Construction checks the caller's training
+fingerprint, exact vocabulary and context, and retrieval candidate cap. Byte
+entrypoints cover all five signals, including separately framed contradiction
+pairs. This consistency check is not training provenance or an activation proof;
+there is no runtime backend registration or production promotion through it.
+
 ## Diagnostic experiment
 
 ```sh
