@@ -18,6 +18,10 @@ def run(argv, cwd, **kwargs):
 
 
 def inventory(root):
+    if root.is_symlink():
+        raise ValueError(f'symlink forbidden as inventory root: {root}')
+    if not root.is_dir():
+        raise ValueError(f'inventory root is not a directory: {root}')
     result = {}
     for path in sorted(root.rglob('*')):
         if path.is_symlink():
@@ -43,8 +47,16 @@ def verify_inventory(bundle):
     manifest = json.loads((bundle / 'manifest.json').read_text())
     if manifest.get('schema') != 'cogno-offline-bundle/v1':
         raise ValueError('unsupported bundle schema')
-    if inventory(bundle / 'source') != manifest['source_sha256']:
+    source = bundle / 'source'
+    if inventory(source) != manifest['source_sha256']:
         raise ValueError('source inventory mismatch')
+    toolchain_file = source / 'rust-toolchain.toml'
+    try:
+        declared_toolchain = tomllib.loads(toolchain_file.read_text())['toolchain']['channel']
+    except (FileNotFoundError, KeyError, tomllib.TOMLDecodeError) as error:
+        raise ValueError('invalid source toolchain declaration') from error
+    if manifest.get('toolchain') != declared_toolchain:
+        raise ValueError('manifest toolchain does not match inventoried source')
     return manifest
 
 
