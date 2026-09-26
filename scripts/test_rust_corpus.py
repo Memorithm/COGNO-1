@@ -1,7 +1,10 @@
 import hashlib
 import json
 import unittest
+import tempfile
+from pathlib import Path
 import admit_rust_corpus as corpus
+import prepare_rust_diagnostic as diagnostic
 
 
 def fixture():
@@ -20,6 +23,15 @@ def encoded(rows):
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_reused_fixture_and_no_overwrite(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / 'diagnostic'
+            manifest = diagnostic.prepare(output)
+            self.assertEqual(manifest['counts'], {'train': 16, 'validation': 4, 'test': 4})
+            before = (output / 'corpus.crust').read_bytes()
+            with self.assertRaises(FileExistsError):
+                diagnostic.prepare(output)
+            self.assertEqual(before, (output / 'corpus.crust').read_bytes())
     def test_lossless_export_and_determinism(self):
         rows, wire = corpus.admit(encoded(fixture()), {'MIT'})
         self.assertEqual(len(rows), 6)

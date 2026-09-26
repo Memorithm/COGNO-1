@@ -31,3 +31,17 @@ independent expected corpus digest. It rechecks wire grammar, per-source hashes,
 UTF-8, sizes, duplicates, project separation and both labels in every split.
 It does not read or authenticate the provenance sidecar. No new Cargo dependency
 is needed. This reader is a consistency boundary, not runtime activation authority.
+
+## Coverage before training
+
+`rust_corpus_coverage CORPUS EXPECTED_SHA256` reads the admitted corpus, learns
+BPE merges from train only (target vocabulary 384, context 128), and reports
+source bytes, accepted token totals and rejected example counts for each split.
+Byte and BPE totals include framing; totals exclude rejected inputs, so compare
+compression only when coverage is equal. No truncation or model training occurs.
+
+`python3 scripts/prepare_rust_diagnostic.py NEW_DIRECTORY` adapts the frozen
+24-snippet diagnostic with its original compiler declarations and source revision.
+Synthetic family IDs are explicitly prefixed `synthetic/`; they are not independent
+real-world projects. The source file hash is pinned and changed data is rejected.
+This is an integration fixture, not an enlarged evaluation dataset.
