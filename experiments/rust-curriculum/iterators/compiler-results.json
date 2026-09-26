@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "domain": "iterators",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "db6486f1cfcab01d0811bf79cabb13c46ac876a58a23e79f8f9a03771f99b5b3",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "collect-item-1",
+      "source_sha256": "39e174c6aec1e81c5bee558512c147cd5c7f4ae95420c382b73323efd56caa7d",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "collect-item-0",
+      "source_sha256": "a2a5db7bfe125372db75afe0fde78b3e3b85a2feee14d989e3d166ab7eead4dc",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "filter-predicate-1",
+      "source_sha256": "8af901abd167498d8b0ad562b2cb775d6e88c7f1af4783aabee65272dd145786",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "filter-predicate-0",
+      "source_sha256": "903ae2dc8ade33bb6d9009773dd1e4efd315d059d3bbb0b285063907d2ba2882",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "fold-accumulator-1",
+      "source_sha256": "4e1522773f741dce35a46e7c555ca3e37c234f47f622f0c2a626c98771b14d68",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "fold-accumulator-0",
+      "source_sha256": "9ff8e93e5feebb19361ed1ec3cad587ae6e5b3fd0d7b73797f7bb980dfb4c5ad",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "mutable-items-1",
+      "source_sha256": "a08222c575ddb98d5fc3070eff150bc271f760894e4fd5f4e782e1e4a57dd26b",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "mutable-items-0",
+      "source_sha256": "b0ec9b0c2c9e69d43f05b39d41c85111e487dc1a757d334b376e7344d7003cfb",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0594"
+      ]
+    },
+    {
+      "id": "consumed-iterator-1",
+      "source_sha256": "ff4bb02df2a3e92571779ddfac3ee1565cc80624a1a00573674163cda74fbc9f",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "consumed-iterator-0",
+      "source_sha256": "18ea7831925c5d1d642fe8fd2cb4892030173e991ca5ca2001604ec075dcb9e4",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0382"
+      ]
+    },
+    {
+      "id": "chain-item-1",
+      "source_sha256": "f34093226066870b39d4d9b761f10cdeb84c5caf10c6ed2614e982520ecaa7a1",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "chain-item-0",
+      "source_sha256": "e973d3700495f39911a04509b1a6034431fdb3b8ec8c21a217a448af865d9e55",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0271",
+        "E0599"
+      ]
+    },
+    {
+      "id": "sum-type-1",
+      "source_sha256": "cba0674d1e8364f3a927e2a66770287d10565e40a43d6616305a2f676b8137ec",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "sum-type-0",
+      "source_sha256": "26f47b338c6277a56640e69e9abec62411d7ca826979cd7f97ba8496949da71f",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "flat-map-output-1",
+      "source_sha256": "df658bcb4b9ba9d27f5b4117c772e714cacb6cd8f74f8c8ad73d16468ce634de",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "flat-map-output-0",
+      "source_sha256": "f17ff09cf908fca3e032183db605344304fa100fa44050c6f88c73b0da086828",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277",
+        "E0599"
+      ]
+    },
+    {
+      "id": "take-argument-1",
+      "source_sha256": "fdd23935d70348715f03b7990d8b1011fed9d2b16cf3049c38d9f96356e0daa8",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "take-argument-0",
+      "source_sha256": "7aa3384a2dd8f1e34c756f8d5a9f6a7164a29e60757fb5ea52b6d9e80461936a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "enumerate-item-1",
+      "source_sha256": "3472a87c9151524cbf9880f82d10490b0dd972058c0c904dcfa89f84c0c3a800",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "enumerate-item-0",
+      "source_sha256": "0d6b006f7b2446aa0519bf9f06ce99b5244a2ce39a0dcbae63642e347a5a7522",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "copied-bound-1",
+      "source_sha256": "7f4e3426db5f677abdc13b400c0bb30ff0948ca741e368f0c629e2ce004614a3",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "copied-bound-0",
+      "source_sha256": "511d792907949e9ad1225630f56336e57251951435896e3bac11efa15230e569",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277",
+        "E0599"
+      ]
+    },
+    {
+      "id": "next-mutability-1",
+      "source_sha256": "fe0bec443b2ee66838d3ec8b8e799d94ca893f2260855582f80a1827bfc363f4",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "next-mutability-0",
+      "source_sha256": "036891da243b699848db9b34dab2e9e61025476e0c9143454a7848c50ed93987",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0596"
+      ]
+    }
+  ]
+}
