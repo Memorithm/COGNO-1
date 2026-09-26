@@ -318,8 +318,12 @@ impl BpeTokenizer {
 }
 
 fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
-    let mut read = 0;
-    let mut write = 0;
+    // Leave unchanged prefixes untouched and return immediately for absent pairs.
+    let Some(first) = ids.windows(2).position(|w| (w[0], w[1]) == pair) else {
+        return;
+    };
+    let mut read = first;
+    let mut write = first;
     while read < ids.len() {
         if read + 1 < ids.len() && (ids[read], ids[read + 1]) == pair {
             ids[write] = output;
@@ -336,6 +340,70 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reference_merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < ids.len() {
+            if i + 1 < ids.len() && (ids[i], ids[i + 1]) == pair {
+                out.push(output);
+                i += 2;
+            } else {
+                out.push(ids[i]);
+                i += 1;
+            }
+        }
+        *ids = out;
+    }
+
+    #[test]
+    fn optimized_merge_matches_reference_for_overlaps_and_absent_pairs() {
+        // Exhaust all ternary sequences through length eight and every pair.
+        for len in 0..=8 {
+            for mut value in 0..3usize.pow(len) {
+                let ids: Vec<_> = (0..len)
+                    .map(|_| {
+                        let id = (value % 3) as u16;
+                        value /= 3;
+                        id
+                    })
+                    .collect();
+                for a in 0..=3 {
+                    for b in 0..=3 {
+                        let mut expected = ids.clone();
+                        let mut actual = ids.clone();
+                        reference_merge(&mut expected, (a, b), 4);
+                        merge(&mut actual, (a, b), 4);
+                        assert_eq!(actual, expected);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn optimized_encoding_keeps_rank_ids_and_artifact_identity() {
+        let t = BpeTokenizer::train(&[b"fn main() { let a = 1; }", b"abababab"], 300, 512).unwrap();
+        let bytes = t.to_bytes();
+        for input in [
+            b"fn main() { let a = 1; }".as_slice(),
+            b"abababaa",
+            b"",
+            b"unseen\xff",
+        ] {
+            let mut expected: Vec<_> = input.iter().map(|&b| u16::from(b)).collect();
+            for (rank, &pair) in t.merges.iter().enumerate() {
+                reference_merge(&mut expected, pair, (BASE + rank) as u16);
+            }
+            let actual = t.encode(input).unwrap();
+            assert_eq!(&actual[1..actual.len() - 1], expected);
+        }
+        assert_eq!(t.to_bytes(), bytes);
+        assert_eq!(
+            BpeTokenizer::from_bytes(&bytes).unwrap().fingerprint(),
+            t.fingerprint()
+        );
+    }
+
     #[test]
     fn preflight_counts_do_not_relax_context_admission() {
         let t = BpeTokenizer::from_merges(3, &[(97, 97)]).unwrap();
