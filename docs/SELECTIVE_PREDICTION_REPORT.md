@@ -1,0 +1,9 @@
+# Frozen selective-prediction curve
+
+`cargo run --release -p cogno-model --example bpe_selective_report -- CHECKPOINT CHECKPOINT_SHA CORPUS CORPUS_SHA test`
+
+The checkpoint and full three-partition CRUST001 corpus are digest checked. The selected split may be train, validation or test. The fixed compiled threshold grid is `[0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99, 1.00]`; no label-driven search, tuning or automatic threshold recommendation occurs. Every grid point is emitted, not only attractive ones. Freeze this grid before inspecting an unopened evaluation set; viewing a curve cannot make previously observed data a fresh holdout.
+
+Confidence is `max(p_compile, 1-p_compile)`; retain if confidence is **at least** threshold. A tie at p_compile=.5 predicts fail. Labels enter only correctness/risk calculations, never the retention decision. Capacity refusals and confidence abstentions are separate columns. For every row, `total = capacity_refused + confidence_abstained + retained`. Coverage is `retained/total`, including capacity refusals in its denominator. Risk is `incorrect/retained`, accuracy is `correct/retained`; both are `NA` when retained=0, never an invented perfect score. Other model errors and invalid probabilities abort before any CSV is printed.
+
+Low risk at tiny coverage is not general improvement. Confidence is not assumed calibrated and these descriptive curves provide no safety guarantee. If deployment requires one threshold, select it on a separate designated validation set under a frozen rule and evaluate that single setting on untouched data in a separate protocol. This command does not select a threshold, train, execute source code or promote a model. Existing baseline artifacts remain unchanged. Tests cover conservation of denominators, all-refused/zero-retained reports, threshold equality, label-independent retention, monotonic coverage, invalid probabilities and exact certainty.
