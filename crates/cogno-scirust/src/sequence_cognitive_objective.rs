@@ -203,6 +203,68 @@ impl SequenceCognitiveGradients {
 }
 
 impl SequenceCognitiveHeads {
+    /// Mean classification loss and gradients at one frozen parameter state.
+    ///
+    /// Consumes 1..=256 observations in caller order, releasing each tape before
+    /// the next. No padding or optimizer update occurs between observations.
+    /// This is a mean objective, not a sequence of online training steps.
+    pub fn classification_minibatch_loss_and_gradients(
+        &self,
+        observations: &[CognitiveClassification<'_>],
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        if observations.is_empty() {
+            return Err(SciRustError::Empty);
+        }
+        if observations.len() > 256 {
+            return Err(SciRustError::CapacityExceeded {
+                requested: observations.len(),
+                maximum: 256,
+            });
+        }
+        let divisor = observations.len() as f32;
+        let mut loss = 0.0;
+        let mut mean = SequenceCognitiveGradients::zeros(self);
+        for observation in observations {
+            let (value, gradients) = self.classification_loss_and_gradients(*observation)?;
+            loss += value / divisor;
+            ensure_finite(loss)?;
+            for (target, source) in [
+                (&mut mean.token_embeddings, &gradients.token_embeddings),
+                (
+                    &mut mean.position_embeddings,
+                    &gradients.position_embeddings,
+                ),
+                (&mut mean.mixing_weights, &gradients.mixing_weights),
+                (
+                    &mut mean.classification_weights,
+                    &gradients.classification_weights,
+                ),
+                (
+                    &mut mean.classification_bias,
+                    &gradients.classification_bias,
+                ),
+            ] {
+                for (target, source) in target.iter_mut().zip(source) {
+                    *target += source / divisor;
+                    ensure_finite(*target)?;
+                }
+            }
+        }
+        Ok((loss, mean))
+    }
+
+    /// Apply one atomic classification-only AdamW step to a mean minibatch.
+    /// Other task heads and their optimizer state remain frozen.
+    pub fn train_classification_minibatch_step(
+        &mut self,
+        optimizer: &mut SequenceCognitiveAdamW,
+        observations: &[CognitiveClassification<'_>],
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.classification_minibatch_loss_and_gradients(observations)?;
+        self.apply_classification_gradients(optimizer, &gradients)?;
+        Ok(loss)
+    }
+
     /// Classification-only NLL and connected shared-encoder gradients.
     ///
     /// Uses one encoder graph and requires no dummy observations for other
@@ -276,6 +338,15 @@ impl SequenceCognitiveHeads {
         observation: CognitiveClassification<'_>,
     ) -> SciRustResult<f32> {
         let (loss, gradients) = self.classification_loss_and_gradients(observation)?;
+        self.apply_classification_gradients(optimizer, &gradients)?;
+        Ok(loss)
+    }
+
+    fn apply_classification_gradients(
+        &mut self,
+        optimizer: &mut SequenceCognitiveAdamW,
+        gradients: &SequenceCognitiveGradients,
+    ) -> SciRustResult<()> {
         for (state, length) in [
             (
                 &optimizer.token_embeddings.state,
@@ -343,7 +414,7 @@ impl SequenceCognitiveHeads {
         )?;
         *self = next;
         *optimizer = next_optimizer;
-        Ok(loss)
+        Ok(())
     }
 
     /// Compute all five connected losses and their exact shared gradients with
@@ -852,6 +923,93 @@ fn add_assign_checked(target: &mut [f32], source: &[f32]) -> SciRustResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn minibatch_is_mean_of_frozen_observations_and_singleton_is_exact() {
+        let model = model();
+        let a = CognitiveClassification {
+            token_ids: &[1, 2],
+            target_class: 0,
+        };
+        let b = CognitiveClassification {
+            token_ids: &[3, 4],
+            target_class: 1,
+        };
+        let (la, ga) = model.classification_loss_and_gradients(a).unwrap();
+        let (lb, gb) = model.classification_loss_and_gradients(b).unwrap();
+        assert_eq!(
+            model
+                .classification_minibatch_loss_and_gradients(&[a])
+                .unwrap(),
+            (la, ga.clone())
+        );
+        let (loss, mean) = model
+            .classification_minibatch_loss_and_gradients(&[a, b])
+            .unwrap();
+        assert_eq!(loss, la / 2.0 + lb / 2.0);
+        for (actual, left, right) in [
+            (
+                &mean.token_embeddings,
+                &ga.token_embeddings,
+                &gb.token_embeddings,
+            ),
+            (
+                &mean.position_embeddings,
+                &ga.position_embeddings,
+                &gb.position_embeddings,
+            ),
+            (&mean.mixing_weights, &ga.mixing_weights, &gb.mixing_weights),
+            (
+                &mean.classification_weights,
+                &ga.classification_weights,
+                &gb.classification_weights,
+            ),
+            (
+                &mean.classification_bias,
+                &ga.classification_bias,
+                &gb.classification_bias,
+            ),
+        ] {
+            for ((actual, left), right) in actual.iter().zip(left).zip(right) {
+                assert_eq!(*actual, left / 2.0 + right / 2.0);
+            }
+        }
+        assert!(mean.preference_weights.iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn minibatch_rejection_preserves_state_and_singleton_training_matches() {
+        let mut left = model();
+        let mut right = left.clone();
+        let mut lo = SequenceCognitiveAdamW::try_new(0.01, &left).unwrap();
+        let mut ro = lo.clone();
+        let a = CognitiveClassification {
+            token_ids: &[1, 2],
+            target_class: 0,
+        };
+        let bad = CognitiveClassification {
+            token_ids: &[1],
+            target_class: 99,
+        };
+        assert!(left
+            .train_classification_minibatch_step(&mut lo, &[a, bad])
+            .is_err());
+        assert!(left
+            .train_classification_minibatch_step(&mut lo, &[])
+            .is_err());
+        assert!(left
+            .train_classification_minibatch_step(&mut lo, &vec![a; 257])
+            .is_err());
+        assert_eq!(left, right);
+        assert_eq!(format!("{lo:?}"), format!("{ro:?}"));
+        assert_eq!(
+            left.train_classification_minibatch_step(&mut lo, &[a])
+                .unwrap(),
+            right.train_classification_step(&mut ro, a).unwrap()
+        );
+        assert_eq!(left, right);
+        assert_eq!(format!("{lo:?}"), format!("{ro:?}"));
+    }
+
     use crate::{SequenceCognitiveConfig, SequenceEncoderConfig};
 
     #[test]
