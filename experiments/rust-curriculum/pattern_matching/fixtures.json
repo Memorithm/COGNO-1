@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "pattern_matching",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "enum-exhaustive-1",
+      "family": "enum-exhaustive",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "a9d1360303148a4dfa40db3e5feedddc6057d95140d655c1c26ab7f325939229",
+      "contrast": "all enum variants require an arm"
+    },
+    {
+      "id": "enum-exhaustive-0",
+      "family": "enum-exhaustive",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0004"
+      ],
+      "source_sha256": "4b7d02961c2ea66b54a2d876797e2c12656e658f265bfa542a0e6db29a0c70af",
+      "contrast": "all enum variants require an arm"
+    },
+    {
+      "id": "option-refutable-1",
+      "family": "option-refutable",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "a1ef8c32149964e65d818c6b01d55cbc2a8e70d2f954a62cfe36aef3048781b8",
+      "contrast": "let bindings must be irrefutable"
+    },
+    {
+      "id": "option-refutable-0",
+      "family": "option-refutable",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0005"
+      ],
+      "source_sha256": "b1b2d8847c08a715d0d9716717de4e5c6b2194ed2126f109d1bf85bc54a192d8",
+      "contrast": "let bindings must be irrefutable"
+    },
+    {
+      "id": "arm-unification-1",
+      "family": "arm-unification",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "cbb5bff6315cf5fbcba69592b2db1a41ffef5f03ac9d619343ef4cbc04365466",
+      "contrast": "match arms must return compatible types"
+    },
+    {
+      "id": "arm-unification-0",
+      "family": "arm-unification",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "f01025278a7562bdfaaacf71f3b4f9580b599cc3e4c452303bb9ec35cce1165c",
+      "contrast": "match arms must return compatible types"
+    },
+    {
+      "id": "guard-type-1",
+      "family": "guard-type",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "46b22b1c16a5ef719382940c52d3a129519b32d1f7281ee9367e15d900cd9374",
+      "contrast": "match guards require bool"
+    },
+    {
+      "id": "guard-type-0",
+      "family": "guard-type",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "efab0965cc5efc157b2903183198a136d3a133cbef0071a8ac163a82c0217ae3",
+      "contrast": "match guards require bool"
+    },
+    {
+      "id": "destructure-length-1",
+      "family": "destructure-length",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "9bdd65728376bd024dcb77bc9bd978e32ff0569b4f5adf5db1c5e2225b6b4b97",
+      "contrast": "array pattern length must match array type"
+    },
+    {
+      "id": "destructure-length-0",
+      "family": "destructure-length",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0527"
+      ],
+      "source_sha256": "95585334ed2111561e72a4bc5c92ed4c2678a5f8b5267c7e51b8204780ad6a92",
+      "contrast": "array pattern length must match array type"
+    },
+    {
+      "id": "struct-field-1",
+      "family": "struct-field",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "65a88ca61746fa8e16d9fea50b84fc7549de1775bc10f7d307f0f4d04fe474c2",
+      "contrast": "struct pattern fields must exist"
+    },
+    {
+      "id": "struct-field-0",
+      "family": "struct-field",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0026"
+      ],
+      "source_sha256": "8ab18322989c7c2519863e64e5baa72b3adceaf3f0d145198702f6ec237b9ac7",
+      "contrast": "struct pattern fields must exist"
+    },
+    {
+      "id": "tuple-arity-1",
+      "family": "tuple-arity",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "bc24ea94bc69c2511927fc2b740bf2e1dab2bc6777ac81a0d464421c21cbc01c",
+      "contrast": "tuple variant patterns preserve field arity"
+    },
+    {
+      "id": "tuple-arity-0",
+      "family": "tuple-arity",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0023"
+      ],
+      "source_sha256": "d48d1635c6757cb1b2318e8e880811952fe2da059b53ed1c7ddb1ef231d68d84",
+      "contrast": "tuple variant patterns preserve field arity"
+    },
+    {
+      "id": "pattern-type-1",
+      "family": "pattern-type",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "4941a16cd0f71942d66cf167ee2a0d787448f851ce52dfd4d885369010f644ad",
+      "contrast": "literal patterns match the scrutinee type"
+    },
+    {
+      "id": "pattern-type-0",
+      "family": "pattern-type",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "4927fe15fd57f23804fc29b838991c73f1c0c46cb3f7ef2d8021c120e3778027",
+      "contrast": "literal patterns match the scrutinee type"
+    },
+    {
+      "id": "borrow-pattern-1",
+      "family": "borrow-pattern",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "f923dd0bfb560569d99367f4332c14f2deb9c5c18fd610f67135ab5f33c63054",
+      "contrast": "ref binding preserves ownership for later use"
+    },
+    {
+      "id": "borrow-pattern-0",
+      "family": "borrow-pattern",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "5699d691f0c2891649f8b170b89e30db5657064f1a436f29acd9afb1c3bf6ffb",
+      "contrast": "ref binding preserves ownership for later use"
+    },
+    {
+      "id": "let-else-diverge-1",
+      "family": "let-else-diverge",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "efa2942b72f111f58d5a9b7e07654539619998c9d5db85c165a1f2939cbf4688",
+      "contrast": "let else failure branch must diverge"
+    },
+    {
+      "id": "let-else-diverge-0",
+      "family": "let-else-diverge",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0308"
+      ],
+      "source_sha256": "d23e9e0feb7230df167c7cd0204f937a577c5c985b05bd6003dd45135af6571a",
+      "contrast": "let else failure branch must diverge"
+    },
+    {
+      "id": "or-binding-1",
+      "family": "or-binding",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "d26dbe8dd5ee93984442acbbcf1ee3e46508307c4586f3db91398343b2806deb",
+      "contrast": "every alternative must bind the same variables"
+    },
+    {
+      "id": "or-binding-0",
+      "family": "or-binding",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0408"
+      ],
+      "source_sha256": "28718eadac6c134cfe196e34484cc61f01539f3f4f90b6fdd0f2d3841a631b63",
+      "contrast": "every alternative must bind the same variables"
+    },
+    {
+      "id": "mutable-destructure-1",
+      "family": "mutable-destructure",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "d6fdf04f0cb2088499b8b56084bb02a3ddd986daa880688355831e5818c6ef9b",
+      "contrast": "mutable binding permits assignment after destructuring"
+    },
+    {
+      "id": "mutable-destructure-0",
+      "family": "mutable-destructure",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0384"
+      ],
+      "source_sha256": "89423e5ea3e3198768214298c301acfeb27a14ee6fc193406c3a523c65165e96",
+      "contrast": "mutable binding permits assignment after destructuring"
+    }
+  ]
+}
