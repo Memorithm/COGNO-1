@@ -34,6 +34,14 @@ pub enum ByteTokenizerError {
     AllocationFailed,
 }
 
+/// Strict decoding errors; malformed streams never silently discard markers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ByteDecodeError {
+    Capacity,
+    Framing,
+    NonByteToken,
+}
+
 /// Stateless byte tokenizer with an explicit per-instance token cap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ByteTokenizer {
@@ -109,6 +117,44 @@ impl ByteTokenizer {
         Ok(())
     }
 
+    /// Decode a canonical single stream without interpreting arbitrary bytes as UTF-8.
+    pub fn decode(&self, tokens: &[u16]) -> Result<Vec<u8>, ByteDecodeError> {
+        let payload = self.decode_frame(tokens)?;
+        Self::decode_bytes(payload)
+    }
+
+    /// Decode exactly one SEP-delimited pair. Repeated separators are refused.
+    pub fn decode_pair(&self, tokens: &[u16]) -> Result<(Vec<u8>, Vec<u8>), ByteDecodeError> {
+        let payload = self.decode_frame(tokens)?;
+        let separator = payload
+            .iter()
+            .position(|&id| id == SEP_TOKEN)
+            .ok_or(ByteDecodeError::Framing)?;
+        let left = Self::decode_bytes(&payload[..separator])?;
+        let right = Self::decode_bytes(&payload[separator + 1..])?;
+        Ok((left, right))
+    }
+
+    fn decode_frame<'a>(&self, tokens: &'a [u16]) -> Result<&'a [u16], ByteDecodeError> {
+        if tokens.len() > self.max_tokens {
+            return Err(ByteDecodeError::Capacity);
+        }
+        if tokens.len() < 2
+            || tokens.first() != Some(&BOS_TOKEN)
+            || tokens.last() != Some(&EOS_TOKEN)
+        {
+            return Err(ByteDecodeError::Framing);
+        }
+        Ok(&tokens[1..tokens.len() - 1])
+    }
+
+    fn decode_bytes(tokens: &[u16]) -> Result<Vec<u8>, ByteDecodeError> {
+        tokens
+            .iter()
+            .map(|&id| u8::try_from(id).map_err(|_| ByteDecodeError::NonByteToken))
+            .collect()
+    }
+
     fn prepare_output(
         &self,
         tokens: &mut Vec<u16>,
@@ -151,6 +197,45 @@ pub fn byte_tokenizer_hash() -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strict_decoding_roundtrips_all_bytes_and_pairs() {
+        let tokenizer = ByteTokenizer::default();
+        let bytes: Vec<u8> = (0..=255).collect();
+        for length in 0..=bytes.len() {
+            let payload = &bytes[..length];
+            assert_eq!(
+                tokenizer
+                    .decode(&tokenizer.encode(payload).unwrap())
+                    .unwrap(),
+                payload
+            );
+            let pair = tokenizer.encode_pair(payload, b"\xff\0").unwrap();
+            assert_eq!(
+                tokenizer.decode_pair(&pair).unwrap(),
+                (payload.to_vec(), b"\xff\0".to_vec())
+            );
+        }
+    }
+
+    #[test]
+    fn strict_decoding_rejects_noncanonical_frames_and_capacity() {
+        let tokenizer = ByteTokenizer::try_new(8).unwrap();
+        for bad in [
+            vec![],
+            vec![256],
+            vec![0, 257],
+            vec![256, 0],
+            vec![256, 256, 257],
+            vec![256, 259, 257],
+            vec![256, 258, 257],
+        ] {
+            assert!(tokenizer.decode(&bad).is_err());
+        }
+        assert!(tokenizer.decode_pair(&[256, 257]).is_err());
+        assert!(tokenizer.decode_pair(&[256, 258, 258, 257]).is_err());
+        assert_eq!(tokenizer.decode(&[256; 9]), Err(ByteDecodeError::Capacity));
+    }
 
     #[test]
     fn reusable_buffers_match_all_byte_values_and_keep_allocation() {
