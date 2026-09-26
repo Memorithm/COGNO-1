@@ -301,6 +301,9 @@ impl SequenceCognitiveTrainer {
         (SequenceCognitiveModel, SequenceCognitiveTrainingReport),
         SequenceCognitiveModelError,
     > {
+        // Public configuration can be modified after construction, so the
+        // execution boundary must enforce the same contract as try_new.
+        validate_config(self.config)?;
         validate_examples(examples, self.config)?;
         let tokenizer = ByteTokenizer::try_new(self.config.cognitive.encoder.max_tokens)?;
 
@@ -672,6 +675,41 @@ mod tests {
             retrieval_query: b"alpha query".to_vec(),
             retrieval_candidates: vec![b"alpha memory".to_vec(), b"omega memory".to_vec()],
             retrieval_positive_idx: 0,
+        }
+    }
+
+    #[test]
+    fn training_revalidates_public_configuration_before_examples() {
+        let valid = config();
+        for invalid in [
+            SequenceCognitiveModelConfig { epochs: 0, ..valid },
+            SequenceCognitiveModelConfig {
+                epochs: MAX_NEURAL_EPOCHS + 1,
+                ..valid
+            },
+            SequenceCognitiveModelConfig {
+                learning_rate: f32::NAN,
+                ..valid
+            },
+            SequenceCognitiveModelConfig {
+                learning_rate: 2.0,
+                ..valid
+            },
+            SequenceCognitiveModelConfig {
+                preference_margin: -1.0,
+                ..valid
+            },
+            SequenceCognitiveModelConfig {
+                retrieval_temperature: 0.0,
+                ..valid
+            },
+        ] {
+            let mut trainer = SequenceCognitiveTrainer::try_new(valid).unwrap();
+            trainer.config = invalid;
+            assert!(matches!(
+                trainer.train(&[example()]),
+                Err(SequenceCognitiveModelError::InvalidConfig)
+            ));
         }
     }
 
