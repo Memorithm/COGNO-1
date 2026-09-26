@@ -1,0 +1,23 @@
+name: Offline distribution
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - name: Packaging unit tests
+        run: python3 -m unittest discover -s scripts -p 'test_offline_bundle.py' -v
+      - name: Prepare locked source distribution
+        run: python3 scripts/offline_bundle.py pack "$RUNNER_TEMP/cogno-offline"
+      - name: Build, test and train without network or Cargo cache
+        run: |
+          export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          sudo --preserve-env=PATH,RUSTUP_HOME unshare --net -- python3 scripts/offline_bundle.py verify "$RUNNER_TEMP/cogno-offline"

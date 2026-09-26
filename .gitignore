@@ -1,5 +1,6 @@
 # Build artifacts
 /target/
+__pycache__/
 **/*.rs.bk
 
 # Profiles / coverage

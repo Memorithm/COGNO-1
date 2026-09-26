@@ -240,6 +240,8 @@ contrôlées par le gate §24.
 
 ## Documentation
 
+- `docs/OFFLINE_DISTRIBUTION.md` — distribution autonome, dépendances embarquées et qualification hors réseau ;
+
 - `docs/INFERENCE_PERFORMANCE.md` — optimisation CPU et mesures reproductibles ;
 - `experiments/rust-expert-pilot/README.md` — premier diagnostic Rust, sans qualification expert ;
 
