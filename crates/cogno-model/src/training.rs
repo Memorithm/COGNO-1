@@ -320,6 +320,16 @@ impl TrainedModel {
     }
 }
 
+/// Failures at the opt-in bounded historical trainer boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ToyTrainingError {
+    Governance(TrainingDataGovernanceError),
+    Configuration,
+    Split,
+    Capacity,
+    Label,
+}
+
 /// Honest placeholder trainer for Phase 3.
 #[derive(Debug)]
 pub struct ToyTrainer {
@@ -337,6 +347,63 @@ impl ToyTrainer {
         }
     }
 
+    /// Checked training entrypoint for untrusted split/configuration inputs.
+    /// Enforces train-only unique indices, governance, nonempty work, at most
+    /// 4,096 selected rows, 100,000 updates, 1,048,576 parameters and source bytes,
+    /// 16,384 bytes per row and 256 classes. Class inventory comes only from the
+    /// selected training rows; held-out labels cannot enlarge the model.
+    pub fn try_train(
+        &self,
+        corpus: &Corpus,
+        split: &CorpusSplit,
+    ) -> Result<(TrainedModel, f32), ToyTrainingError> {
+        corpus
+            .validate_data_classifications()
+            .map_err(ToyTrainingError::Governance)?;
+        if self.num_features == 0 || self.epochs == 0 {
+            return Err(ToyTrainingError::Configuration);
+        }
+        if split.kind != SplitKind::Train || split.indices.is_empty() {
+            return Err(ToyTrainingError::Split);
+        }
+        if split.indices.len() > 4096
+            || split
+                .indices
+                .len()
+                .checked_mul(self.epochs as usize)
+                .is_none_or(|n| n > 100_000)
+        {
+            return Err(ToyTrainingError::Capacity);
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut bytes = 0usize;
+        let mut num_labels = 1u16;
+        for &index in &split.indices {
+            let example = corpus.examples.get(index).ok_or(ToyTrainingError::Split)?;
+            if !seen.insert(index) {
+                return Err(ToyTrainingError::Split);
+            }
+            if example.label.0 >= 256 {
+                return Err(ToyTrainingError::Label);
+            }
+            num_labels = num_labels.max(example.label.0 + 1);
+            bytes = bytes
+                .checked_add(example.payload.len())
+                .ok_or(ToyTrainingError::Capacity)?;
+            if example.payload.len() > 16_384 || bytes > 1_048_576 {
+                return Err(ToyTrainingError::Capacity);
+            }
+        }
+        if self
+            .num_features
+            .checked_mul(usize::from(num_labels))
+            .is_none_or(|n| n > 1_048_576)
+        {
+            return Err(ToyTrainingError::Capacity);
+        }
+        Ok(self.train_with_label_count(corpus, split, num_labels))
+    }
+
     /// Train an integer perceptron on a split. Returns the trained model and
     /// the final train accuracy (correct / total). Stops saturating on weight
     /// overflow; keeps training to obey the epoch budget.
@@ -349,6 +416,15 @@ impl ToyTrainer {
             .unwrap_or(0)
             .saturating_add(1);
 
+        self.train_with_label_count(corpus, split, num_labels)
+    }
+
+    fn train_with_label_count(
+        &self,
+        corpus: &Corpus,
+        split: &CorpusSplit,
+        num_labels: u16,
+    ) -> (TrainedModel, f32) {
         let mut m = TrainedModel {
             num_features: self.num_features,
             weights: vec![0i32; (num_labels as usize) * self.num_features],
@@ -412,6 +488,102 @@ mod tests {
             InputOrigin::TrainingCorpus,
             EvidenceOrigin::TestResult,
         )
+    }
+
+    #[test]
+    fn checked_toy_training_excludes_heldout_labels_and_matches_valid_training() {
+        let mut corpus = Corpus::default();
+        corpus.add(example());
+        let split = CorpusSplit {
+            kind: SplitKind::Train,
+            indices: vec![0],
+        };
+        let trainer = ToyTrainer::new(64, 2);
+        let expected = trainer.train(&corpus, &split);
+        let mut heldout = example();
+        heldout.label = Label(u16::MAX);
+        heldout.provenance.fingerprint.0[0] ^= 1;
+        corpus.add(heldout);
+        let actual = trainer.try_train(&corpus, &split).unwrap();
+        assert_eq!(actual.0.num_labels, 1);
+        assert_eq!(actual.0.weights, expected.0.weights);
+        assert_eq!(actual.1, expected.1);
+    }
+
+    #[test]
+    fn checked_toy_training_rejects_malformed_work_before_indexing_or_allocation() {
+        let mut corpus = Corpus::default();
+        corpus.add(example());
+        let trainer = ToyTrainer::new(64, 2);
+        for split in [
+            CorpusSplit {
+                kind: SplitKind::Test,
+                indices: vec![0],
+            },
+            CorpusSplit {
+                kind: SplitKind::Train,
+                indices: vec![1],
+            },
+            CorpusSplit {
+                kind: SplitKind::Train,
+                indices: vec![0, 0],
+            },
+            CorpusSplit {
+                kind: SplitKind::Train,
+                indices: vec![],
+            },
+        ] {
+            assert!(matches!(
+                trainer.try_train(&corpus, &split),
+                Err(ToyTrainingError::Split)
+            ));
+        }
+        let split = CorpusSplit {
+            kind: SplitKind::Train,
+            indices: vec![0],
+        };
+        for bad in [
+            ToyTrainer {
+                num_features: 0,
+                epochs: 1,
+            },
+            ToyTrainer {
+                num_features: 64,
+                epochs: 0,
+            },
+        ] {
+            assert!(matches!(
+                bad.try_train(&corpus, &split),
+                Err(ToyTrainingError::Configuration)
+            ));
+        }
+        assert!(matches!(
+            ToyTrainer {
+                num_features: usize::MAX,
+                epochs: 1
+            }
+            .try_train(&corpus, &split),
+            Err(ToyTrainingError::Capacity)
+        ));
+        assert!(matches!(
+            ToyTrainer {
+                num_features: 64,
+                epochs: 100_001
+            }
+            .try_train(&corpus, &split),
+            Err(ToyTrainingError::Capacity)
+        ));
+        corpus.examples[0].label = Label(256);
+        assert!(matches!(
+            trainer.try_train(&corpus, &split),
+            Err(ToyTrainingError::Label)
+        ));
+        corpus.examples[0].label = Label(0);
+        corpus.examples[0].payload.resize(16_385, 0);
+        assert!(matches!(
+            trainer.try_train(&corpus, &split),
+            Err(ToyTrainingError::Capacity)
+        ));
     }
 
     #[test]
