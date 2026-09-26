@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 import admit_rust_corpus as corpus
 import prepare_rust_diagnostic as diagnostic
+from verify_rust_pipeline import check_result
 
 
 def fixture():
@@ -23,6 +24,13 @@ def encoded(rows):
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_fresh_process_evidence_rejects_missing_duplicate_nan_and_wrong_labels(self):
+        row = dict(source_sha256='a'*64, split='test', project='synthetic/a', target='1', prediction='0', p_compile='0.2')
+        expected = {row['source_sha256']: row}
+        check_result([row], expected)
+        for rows in [[], [row, row], [dict(row, target='0')], [dict(row, p_compile='nan')], [dict(row, source_sha256='b'*64)]]:
+            with self.assertRaises(ValueError):
+                check_result(rows, expected)
     def test_reused_fixture_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / 'diagnostic'

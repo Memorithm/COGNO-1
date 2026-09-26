@@ -45,3 +45,26 @@ compression only when coverage is equal. No truncation or model training occurs.
 Synthetic family IDs are explicitly prefixed `synthetic/`; they are not independent
 real-world projects. The source file hash is pinned and changed data is rejected.
 This is an integration fixture, not an enlarged evaluation dataset.
+
+## Fresh-process checkpoint evaluation
+
+`bpe_corpus_eval CHECKPOINT CHECKPOINT_SHA CORPUS CORPUS_SHA train|validation|test`
+loads identified inference state and a validated corpus, then emits classification
+CSV only for the selected split. It contains no optimizer, source compiler or
+code executor. Binary class count, corpus/checkpoint identities and capacity
+errors are checked; all selected predictions are computed successfully before
+any CSV is emitted. There is no skipping or silent truncation.
+
+For the reused integration fixture:
+
+```sh
+cargo +1.97.1 build --release --locked -p cogno-model --examples
+python3 scripts/verify_rust_pipeline.py --examples-dir target/release/examples --checkpoints /tmp/new-bpe-checkpoints --output /tmp/new-rust-evaluation
+```
+
+The verifier requires the checkpoint inventory frozen in Git, prepares the pinned
+diagnostic corpus and checks coverage against committed measurements. It launches
+nine separate evaluators (three seeds × three partitions), checks all 72 outputs
+against frozen references and tests refusal of wrong model/corpus hashes. New
+output directories are mandatory. Results are also checked in isolated offline CI.
+This validates persistence and evaluation plumbing, not independent Rust quality.

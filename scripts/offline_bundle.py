@@ -119,6 +119,10 @@ def verify(bundle):
                          'bpe_rust_probe', '--', str(temp / 'bpe-checkpoints')], work, env=env, stdout=output)
         run([sys.executable, 'scripts/check_bpe_evidence.py', str(predictions),
              '--checkpoints', str(temp / 'bpe-checkpoints')], work, env=env)
+        run([sys.executable, 'scripts/verify_rust_pipeline.py',
+             '--examples-dir', str(temp / 'target' / 'release' / 'examples'),
+             '--checkpoints', str(temp / 'bpe-checkpoints'),
+             '--output', str(temp / 'rust-evaluation')], work, env=env)
     # Verification never modifies the delivered source or checkpoints.
     verify_inventory(bundle)
 
