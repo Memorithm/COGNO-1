@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "domain": "ownership",
+  "origin": "Original synthetic fixtures authored for COGNO-1; no upstream project",
+  "license": "MIT",
+  "edition": "2021",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cases": [
+    {
+      "id": "string-reuse-1",
+      "family": "string-reuse",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "f4347fb695d94ea0253989399ce476367abccd98738a82b5b76612fcb8167fda",
+      "contrast": "clone retains a usable source binding"
+    },
+    {
+      "id": "string-reuse-0",
+      "family": "string-reuse",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "1d742c8784075044b3901763ced4045d1dd86dae391209656600561f6e29e965",
+      "contrast": "clone retains a usable source binding"
+    },
+    {
+      "id": "partial-field-1",
+      "family": "partial-field",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "75934239e9397decb2cc43a1084996db53fd4cbd9492a5abcda29a82ba0a07dd",
+      "contrast": "moving one field leaves the other field usable"
+    },
+    {
+      "id": "partial-field-0",
+      "family": "partial-field",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "d4536222113d266a23554a56288c67adeb2edad46c25a95fb658dd68f6a2246f",
+      "contrast": "moving one field leaves the other field usable"
+    },
+    {
+      "id": "tuple-destructure-1",
+      "family": "tuple-destructure",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "fbd519826fb7170730f11eac6c2b2168bce8fb7e1a4e2c21b4a531280ce65f35",
+      "contrast": "ref binding avoids moving a tuple field"
+    },
+    {
+      "id": "tuple-destructure-0",
+      "family": "tuple-destructure",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "8a0e95294c7c5898549ba8159c829a7ecb07bb12d6cadcbddbadf15680a88624",
+      "contrast": "ref binding avoids moving a tuple field"
+    },
+    {
+      "id": "function-consumption-1",
+      "family": "function-consumption",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "60c08ec8acbad96f0bd8998dae9b402fc2c9faef32fe34f26b45dc466b052701",
+      "contrast": "borrowed parameter preserves caller ownership"
+    },
+    {
+      "id": "function-consumption-0",
+      "family": "function-consumption",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "163e47290bd2d9877ae5da27c1ccc9d438f3d783597bd87db2feaa768bd8d24f",
+      "contrast": "borrowed parameter preserves caller ownership"
+    },
+    {
+      "id": "loop-consumption-1",
+      "family": "loop-consumption",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "b6c8376907636eebcab91651be9c77b846d18fb4b4a0bc4a464eb0952c9274af",
+      "contrast": "each loop iteration consumes a fresh clone"
+    },
+    {
+      "id": "loop-consumption-0",
+      "family": "loop-consumption",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "9852f3157f0e4ae276d6526e12af972ae87f5efc3bf42c848dc782e28846f31b",
+      "contrast": "each loop iteration consumes a fresh clone"
+    },
+    {
+      "id": "option-extraction-1",
+      "family": "option-extraction",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "0172d7c7873b54e773029b819212d560d13e7f2408f4a9041d0f8a48366d4768",
+      "contrast": "as_ref leaves the Option unconsumed"
+    },
+    {
+      "id": "option-extraction-0",
+      "family": "option-extraction",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "5651172fc1f8a295c8e401f60df735bde15d10e89cb6f6fac9245b60ace9319e",
+      "contrast": "as_ref leaves the Option unconsumed"
+    },
+    {
+      "id": "iterator-ownership-1",
+      "family": "iterator-ownership",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8bc59effc6bf9c3dd44258d31f647caf6b4c2b08b4cb0424c9c7bf9a8aa85bb6",
+      "contrast": "iter borrows whereas into_iter consumes a Vec"
+    },
+    {
+      "id": "iterator-ownership-0",
+      "family": "iterator-ownership",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "537d9670ebc3dd09020db7ac42be1a45b6fa676e1a1bf59a24328ce9b08ad3fc",
+      "contrast": "iter borrows whereas into_iter consumes a Vec"
+    },
+    {
+      "id": "array-ownership-1",
+      "family": "array-ownership",
+      "split": "train",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "7366582184863d6cbcfc2a5a94eb1653f0ec1ed395a8af1250b989c50ff02ac1",
+      "contrast": "non-Copy array must be cloned for reuse"
+    },
+    {
+      "id": "array-ownership-0",
+      "family": "array-ownership",
+      "split": "train",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "7bfa979ed249aaf1ddfbf50c587171ac91836bb0ecc640952329904e5c3cb9c0",
+      "contrast": "non-Copy array must be cloned for reuse"
+    },
+    {
+      "id": "closure-capture-1",
+      "family": "closure-capture",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "14e167390feed0c74efc4ac80afa56c14259d50b9402cc9de1ad27b4729ce1c4",
+      "contrast": "borrowing closure leaves the captured value accessible"
+    },
+    {
+      "id": "closure-capture-0",
+      "family": "closure-capture",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "803b4ab93215ed843a9ad1e6f90fd2761ec7b7fc923c2c9e7c0c649766daa6a5",
+      "contrast": "borrowing closure leaves the captured value accessible"
+    },
+    {
+      "id": "enum-match-1",
+      "family": "enum-match",
+      "split": "validation",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "4c442d7ca2e2a868d9bea2c5a00f4edcfac84f0e059acdd582302b56ab686b03",
+      "contrast": "matching by reference preserves an enum payload"
+    },
+    {
+      "id": "enum-match-0",
+      "family": "enum-match",
+      "split": "validation",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "3ca4df875d84207a698e868d81a6931a22b81936ba3c289bcba0ef74294c8880",
+      "contrast": "matching by reference preserves an enum payload"
+    },
+    {
+      "id": "conditional-consumption-1",
+      "family": "conditional-consumption",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "041c28c5b1734b8a5c6746ea7c6da7b81c64662604e6b5e27e47b1c5f3a64c46",
+      "contrast": "a possibly executed move still invalidates reuse"
+    },
+    {
+      "id": "conditional-consumption-0",
+      "family": "conditional-consumption",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "ead7bf5eed809b57cdbb17e59aa93d3c6f86461966f44ff9378d7d5ad88a10e2",
+      "contrast": "a possibly executed move still invalidates reuse"
+    },
+    {
+      "id": "returned-ownership-1",
+      "family": "returned-ownership",
+      "split": "test",
+      "expected_label": 1,
+      "expected_diagnostics": [],
+      "source_sha256": "8bc58614899c46a36b7f6d72ef6ec65d21a5a4630d8007257328e2bec1cb2db5",
+      "contrast": "returning two owned outputs requires duplication"
+    },
+    {
+      "id": "returned-ownership-0",
+      "family": "returned-ownership",
+      "split": "test",
+      "expected_label": 0,
+      "expected_diagnostics": [
+        "E0382"
+      ],
+      "source_sha256": "174df3e4a6fac90fd29be884f3122a02bdd0609a27be7e4d7668b0a174c31e02",
+      "contrast": "returning two owned outputs requires duplication"
+    }
+  ]
+}
