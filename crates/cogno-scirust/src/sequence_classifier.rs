@@ -242,6 +242,78 @@ impl SequenceClassifier {
         ))
     }
 
+    /// Head-only NLL and gradients with the encoder frozen.
+    ///
+    /// This is an opt-in representation diagnostic: it measures whether a
+    /// dense head can learn from existing encoder features. Features are
+    /// detached intentionally; no encoder gradients or optimizer states exist
+    /// in this path. It does not establish generalization to unseen code.
+    pub fn loss_and_head_gradients(
+        &self,
+        token_ids: &[u16],
+        target_class: usize,
+    ) -> SciRustResult<(f32, FrozenClassifierHeadGradients)> {
+        self.validate_target(target_class)?;
+        let features = self.encoder.forward(token_ids)?;
+        let max_elements = self
+            .head_weights
+            .len()
+            .max(self.config.num_classes)
+            .max(self.config.encoder.hidden_dim);
+        let mut tape = Tape::new(16, max_elements);
+        let features = tape.variable(Tensor::try_new(
+            Shape::try_new(&[1, self.config.encoder.hidden_dim])?,
+            features,
+            max_elements,
+        )?)?;
+        let weights = tape.variable(Tensor::try_new(
+            Shape::try_new(&[self.config.encoder.hidden_dim, self.config.num_classes])?,
+            self.head_weights.clone(),
+            max_elements,
+        )?)?;
+        let bias = tape.variable(Tensor::try_new(
+            Shape::try_new(&[1, self.config.num_classes])?,
+            self.head_bias.clone(),
+            max_elements,
+        )?)?;
+        let logits = tape.matmul(features, weights)?;
+        let logits = tape.add(logits, bias)?;
+        let log_probabilities = tape.log_softmax(logits)?;
+        let mut target = vec![0.0; self.config.num_classes];
+        target[target_class] = 1.0;
+        let target = tape.variable(Tensor::try_new(
+            Shape::try_new(&[1, self.config.num_classes])?,
+            target,
+            max_elements,
+        )?)?;
+        let selected = tape.mul(log_probabilities, target)?;
+        let selected = tape.sum(selected)?;
+        let loss = tape.neg(selected)?;
+        tape.backward(loss)?;
+        let value = tape.value_of(loss).as_slice()[0];
+        ensure_finite(value)?;
+        let gradients = FrozenClassifierHeadGradients {
+            weights: tape.grad_of(weights).to_vec(),
+            bias: tape.grad_of(bias).to_vec(),
+        };
+        validate_finite(&gradients.weights)?;
+        validate_finite(&gradients.bias)?;
+        Ok((value, gradients))
+    }
+
+    /// Train only the dense head using a separate optimizer; encoder parameters
+    /// remain bit-for-bit unchanged. Existing `train_step` remains end-to-end.
+    pub fn train_head_step(
+        &mut self,
+        optimizer: &mut FrozenClassifierHeadAdamW,
+        token_ids: &[u16],
+        target_class: usize,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.loss_and_head_gradients(token_ids, target_class)?;
+        optimizer.step(self, &gradients)?;
+        Ok(loss)
+    }
+
     /// One checked AdamW step through head and shared encoder.
     pub fn train_step(
         &mut self,
@@ -340,6 +412,65 @@ impl SequenceClassifierAdamW {
             .step(&mut model.head_bias, &gradients.head_bias)?;
         validate_finite(&model.head_weights)?;
         validate_finite(&model.head_bias)?;
+        Ok(())
+    }
+}
+
+/// Gradients of the dense classifier head with detached encoder features.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrozenClassifierHeadGradients {
+    weights: Vec<f32>,
+    bias: Vec<f32>,
+}
+
+impl FrozenClassifierHeadGradients {
+    #[must_use]
+    pub fn weights(&self) -> &[f32] {
+        &self.weights
+    }
+    #[must_use]
+    pub fn bias(&self) -> &[f32] {
+        &self.bias
+    }
+}
+
+/// Head-only optimizer, intentionally containing no encoder optimizer state.
+#[derive(Clone, Debug)]
+pub struct FrozenClassifierHeadAdamW {
+    weights: AdamW,
+    bias: AdamW,
+}
+
+impl FrozenClassifierHeadAdamW {
+    pub fn try_new(learning_rate: f32, model: &SequenceClassifier) -> SciRustResult<Self> {
+        Ok(Self {
+            weights: AdamW::try_new(learning_rate, model.head_weights.len())?,
+            bias: AdamW::try_new(learning_rate, model.head_bias.len())?,
+        })
+    }
+
+    /// Stage both tensor updates before committing model and optimizer state.
+    pub fn step(
+        &mut self,
+        model: &mut SequenceClassifier,
+        gradients: &FrozenClassifierHeadGradients,
+    ) -> SciRustResult<()> {
+        validate_len(&gradients.weights, model.head_weights.len())?;
+        validate_len(&gradients.bias, model.head_bias.len())?;
+        // Verify association by shape before calling the numerical optimizers,
+        // whose public state representation need not be trusted by this API.
+        validate_len(&self.weights.state.m, model.head_weights.len())?;
+        validate_len(&self.bias.state.m, model.head_bias.len())?;
+        let mut next = self.clone();
+        let mut weights = model.head_weights.clone();
+        let mut bias = model.head_bias.clone();
+        next.weights.step(&mut weights, &gradients.weights)?;
+        next.bias.step(&mut bias, &gradients.bias)?;
+        validate_finite(&weights)?;
+        validate_finite(&bias)?;
+        model.head_weights = weights;
+        model.head_bias = bias;
+        *self = next;
         Ok(())
     }
 }
