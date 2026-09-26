@@ -38,3 +38,23 @@ All three COGNO checkpoint identities were frozen in
 `experiments/bpe-rust-pilot/checkpoints.tsv` before this selection. The tokenizer
 and weights must not be fitted or retuned on this panel. Once its results have
 been examined it is a regression panel, not an untouched future holdout.
+
+## First frozen-checkpoint result
+
+All three seeds (1/7/42) accepted seven examples and refused one at context 128:
+`borrowck-binding-mutbl`. Every accepted input was predicted compile-failure.
+Each checkpoint therefore got 5/7 accepted cases right (71.43%), with 5 true
+negatives, 2 false negatives and 0 true positives. This **only matches the constant
+majority-class baseline on the accepted subset**. On all eight inputs, there are
+five correct answers, two incorrect answers and one refusal; coverage is 87.5%.
+Do not report 71.43% as evidence of expert Rust ability or improvement.
+
+`seed-*.csv` retains every probability, prediction and refusal; `results.json`
+includes checkpoint identities and the confusion matrices. There was no training,
+tokenizer fitting or checkpoint selection using these eight cases. No latency
+measurement or statistical generalization claim is made.
+
+Reproduce with `scripts/evaluate_external_rust.py --executable PATH_TO_bpe_external_eval
+--checkpoints CHECKPOINT_DIRECTORY --output NEW_DIRECTORY`. It validates the frozen
+checkpoint inventory, rechecks compiler labels, admits only test rows, then runs
+three separate inference processes. No refused input is truncated or omitted.
