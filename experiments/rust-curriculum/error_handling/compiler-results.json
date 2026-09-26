@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "domain": "error_handling",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "compiler_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+  "edition": "2021",
+  "fixture_manifest_sha256": "1871d84c720d0b4f23ff7fee1c2e1545203fe8edf35a59570ac8b5e388611845",
+  "source_execution": false,
+  "observations": [
+    {
+      "id": "option-question-1",
+      "source_sha256": "0bf57fb8655b4dc73fb9c2f23deebc52928ab75636bbf8c7273f1bcd081fc288",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "option-question-0",
+      "source_sha256": "7a00289b06bf23734e92f543e95a0749403e1d48563b37ab28b9d7d98907c5eb",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "result-question-1",
+      "source_sha256": "5691a6e3bf3da68d7f41f07644c193b05cf4318023e9b568e47f45b242e8f833",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "result-question-0",
+      "source_sha256": "01b3aea1ef65e46a27004aef530b52ebf3147b0536d81d389ba6f1a0d9df6d24",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "residual-conversion-1",
+      "source_sha256": "ae1022be8771d7f3817e33ae4478f1c242589eda38ed9c9adfc3a0c3c8c0cdd8",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "residual-conversion-0",
+      "source_sha256": "f7a3b74008fc6a487cc2efc0a5a42f16efe15be88b1dc1f11ec380d0e5d682dc",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "error-conversion-1",
+      "source_sha256": "bc3d94c8eb9a7cdf0568b2d8c159bebca74517be7c7c4a3f4332bf335ce20b8a",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "error-conversion-0",
+      "source_sha256": "9da5af8b9e4895c6fdb2db33928b9eb912576d84f8388512da370d6ea92c8200",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "ok-value-1",
+      "source_sha256": "fb9d6658e7a6ec91fc964fd4bbba9266d18b2b4e07f3ca1abbbd79c8b4e57401",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "ok-value-0",
+      "source_sha256": "3bf9e3ddf24eecf99fb66ec54bd4b893dce19a41ebb46921e918519cd9aa125c",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "err-value-1",
+      "source_sha256": "39ad6ea74e501371035863ed54daa29d56602311d3eb786e4ea57c93eb92cfd2",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "err-value-0",
+      "source_sha256": "0ffb0a0f6d99268de16948a61946aebafe69aa0fe265f6ec2593118b9bb0a32e",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "and-then-option-1",
+      "source_sha256": "64b679441b725ab9f0d60536cd75b32a2a09e2c8c9390da56a8a3036f932cd82",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "and-then-option-0",
+      "source_sha256": "8af96a937bc3bd646b5eda4d54fc623ffffe1bc04f17bef876a34774bcdcab7b",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "and-then-result-1",
+      "source_sha256": "26d86b2ca6b70631aaabc9061dc5826a3013378fdd89a831f358ecd1afc096de",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "and-then-result-0",
+      "source_sha256": "810a851afaedc55e5168f7c795d7c772a67ee5ed7c7ce1297536c1015f4007c1",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "unwrap-default-1",
+      "source_sha256": "7fa98211b81f00475959fb06670b9784cded3827e1f96e531795ce0901b3155f",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "unwrap-default-0",
+      "source_sha256": "43e06b994320925c4db9d2a7de1475cc78b8fdcaa701e28db9d90282ba3cf5d7",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    },
+    {
+      "id": "transpose-shape-1",
+      "source_sha256": "6f68c8694f40cd2854957f4d75a69a6bba8875aef47afad6866505ac7a0bd110",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "transpose-shape-0",
+      "source_sha256": "5342a4e49f13ec7970f1ae759b72c6dc07249b024a892d48beaab0797e1e036a",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0599"
+      ]
+    },
+    {
+      "id": "question-option-result-1",
+      "source_sha256": "0ec1c7f69a7b1864e5768e8bdafc16205d2d7e301287a40ed11c43b684397f77",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "question-option-result-0",
+      "source_sha256": "476ca6ddb490aa58ade938ff1879d0c6917beb8d2b93942e99b3d8d94b778473",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0277"
+      ]
+    },
+    {
+      "id": "recover-error-1",
+      "source_sha256": "fd498c2178dffc0fa6dbd99ae864154275f61a10230a75f2f90d06b6beb6f229",
+      "label": 1,
+      "exit_code": 0,
+      "diagnostics": []
+    },
+    {
+      "id": "recover-error-0",
+      "source_sha256": "eee0ce58bcfe51d129a00311f77b1147cbc854a2871f57cc929a597b8dc8d186",
+      "label": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        "E0308"
+      ]
+    }
+  ]
+}
