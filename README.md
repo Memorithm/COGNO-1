@@ -241,6 +241,7 @@ contrôlées par le gate §24.
 ## Documentation
 
 - `docs/BPE_TOKENIZER.md` — BPE borné expérimental, format séparé et diagnostic Rust ;
+- `experiments/external-rust-panel/README.md` — premier panel externe figé : huit cas du compilateur Rust, résultats sans avantage sur la classe majoritaire et refus de contexte conservés ;
 
 - `docs/OFFLINE_DISTRIBUTION.md` — distribution autonome, dépendances embarquées et qualification hors réseau ;
 
