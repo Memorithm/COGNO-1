@@ -46,3 +46,16 @@ checks every checkpoint hash and prediction, and recomputes metrics. The
 dedicated CI runs it. This x86 CPU reference does not imply bit-identical results
 on every architecture; Thor qualification is recorded separately. Timing and
 GPU acceleration were not measured in this campaign.
+
+## Thor reproduction
+
+RemoteOps run 36295174922 completed on Thor aarch64 using pinned COGNO commit
+`df657c04ad254fbd92aaca8e4fc52fa2488afbfe` and rustc 1.97.1. All 12 checkpoint
+inventories and hashes match this x86 reference. The entire predictions.csv
+matches SHA256 `051f5e2936629a81c92c89e3cf6161b7240d4e28dbcbc2c9e193362a15c356d3`.
+The arm metrics and validation-only selection also match. `thor-summary.json`
+preserves the reported identities and run provenance. This demonstrates one
+fixed experiment's CPU reproduction across x86 and ARM64, not universal bitwise
+portability, GPU use, massive training, or a throughput improvement. Thor retains
+the checkpoints, full predictions, source snapshot and compiler evidence in its
+exclusive run directory; no production model was installed.

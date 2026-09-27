@@ -1,10 +1,13 @@
 import copy
+import csv
+import hashlib
+import io
 import json
 from pathlib import Path
 import unittest
 from prepare_domain_holdout import DOMAIN_SPLITS
 from select_curriculum_probe import ARMS, SEEDS
-from summarize_domain_holdout import summarize
+from summarize_domain_holdout import summarize, read_csv
 from verify_domain_holdout import compare_report
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +29,20 @@ def fixture():
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_thor_summary_matches_retained_x86_evidence(self):
+        reference = ROOT / 'experiments/domain-holdout-v1'
+        thor = json.loads((reference / 'thor-summary.json').read_text())
+        report = json.loads((reference / 'report.json').read_text())
+        self.assertEqual(thor['architecture'], 'aarch64')
+        for key in ('checkpoints', 'selection', 'arm_means', 'corpus_sha256', 'predictions'):
+            compare_report(thor[key], report[key])
+        rows = [r for arm in ARMS for r in read_csv(reference / f'predictions-{arm}.csv')]
+        data = io.StringIO(newline='')
+        writer = csv.DictWriter(data, fieldnames=list(rows[0]), lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+        self.assertEqual(hashlib.sha256(data.getvalue().encode()).hexdigest(), thor['predictions_sha256'])
+
     def test_report_rejects_tampered_metrics_and_inventory(self):
         value = dict(count=48, nll=0.6, models=['seed-1'], promoted=False)
         compare_report(value, dict(value, nll=0.6+1e-14))
