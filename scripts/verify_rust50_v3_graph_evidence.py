@@ -107,8 +107,8 @@ LATEST_RUNTIME_EXPECTED = {
     "dense_bundle_sha256": "1721b15c57ff9114850c19e6efa4cafce1a82ce38fae3b611314f0b9f518188d",
     "gather_bundle_sha256": "2ef04b2209c28f8430de536de93e1492d6bfb928c1c71afa0cfe69bbad2a5dfa",
     "comparison_complete_sha256": "6dfef49dd6a8e2d3352f874d2bad36dafadddc779dcdabf5751c4fec4f202cac",
-    "gpu_training": false,
-    "model_promoted": false
+    "gpu_training": False,
+    "model_promoted": False
 }
 
 HEX40_FIELDS = {"source_commit", "source_tree", "remoteops_commit"}
