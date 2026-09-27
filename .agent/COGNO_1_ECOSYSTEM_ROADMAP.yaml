@@ -1,0 +1,24 @@
+schema_version: 1
+kind: cogno1_ecosystem_roadmap
+status: active
+last_updated: "2026-09-27"
+repository: Memorithm/COGNO-1
+merge_policy: never_merge_this_file_to_default_branch_unless_user_explicitly_requests
+mission:
+  role: deterministic_authority_agent_consumer
+  boundary: deterministic_Rust_core_remains_authority_model_outputs_are_untrusted_data
+ax_task_program:
+  external_reference: google_ax_architecture_only
+  objective: >-
+    Bind model/tool work to explicit task identity, exact workspace,
+    least-privilege capabilities and bounded resources without allowing task
+    metadata or model output to bypass deterministic authority.
+  phases:
+    - AXCOG1_map_model_and_tool_calls_to_task_scoped_capabilities
+    - AXCOG2_separate_read_reason_and_effect_capabilities
+    - AXCOG3_bind_workspace_model_and_result_provenance
+    - AXCOG4_reconcile_ambiguous_effects_before_retry
+  invariants:
+    - model_probability_never_becomes_permission
+    - task_capability_does_not_bypass_deterministic_constraints
+    - shared_transport_credentials_do_not_expand_task_authority
