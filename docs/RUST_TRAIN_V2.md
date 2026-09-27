@@ -49,3 +49,9 @@ Verification rejects incomplete inventories, changed bytes or protocol/configura
 `rust_train_v2 select PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA NEW_SELECTION_FILE`
 
 The selector first verifies the complete Cartesian product of preregistered arms and seeds, then recomputes final-checkpoint validation NLL. It selects the lowest mean across **all** seeds, with exact ties resolved by protocol arm order. The report retains every arm, seed count and repeated observation count. It does not choose the best seed or epoch. Repeated source observations across seeds are not independent test cases. Selection is recorded in a new file with both protocol and bundle identities; an existing selection file is refused.
+
+## Test after frozen selection
+
+`rust_train_v2 test PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA SELECTION_FILE NEW_TEST_DIRECTORY`
+
+This command requires the exact validation-only decision before evaluating test outcomes. It exports every seed of the selected arm **and all preregistered controls**, never changing selection. A separate completed test bundle binds the training bundle, selection and every prediction. Its per-seed source count must not be multiplied into a claim of independent samples. Test sources were admitted and checked for capacity before training, but their outcomes were not computed by the training or selection commands. This separation is procedural: filesystem permissions do not prevent an operator from reading the source corpus or repeatedly running new protocols. Preregister protocols before inspecting outcomes.
