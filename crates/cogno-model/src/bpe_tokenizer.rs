@@ -7,7 +7,7 @@
 
 use crate::tokenizer::{BOS_TOKEN, EOS_TOKEN, SEP_TOKEN};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const BASE: usize = 259;
 const MAGIC: &[u8; 8] = b"CBPE0001";
@@ -49,32 +49,38 @@ impl BpeTokenizer {
         }
         let mut pieces: Vec<Vec<u8>> = (0..=255).map(|x| vec![x]).collect();
         pieces.extend([vec![], vec![], vec![]]);
-        let mut seen = BTreeSet::new();
-        for &(a, b) in merges {
-            let a = usize::from(a);
-            let b = usize::from(b);
-            if a >= pieces.len()
-                || b >= pieces.len()
-                || (256..BASE).contains(&a)
-                || (256..BASE).contains(&b)
-            {
-                return Err(BpeError::InvalidMerge);
-            }
-            if pieces[a].len() + pieces[b].len() > MAX_TOKEN_BYTES {
-                return Err(BpeError::Capacity);
-            }
-            let mut piece = pieces[a].clone();
-            piece.extend_from_slice(&pieces[b]);
-            if !seen.insert(piece.clone()) {
-                return Err(BpeError::InvalidMerge);
-            }
-            pieces.push(piece);
-        }
-        Ok(Self {
+        let mut model = Self {
             max_tokens,
-            merges: merges.to_vec(),
+            merges: Vec::with_capacity(merges.len()),
             pieces,
-        })
+        };
+        for &pair in merges {
+            model.append_merge(pair)?;
+        }
+        Ok(model)
+    }
+
+    // Validate just the next rank. The already accepted prefix is immutable.
+    fn append_merge(&mut self, pair: (u16, u16)) -> Result<(), BpeError> {
+        let (a, b) = (usize::from(pair.0), usize::from(pair.1));
+        if a >= self.pieces.len()
+            || b >= self.pieces.len()
+            || (256..BASE).contains(&a)
+            || (256..BASE).contains(&b)
+        {
+            return Err(BpeError::InvalidMerge);
+        }
+        if self.pieces[a].len() + self.pieces[b].len() > MAX_TOKEN_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        let mut piece = self.pieces[a].clone();
+        piece.extend_from_slice(&self.pieces[b]);
+        if self.pieces[BASE..].contains(&piece) {
+            return Err(BpeError::InvalidMerge);
+        }
+        self.pieces.push(piece);
+        self.merges.push(pair);
+        Ok(())
     }
 
     /// Learn only from a caller-provided TRAIN partition, never infer a split.
@@ -127,9 +133,7 @@ impl BpeTokenizer {
                 break;
             };
             let id = model.vocab_size() as u16;
-            let mut merges = model.merges.clone();
-            merges.push(pair);
-            model = Self::from_merges(max_tokens, &merges)?;
+            model.append_merge(pair)?;
             for record in &mut records {
                 merge(record, pair, id);
             }
@@ -367,6 +371,21 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn incremental_vocabulary_matches_rebuilt_prefixes_and_rejects_atomically() {
+        let mut t = BpeTokenizer::from_merges(512, &[]).unwrap();
+        let rules = [(97, 98), (259, 259), (260, 99)];
+        for (i, &rule) in rules.iter().enumerate() {
+            t.append_merge(rule).unwrap();
+            assert_eq!(t, BpeTokenizer::from_merges(512, &rules[..=i]).unwrap());
+        }
+        let saved = t.clone();
+        for invalid in [(97, 98), (999, 0), (BOS_TOKEN, 0)] {
+            assert_eq!(t.append_merge(invalid), Err(BpeError::InvalidMerge));
+            assert_eq!(t, saved);
+        }
+    }
+
     #[test]
     fn training_prefix_preserves_full_inference_and_exposes_fallback() {
         let tokenizer = BpeTokenizer::from_merges(512, &[(97, 98), (259, 259)]).unwrap();
