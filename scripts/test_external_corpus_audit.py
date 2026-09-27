@@ -21,3 +21,8 @@ class AuditTests(unittest.TestCase):
                 source = b'fn main(){let _=' + prefix + b'#"quoted "//still literal"#;}\n'
                 with self.assertRaisesRegex(ValueError, 'raw string'):
                     derive(source)
+
+    def test_invalid_utf8_is_a_fail_closed_validation_error(self):
+        with self.assertRaisesRegex(ValueError, 'valid UTF-8'):
+            derive(b'fn main(){\xff}\n')
+

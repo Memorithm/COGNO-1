@@ -5,7 +5,10 @@ from external_corpus_inventory import SOURCE_LIMIT,digest
 
 def derive(raw):
     if not 1<=len(raw)<=SOURCE_LIMIT:raise ValueError('source byte bound')
-    text=raw.decode('utf-8')
+    try:
+        text=raw.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        raise ValueError('source must be valid UTF-8') from exc
     if '\r' in text or '/*' in text or '*/' in text or re.search(r'\b(?:b|c)?r#*"',text):
         raise ValueError('unsupported CR, block comment, or raw string')
     output=[];removed=[]
@@ -36,3 +39,4 @@ def derive(raw):
     return source,dict(transform='standalone-line-comments-v1',raw_sha256=digest(raw),
                        source_sha256=digest(source),removed_comment_lines=removed,
                        limitations='conservative subset; lexical rejection is not semantic parsing')
+
