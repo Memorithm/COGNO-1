@@ -23,7 +23,8 @@ use crate::taste_decision::{
 };
 use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
-    ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, ToolProposalView,
+    ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, TaskCapabilityScope,
+    ToolProposalView,
 };
 use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 
@@ -301,6 +302,31 @@ impl Runtime {
     /// and must be traceable like any rejection (§3, S6).
     pub fn execute_tool(&mut self, p: &ToolProposalView<'_>) -> ToolOutcome {
         let o = self.tools.execute(p);
+        match o {
+            ToolOutcome::Refused(_) => {
+                self.rejections = self.rejections.saturating_add(1);
+                self.audit
+                    .reject(cogno_core::RejectReason::Unauthorized, None);
+            }
+            ToolOutcome::DryRunAuthorized => {
+                self.audit
+                    .tool_authorize(Some("dry-run authorized".to_string()));
+            }
+        }
+        o
+    }
+
+    /// Decide and audit a tool proposal inside a host-provided task scope.
+    ///
+    /// The scope is not supplied by the model. It is checked against both the
+    /// runtime-wide policy and the task-local positive lists, while the normal
+    /// audit path remains unchanged.
+    pub fn execute_tool_for_task(
+        &mut self,
+        scope: &TaskCapabilityScope<'_>,
+        p: &ToolProposalView<'_>,
+    ) -> ToolOutcome {
+        let o = self.tools.execute_for_task(scope, p);
         match o {
             ToolOutcome::Refused(_) => {
                 self.rejections = self.rejections.saturating_add(1);
