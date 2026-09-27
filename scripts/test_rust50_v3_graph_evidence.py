@@ -49,6 +49,10 @@ class GraphEvidenceTests(unittest.TestCase):
                          "9989cf5edd2f9d34a037877d2af746762715a84e")
         self.assertEqual(result["runtime_remoteops_run_id"], 36327304698)
         self.assertEqual(result["runtime_remoteops_job_id"], 108642451598)
+        self.assertEqual(result["latest_runtime_source_commit"],
+                         "8d71d7cfbe2d4bd4a8f7710e62370d9317bb00b5")
+        self.assertEqual(result["latest_runtime_remoteops_run_id"], 36348846012)
+        self.assertEqual(result["latest_runtime_remoteops_job_id"], 108703433769)
         self.assertFalse(result["gpu_training"])
         self.assertFalse(result["model_promoted"])
 
@@ -89,6 +93,9 @@ class GraphEvidenceTests(unittest.TestCase):
             ("thor-v3-runtime-verified-summary.json", "source_commit", "0" * 40),
             ("thor-v3-runtime-verified-summary.json", "comparison_complete_sha256", "0" * 64),
             ("thor-v3-runtime-verified-summary.json", "dense_ns", 0),
+            ("thor-v3-runtime-verified-summary-latest.json", "source_commit", "0" * 40),
+            ("thor-v3-runtime-verified-summary-latest.json", "comparison_complete_sha256", "0" * 64),
+            ("thor-v3-runtime-verified-summary-latest.json", "dense_ns", 0),
         ]:
             with self.subTest(filename=filename, field=field):
                 target = self.copied_reference()

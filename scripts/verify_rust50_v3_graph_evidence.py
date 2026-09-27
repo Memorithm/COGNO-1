@@ -84,6 +84,33 @@ RUNTIME_EXPECTED = {
     "model_promoted": False,
 }
 
+
+LATEST_RUNTIME_FILENAME = "thor-v3-runtime-verified-summary-latest.json"
+LATEST_RUNTIME_EXPECTED = {
+    "schema": 1,
+    "campaign": "rust50-v3-graph-comparison-runtime-latest",
+    "source_commit": "8d71d7cfbe2d4bd4a8f7710e62370d9317bb00b5",
+    "source_tree": "ac5c2e139dc61b39721170d53e44fcb284497f2a",
+    "toolchain": "rustc 1.97.1",
+    "architecture": "aarch64",
+    "remoteops_commit": "59ae30c783c4eacd0bef8aa63ef92b0f38fdc3f0",
+    "remoteops_run_id": 36348846012,
+    "remoteops_job_id": 108703433769,
+    "protocol_sha256": "d22e03d490425e0f2b0938e6a577912b47e7054d4415f2aa32c723ad888c4df5",
+    "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+    "provenance_sha256": "e57d9fc4c498d47b442ab8179e7ff489780937aca8ea97559f68fbc6ab39d926",
+    "rounds": 1,
+    "updates": 55296,
+    "matched_files_per_round": 18,
+    "dense_ns": 28464820093,
+    "gather_ns": 4802861883,
+    "dense_bundle_sha256": "1721b15c57ff9114850c19e6efa4cafce1a82ce38fae3b611314f0b9f518188d",
+    "gather_bundle_sha256": "2ef04b2209c28f8430de536de93e1492d6bfb928c1c71afa0cfe69bbad2a5dfa",
+    "comparison_complete_sha256": "6dfef49dd6a8e2d3352f874d2bad36dafadddc779dcdabf5751c4fec4f202cac",
+    "gpu_training": False,
+    "model_promoted": False
+}
+
 HEX40_FIELDS = {"source_commit", "source_tree", "remoteops_commit"}
 HEX64_FIELDS = {
     "protocol_sha256",
@@ -140,6 +167,10 @@ def load_gated_summary(reference=REFERENCE):
 
 def load_runtime_summary(reference=REFERENCE):
     return load_record(reference, RUNTIME_FILENAME, RUNTIME_EXPECTED)
+
+
+def load_latest_runtime_summary(reference=REFERENCE):
+    return load_record(reference, LATEST_RUNTIME_FILENAME, LATEST_RUNTIME_EXPECTED)
 
 
 ACTUAL_FIELDS = {
@@ -237,6 +268,7 @@ def verify(reference=REFERENCE):
     summary = load_summary(reference)
     gated = load_gated_summary(reference)
     runtime = load_runtime_summary(reference)
+    latest = load_latest_runtime_summary(reference)
     return {
         "campaign": summary["campaign"],
         "updates": summary["updates"],
@@ -251,6 +283,9 @@ def verify(reference=REFERENCE):
         "runtime_source_commit": runtime["source_commit"],
         "runtime_remoteops_run_id": runtime["remoteops_run_id"],
         "runtime_remoteops_job_id": runtime["remoteops_job_id"],
+        "latest_runtime_source_commit": latest["source_commit"],
+        "latest_runtime_remoteops_run_id": latest["remoteops_run_id"],
+        "latest_runtime_remoteops_job_id": latest["remoteops_job_id"],
     }
 
 
