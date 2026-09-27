@@ -11,8 +11,7 @@
 //! `Unauthorized` for every proposal — fail closed (S10).
 
 use cogno_core::{
-    CapabilityId, RejectReason, TaskCapabilityScope, ToolId, ToolProposalView,
-    MVP_TOOLS_ENABLED,
+    CapabilityId, RejectReason, TaskCapabilityScope, ToolId, ToolProposalView, MVP_TOOLS_ENABLED,
 };
 
 /// Deterministic outcome of a tool proposal.
@@ -114,8 +113,7 @@ impl ToolExecutor {
         {
             return ToolOutcome::Refused(RejectReason::Unauthorized);
         }
-        if !self.positive_tools.contains(&p.tool_id) || !scope.positive_tools.contains(&p.tool_id)
-        {
+        if !self.positive_tools.contains(&p.tool_id) || !scope.positive_tools.contains(&p.tool_id) {
             return ToolOutcome::Refused(RejectReason::Unauthorized);
         }
         if cogno_core::looks_like_shell_invocation(p) {
