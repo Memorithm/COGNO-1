@@ -28,6 +28,29 @@ impl SequenceEncoder {
         token_ids: &[u16],
     ) -> SciRustResult<SequenceEncoderGraph> {
         self.validate_tokens(token_ids)?;
+        let scale = (token_ids.len() as f32).recip();
+        self.append_gather_pool(tape, token_ids, vec![scale; token_ids.len()])
+    }
+
+    /// Differentiable masked pooling. Weights are fixed external controls;
+    /// gradients flow through unmasked token/position embeddings and projection.
+    pub fn append_to_tape_weighted(
+        &self,
+        tape: &mut Tape,
+        token_ids: &[u16],
+        weights: &[f32],
+    ) -> SciRustResult<SequenceEncoderGraph> {
+        self.validate_tokens(token_ids)?;
+        let weights = super::features::normalized_pool_weights(weights, token_ids.len())?;
+        self.append_gather_pool(tape, token_ids, weights)
+    }
+
+    fn append_gather_pool(
+        &self,
+        tape: &mut Tape,
+        token_ids: &[u16],
+        weights: Vec<f32>,
+    ) -> SciRustResult<SequenceEncoderGraph> {
         let required = self.required_gather_max_elements(token_ids.len())?;
         validate_bound(required, tape.max_elements)?;
         let token_embeddings = tape.variable(Tensor::try_new(
@@ -52,10 +75,9 @@ impl SequenceEncoder {
         )?)?;
         let mixed = tape.matmul(combined, mixing_weights)?;
         let hidden = tape.relu(mixed)?;
-        let scale = (token_ids.len() as f32).recip();
         let pooling = tape.variable(Tensor::try_new(
             Shape::try_new(&[1, token_ids.len()])?,
-            vec![scale; token_ids.len()],
+            weights,
             tape.max_elements,
         )?)?;
         let pooled = tape.matmul(pooling, hidden)?;
