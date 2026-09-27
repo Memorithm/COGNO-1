@@ -16,3 +16,10 @@ and optimizer states after nine updates for each of three seeds and three token
 layouts, including repeated token IDs and maximum context. Invalid token IDs,
 empty/oversized sequences and invalid classes must leave state unchanged.
 No throughput improvement or model-quality gain is inferred from these tests.
+
+`classification_minibatch_loss_and_gradients_gather` and
+`train_classification_minibatch_step_gather` extend this path to 1–256
+observations. They average at a frozen parameter state in caller order and
+release each graph before building the next. A bad final row rejects the whole
+update. Tests cover mixed sequence lengths, repeated updates, the 256-row limit,
+and rejection without changing parameters or optimizer state.

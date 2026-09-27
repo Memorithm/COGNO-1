@@ -212,6 +212,23 @@ impl SequenceCognitiveHeads {
         &self,
         observations: &[CognitiveClassification<'_>],
     ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        self.classification_minibatch_gradients_with_gather(observations, false)
+    }
+
+    /// Mean classification gradients using one bounded gather tape per row.
+    /// The accumulation order and normalization match the dense minibatch path.
+    pub fn classification_minibatch_loss_and_gradients_gather(
+        &self,
+        observations: &[CognitiveClassification<'_>],
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        self.classification_minibatch_gradients_with_gather(observations, true)
+    }
+
+    fn classification_minibatch_gradients_with_gather(
+        &self,
+        observations: &[CognitiveClassification<'_>],
+        gather: bool,
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
         if observations.is_empty() {
             return Err(SciRustError::Empty);
         }
@@ -225,7 +242,8 @@ impl SequenceCognitiveHeads {
         let mut loss = 0.0;
         let mut mean = SequenceCognitiveGradients::zeros(self);
         for observation in observations {
-            let (value, gradients) = self.classification_loss_and_gradients(*observation)?;
+            let (value, gradients) =
+                self.classification_gradients_with_gather(*observation, gather)?;
             loss += value / divisor;
             ensure_finite(loss)?;
             for (target, source) in [
@@ -261,6 +279,19 @@ impl SequenceCognitiveHeads {
         observations: &[CognitiveClassification<'_>],
     ) -> SciRustResult<f32> {
         let (loss, gradients) = self.classification_minibatch_loss_and_gradients(observations)?;
+        self.apply_classification_gradients(optimizer, &gradients)?;
+        Ok(loss)
+    }
+
+    /// Atomic mean minibatch update through gather graphs at one frozen state.
+    /// Any invalid row rejects the entire update before model/optimizer mutation.
+    pub fn train_classification_minibatch_step_gather(
+        &mut self,
+        optimizer: &mut SequenceCognitiveAdamW,
+        observations: &[CognitiveClassification<'_>],
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) =
+            self.classification_minibatch_loss_and_gradients_gather(observations)?;
         self.apply_classification_gradients(optimizer, &gradients)?;
         Ok(loss)
     }
