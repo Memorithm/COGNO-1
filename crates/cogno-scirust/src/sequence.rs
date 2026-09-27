@@ -817,3 +817,6 @@ pub use workspace::SequenceWorkspace;
 
 #[path = "sequence_features.rs"]
 mod features;
+
+#[path = "sequence_context.rs"]
+mod context;

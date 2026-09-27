@@ -296,6 +296,57 @@ impl SequenceClassifier {
         Ok(loss)
     }
 
+    /// Experimental adjacent-token logits. Persist strength with experiment
+    /// metadata and use this same API at evaluation; legacy artifacts contain no mode flag.
+    pub fn logits_contextual(&self, token_ids: &[u16], strength: f32) -> SciRustResult<Vec<f32>> {
+        let max_elements = self
+            .encoder
+            .required_gather_max_elements(token_ids.len())?
+            .max(self.head_weights.len())
+            .max(self.config.num_classes);
+        let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TAPE_NODES + 3, max_elements);
+        let encoder = self
+            .encoder
+            .append_to_tape_contextual(&mut tape, token_ids, strength)?;
+        let graph = self.append_head(&mut tape, encoder)?;
+        Ok(tape.value_of(graph.logits).as_slice().to_vec())
+    }
+
+    /// Full gradients through opt-in causal adjacent-token mixing.
+    pub fn loss_and_gradients_contextual(
+        &self,
+        token_ids: &[u16],
+        strength: f32,
+        target_class: usize,
+    ) -> SciRustResult<(f32, SequenceClassifierGradients)> {
+        self.validate_target(target_class)?;
+        let max_elements = self
+            .encoder
+            .required_gather_max_elements(token_ids.len())?
+            .max(self.head_weights.len())
+            .max(self.config.num_classes);
+        let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES + 3, max_elements);
+        let encoder = self
+            .encoder
+            .append_to_tape_contextual(&mut tape, token_ids, strength)?;
+        let graph = self.append_head(&mut tape, encoder)?;
+        self.loss_from_graph(tape, graph, target_class)
+    }
+
+    /// Atomic contextual update. This API does not change default inference.
+    pub fn train_step_contextual(
+        &mut self,
+        optimizer: &mut SequenceClassifierAdamW,
+        token_ids: &[u16],
+        strength: f32,
+        target_class: usize,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) =
+            self.loss_and_gradients_contextual(token_ids, strength, target_class)?;
+        optimizer.step(self, &gradients)?;
+        Ok(loss)
+    }
+
     fn loss_from_graph(
         &self,
         mut tape: Tape,
@@ -880,6 +931,50 @@ mod weighted_training_tests {
         let saved = model.clone();
         assert!(model
             .train_step_weighted(&mut optimizer, tokens, &[0.; 3], 1)
+            .is_err());
+        assert_eq!(model, saved);
+    }
+}
+
+#[cfg(test)]
+mod contextual_training_tests {
+    use super::*;
+    #[test]
+    fn contextual_training_uses_the_same_mode_for_evaluation() {
+        let config = SequenceClassifierConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: 8,
+                max_tokens: 12,
+                embedding_dim: 4,
+                hidden_dim: 7,
+                seed: 42,
+            },
+            num_classes: 2,
+            head_seed: 7,
+        };
+        let mut model = SequenceClassifier::try_new(config).unwrap();
+        let tokens = &[1, 2, 1, 3];
+        let (before, _) = model.loss_and_gradients_contextual(tokens, 0.5, 1).unwrap();
+        assert_eq!(
+            model.logits_contextual(tokens, 0.).unwrap(),
+            model.logits(tokens).unwrap()
+        );
+        let mut optimizer = SequenceClassifierAdamW::try_new(0.01, &model).unwrap();
+        for _ in 0..20 {
+            model
+                .train_step_contextual(&mut optimizer, tokens, 0.5, 1)
+                .unwrap();
+        }
+        let after = model
+            .loss_and_gradients_contextual(tokens, 0.5, 1)
+            .unwrap()
+            .0;
+        assert!(after < before);
+        let probabilities = stable_softmax(&model.logits_contextual(tokens, 0.5).unwrap()).unwrap();
+        assert!((after + probabilities[1].ln()).abs() < 1e-6);
+        let saved = model.clone();
+        assert!(model
+            .train_step_contextual(&mut optimizer, tokens, 2., 1)
             .is_err());
         assert_eq!(model, saved);
     }
