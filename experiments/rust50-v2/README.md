@@ -104,3 +104,9 @@ After COGNO-1 #249, RemoteOps #55 ran the same bounded comparison as run `363039
 The gate marker and successful Thor job produced the same 55,296 updates, 18 matched files per round, and the same dense/gather bundle identities. The one-host aarch64 CPU timings were dense `28,898,623,619 ns` and gather `4,956,827,068 ns`; this rerun remains a declared shape check and makes no general speedup or model-quality claim. No GPU training or model promotion occurred.
 
 The complete gated record is retained in `thor-v3-gated-graph-summary.json`. The verifier now checks both the original v3 evidence and this post-gate rerun, while the RemoteOps log retains the `COGNO_COMMITTED_V3_EVIDENCE_VERIFIED` marker.
+
+The same verifier can check a fresh RemoteOps summary after the run has produced it:
+
+```sh
+python3 scripts/verify_rust50_v3_graph_evidence.py --actual /path/to/summary.json --source-commit <commit> --source-tree <tree>
+```
