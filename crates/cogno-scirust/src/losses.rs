@@ -550,3 +550,53 @@ impl SoftTargetCrossEntropy {
         tape.neg(sum)
     }
 }
+
+/// Connected mean of scalar per-example losses, normalized by admitted weights.
+/// Zero weights mask examples. Normalize in f64 before f32 tape operations to
+/// avoid overflow from large finite weights. All inputs are checked first.
+pub fn weighted_mean_loss(tape: &mut Tape, losses: &[Var], weights: &[f32]) -> SciRustResult<Var> {
+    if losses.is_empty() {
+        return Err(crate::SciRustError::Empty);
+    }
+    if losses.len() != weights.len() {
+        return Err(crate::SciRustError::Shape {
+            lhs: vec![losses.len()],
+            rhs: vec![weights.len()],
+        });
+    }
+    if losses.len() > 65_536 {
+        return Err(crate::SciRustError::CapacityExceeded {
+            requested: losses.len(),
+            maximum: 65_536,
+        });
+    }
+    let mut total = 0.0f64;
+    for (&loss, &weight) in losses.iter().zip(weights) {
+        let shape = &tape.value_of(loss).shape;
+        if !shape.is_scalar() {
+            return Err(crate::SciRustError::Shape {
+                lhs: shape.as_slice().to_vec(),
+                rhs: vec![1],
+            });
+        }
+        if !weight.is_finite() || weight < 0.0 {
+            return Err(crate::SciRustError::NonFinite);
+        }
+        total += f64::from(weight);
+    }
+    if total <= 0.0 {
+        return Err(crate::SciRustError::Empty);
+    }
+    let mut result = None;
+    for (&loss, &weight) in losses.iter().zip(weights) {
+        if weight == 0.0 {
+            continue;
+        }
+        let term = tape.scale(loss, (f64::from(weight) / total) as f32)?;
+        result = Some(match result {
+            Some(previous) => tape.add(previous, term)?,
+            None => term,
+        });
+    }
+    result.ok_or(crate::SciRustError::Empty)
+}

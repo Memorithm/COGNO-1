@@ -502,3 +502,5 @@ mod clipping_tests {
 mod accumulate;
 mod checkpoint;
 pub use accumulate::GradientAccumulator;
+mod schedule;
+pub use schedule::WarmupCosine;
