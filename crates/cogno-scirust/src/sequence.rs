@@ -807,3 +807,6 @@ mod tests {
         ));
     }
 }
+
+#[path = "sequence_gather.rs"]
+mod gather;
