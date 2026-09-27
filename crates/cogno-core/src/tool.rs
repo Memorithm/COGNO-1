@@ -87,9 +87,7 @@ impl<'a> TaskCapabilityScope<'a> {
     #[must_use]
     pub fn permits(&self, proposal: &ToolProposalView<'_>) -> bool {
         self.positive_tools.contains(&proposal.tool_id)
-            && self
-                .allowed_capabilities
-                .contains(&proposal.capability_id)
+            && self.allowed_capabilities.contains(&proposal.capability_id)
     }
 }
 
@@ -201,21 +199,15 @@ mod tests {
 
     #[test]
     fn duplicate_scope_entries_are_rejected() {
-        let duplicate_tool = TaskCapabilityScope::new(
-            b"task-1",
-            &[ToolId(1), ToolId(1)],
-            &[CapabilityId(1)],
-        );
+        let duplicate_tool =
+            TaskCapabilityScope::new(b"task-1", &[ToolId(1), ToolId(1)], &[CapabilityId(1)]);
         assert_eq!(
             duplicate_tool.validate(),
             Err(TaskScopeError::DuplicateTool(ToolId(1)))
         );
 
-        let duplicate_capability = TaskCapabilityScope::new(
-            b"task-1",
-            &[ToolId(1)],
-            &[CapabilityId(1), CapabilityId(1)],
-        );
+        let duplicate_capability =
+            TaskCapabilityScope::new(b"task-1", &[ToolId(1)], &[CapabilityId(1), CapabilityId(1)]);
         assert_eq!(
             duplicate_capability.validate(),
             Err(TaskScopeError::DuplicateCapability(CapabilityId(1)))
