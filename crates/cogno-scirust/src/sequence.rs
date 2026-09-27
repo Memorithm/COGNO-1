@@ -814,3 +814,6 @@ mod gather;
 #[path = "sequence_workspace.rs"]
 mod workspace;
 pub use workspace::SequenceWorkspace;
+
+#[path = "sequence_features.rs"]
+mod features;
