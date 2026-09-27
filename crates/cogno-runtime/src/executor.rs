@@ -10,8 +10,10 @@
 //! Until Phase 5 is audited and enabled, [`ToolExecutor::execute`] returns
 //! `Unauthorized` for every proposal — fail closed (S10).
 
-use cogno_core::{CapabilityId, RejectReason, MVP_TOOLS_ENABLED};
-use cogno_core::{ToolId, ToolProposalView};
+use cogno_core::{
+    CapabilityId, RejectReason, TaskCapabilityScope, ToolId, ToolProposalView,
+    MVP_TOOLS_ENABLED,
+};
 
 /// Deterministic outcome of a tool proposal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,5 +89,93 @@ impl ToolExecutor {
         // confinement, and emit an audit record. We never execute anything in
         // cogno-runtime itself: this is a library, not a syscall gateway.
         ToolOutcome::DryRunAuthorized
+    }
+
+    /// Decide a tool proposal inside a host-provided task scope.
+    ///
+    /// Authorization is the intersection of the runtime's process-wide
+    /// allowlists and the task-local lists. The opaque binding is validated for
+    /// shape only here; SciRust Hub remains responsible for task identity and
+    /// admission. A malformed or over-broad scope therefore cannot expand
+    /// authority and is refused before the existing hard checks.
+    pub fn execute_for_task(
+        &self,
+        scope: &TaskCapabilityScope<'_>,
+        p: &ToolProposalView<'_>,
+    ) -> ToolOutcome {
+        if scope.validate().is_err() {
+            return ToolOutcome::Refused(RejectReason::Unauthorized);
+        }
+        if !self.tools_enabled {
+            return ToolOutcome::Refused(RejectReason::Unauthorized);
+        }
+        if !self.allowed_capabilities.contains(&p.capability_id)
+            || !scope.allowed_capabilities.contains(&p.capability_id)
+        {
+            return ToolOutcome::Refused(RejectReason::Unauthorized);
+        }
+        if !self.positive_tools.contains(&p.tool_id) || !scope.positive_tools.contains(&p.tool_id)
+        {
+            return ToolOutcome::Refused(RejectReason::Unauthorized);
+        }
+        if cogno_core::looks_like_shell_invocation(p) {
+            return ToolOutcome::Refused(RejectReason::HardConstraint);
+        }
+        ToolOutcome::DryRunAuthorized
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cogno_core::{ReasonCode, TaskCapabilityScope, TypedArgument};
+
+    #[test]
+    fn task_scope_intersects_runtime_allowlists() {
+        static RUNTIME_TOOLS: &[ToolId] = &[ToolId(1), ToolId(2)];
+        static RUNTIME_CAPABILITIES: &[CapabilityId] = &[CapabilityId(1), CapabilityId(2)];
+        static TASK_TOOLS: &[ToolId] = &[ToolId(1)];
+        static TASK_CAPABILITIES: &[CapabilityId] = &[CapabilityId(1)];
+        let executor = ToolExecutor::phase5(true, RUNTIME_TOOLS, RUNTIME_CAPABILITIES);
+        let scope = TaskCapabilityScope::new(b"task-1", TASK_TOOLS, TASK_CAPABILITIES);
+        let arguments = [TypedArgument::Bytes(b"payload")];
+        let allowed = ToolProposalView {
+            tool_id: ToolId(1),
+            capability_id: CapabilityId(1),
+            arguments: &arguments,
+            justification_code: ReasonCode(1),
+        };
+        let task_denied = ToolProposalView {
+            tool_id: ToolId(2),
+            ..allowed
+        };
+        assert_eq!(
+            executor.execute_for_task(&scope, &allowed),
+            ToolOutcome::DryRunAuthorized
+        );
+        assert_eq!(
+            executor.execute_for_task(&scope, &task_denied),
+            ToolOutcome::Refused(RejectReason::Unauthorized)
+        );
+    }
+
+    #[test]
+    fn malformed_task_scope_is_refused_before_authorization() {
+        static TOOLS: &[ToolId] = &[ToolId(1)];
+        static CAPABILITIES: &[CapabilityId] = &[CapabilityId(1)];
+        let executor = ToolExecutor::phase5(true, TOOLS, CAPABILITIES);
+        let scope = TaskCapabilityScope::new(b"", TOOLS, CAPABILITIES);
+        let arguments = [TypedArgument::Bytes(b"payload")];
+        let proposal = ToolProposalView {
+            tool_id: ToolId(1),
+            capability_id: CapabilityId(1),
+            arguments: &arguments,
+            justification_code: ReasonCode(1),
+        };
+        assert_eq!(
+            executor.execute_for_task(&scope, &proposal),
+            ToolOutcome::Refused(RejectReason::Unauthorized)
+        );
     }
 }
