@@ -69,3 +69,23 @@ Resume is for an experiment directory under the operator's control. Its local pe
 `cargo test --locked -p cogno-model --example rust_train_v2`
 
 The bounded regression fixtures exercise actual optimization, partial minibatch accounting, all-seed selection and exact ties, source-bound test export, changed provenance/budget refusal, corrupted artifacts and selection refusal, complete-run reuse plus deterministic restart, and byte-identical model parameters versus the frozen batch-one step. Test fixture labels are not an expert Rust benchmark. No speed or quality improvement is inferred from successful qualification; those require a separately preregistered corpus and measured results.
+
+## Opt-in v3 encoder graph
+
+The same commands also accept `version` set to `rust-train-v3`, with exactly one
+additional required field: `encoder_graph` set to `dense` or `gather`. V2 retains
+its exact schema and dense behavior; adding a graph field to v2 is rejected.
+There is no automatic graph selection or environment-variable override.
+
+Gather uses the cognitive classification APIs for both single observations and
+mean minibatches. It removes dense selector matrices while retaining dense
+gradients and AdamW states. It does not change the model architecture, parameter
+count, tokenizer or CBPC checkpoint format. The v3 plan records the graph, and
+the exact protocol hash binds it to every completed experiment. Resume across
+protocols/graphs is rejected before creating a destination.
+
+Tests reproduce checkpoint bytes, epoch journals and predictions for v2 dense,
+v3 dense and v3 gather, with two arms, two seeds, and batches one and two. They
+also verify complete-run replay and changed-protocol refusal. These bounded
+fixtures establish arithmetic equivalence; end-to-end timing requires a separate
+recorded experiment, and model quality is unchanged in these comparisons.

@@ -28,6 +28,20 @@ pub fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
     }
     Ok(bytes)
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EncoderGraph {
+    Dense,
+    Gather,
+}
+impl EncoderGraph {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Dense => "dense",
+            Self::Gather => "gather",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Protocol {
     pub corpus_sha256: String,
@@ -42,6 +56,8 @@ pub struct Protocol {
     pub batch: usize,
     pub learning_rate: f32,
     pub max_updates: usize,
+    /// None denotes the unchanged v2 protocol and its dense reference graph.
+    pub encoder_graph: Option<EncoderGraph>,
 }
 impl Protocol {
     pub fn parse(bytes: &[u8]) -> Result<Self, String> {
@@ -73,9 +89,17 @@ impl Protocol {
             "learning_rate",
             "max_updates",
         ];
-        if fields.len() != keys.len()
+        let graph = match fields.get("version").copied() {
+            Some("rust-train-v2") => None,
+            Some("rust-train-v3") => Some(match fields.get("encoder_graph").copied() {
+                Some("dense") => EncoderGraph::Dense,
+                Some("gather") => EncoderGraph::Gather,
+                _ => return Err("v3 requires encoder_graph dense or gather".into()),
+            }),
+            _ => return Err("unknown protocol version".into()),
+        };
+        if fields.len() != keys.len() + usize::from(graph.is_some())
             || keys.iter().any(|k| !fields.contains_key(k))
-            || fields["version"] != "rust-train-v2"
         {
             return Err("unknown/missing protocol fields/version".into());
         }
@@ -130,6 +154,7 @@ impl Protocol {
             batch: number("batch", 1, 32)?,
             learning_rate,
             max_updates: number("max_updates", 1, 1_000_000)?,
+            encoder_graph: graph,
         })
     }
 }
@@ -218,7 +243,11 @@ pub fn admit(args: &[String]) -> Result<Admission, String> {
     })
 }
 pub fn plan(a: &Admission) -> String {
-    format!("protocol_sha256\t{}\ncorpus_sha256\t{}\nprovenance_sha256\t{}\nrows\t{}\nupdates\t{}\nruns\t{}\nepochs\t{}\nbatch\t{}\nembedding\t{}\nhidden\t{}\nlearning_rate\t{}\ntokenizer_sha256\t{}\n", digest(&a.protocol_bytes), a.protocol.corpus_sha256, a.protocol.provenance_sha256, a.corpus.records().len(), a.updates, a.protocol.seeds.len() * a.protocol.arms.len(), a.protocol.epochs, a.protocol.batch, a.protocol.embedding, a.protocol.hidden, a.protocol.learning_rate, hex(&a.tokenizer.fingerprint()))
+    let mut output = format!("protocol_sha256\t{}\ncorpus_sha256\t{}\nprovenance_sha256\t{}\nrows\t{}\nupdates\t{}\nruns\t{}\nepochs\t{}\nbatch\t{}\nembedding\t{}\nhidden\t{}\nlearning_rate\t{}\ntokenizer_sha256\t{}\n", digest(&a.protocol_bytes), a.protocol.corpus_sha256, a.protocol.provenance_sha256, a.corpus.records().len(), a.updates, a.protocol.seeds.len() * a.protocol.arms.len(), a.protocol.epochs, a.protocol.batch, a.protocol.embedding, a.protocol.hidden, a.protocol.learning_rate, hex(&a.tokenizer.fingerprint()));
+    if let Some(graph) = a.protocol.encoder_graph {
+        output.push_str(&format!("encoder_graph\t{}\n", graph.name()));
+    }
+    output
 }
 #[cfg(test)]
 mod tests {
@@ -239,6 +268,32 @@ mod tests {
             p.replace("version\trust-train-v2", "version\tv3"),
         ] {
             assert!(Protocol::parse(bad.as_bytes()).is_err());
+        }
+    }
+
+    #[test]
+    fn graph_choice_is_explicit_versioned_and_hash_bound() {
+        let v2 = protocol();
+        assert_eq!(Protocol::parse(v2.as_bytes()).unwrap().encoder_graph, None);
+        let v3 = v2.replace("rust-train-v2", "rust-train-v3");
+        for (value, graph) in [
+            ("dense", EncoderGraph::Dense),
+            ("gather", EncoderGraph::Gather),
+        ] {
+            let candidate = format!("{v3}encoder_graph\t{value}\n");
+            assert_eq!(
+                Protocol::parse(candidate.as_bytes()).unwrap().encoder_graph,
+                Some(graph)
+            );
+        }
+        for invalid in [
+            v3.clone(),
+            format!("{v3}encoder_graph\tunknown\n"),
+            format!("{v2}encoder_graph\tgather\n"),
+            format!("{v3}encoder_graph\tgather\nencoder_graph\tdense\n"),
+            format!("{v3}encoder_graph\tgather\nignored\ttrue\n"),
+        ] {
+            assert!(Protocol::parse(invalid.as_bytes()).is_err());
         }
     }
 }
@@ -367,15 +422,23 @@ pub fn train(a: &Admission, out: &Path, prior: Option<&Path>) -> Result<(), Stri
                             target_class: rows[i].label,
                         })
                         .collect();
-                    if examples.len() == 1 {
-                        model
-                            .train_classification_step(&mut optimizer, examples[0])
-                            .map_err(|e| format!("{e:?}"))?;
-                    } else {
-                        model
-                            .train_classification_minibatch_step(&mut optimizer, &examples)
-                            .map_err(|e| format!("{e:?}"))?;
+                    match (
+                        p.encoder_graph.unwrap_or(EncoderGraph::Dense),
+                        examples.len(),
+                    ) {
+                        (EncoderGraph::Dense, 1) => {
+                            model.train_classification_step(&mut optimizer, examples[0])
+                        }
+                        (EncoderGraph::Dense, _) => {
+                            model.train_classification_minibatch_step(&mut optimizer, &examples)
+                        }
+                        (EncoderGraph::Gather, 1) => {
+                            model.train_classification_step_gather(&mut optimizer, examples[0])
+                        }
+                        (EncoderGraph::Gather, _) => model
+                            .train_classification_minibatch_step_gather(&mut optimizer, &examples),
                     }
+                    .map_err(|e| format!("{e:?}"))?;
                     completed_updates += 1;
                     run_updates += 1;
                     seen += batch.len();
@@ -918,6 +981,53 @@ mod qualification {
         std::fs::write(&args[3], "changed").unwrap();
         assert!(admit(&args).is_err());
     }
+    #[test]
+    fn v3_gather_reproduces_dense_training_and_refuses_cross_graph_resume() {
+        for batch in [1, 2] {
+            let dir = Scratch::new();
+            let (dense, mut args) = fixture(&dir.0, batch);
+            let dense_out = dir.0.join("dense");
+            train(&dense, &dense_out, None).unwrap();
+            for graph in ["dense", "gather"] {
+                let protocol = format!(
+                    "{}encoder_graph\t{graph}\n",
+                    std::str::from_utf8(&dense.protocol_bytes)
+                        .unwrap()
+                        .replace("rust-train-v2", "rust-train-v3")
+                );
+                std::fs::write(&args[0], &protocol).unwrap();
+                // Changing the graph without pinning the new protocol is rejected.
+                args[1] = digest(&dense.protocol_bytes);
+                assert!(admit(&args).is_err());
+                args[1] = digest(protocol.as_bytes());
+                let alternative = admit(&args).unwrap();
+                assert!(plan(&alternative).contains(&format!("encoder_graph\t{graph}\n")));
+                let out = dir.0.join(format!("v3-{graph}"));
+                train(&alternative, &out, None).unwrap();
+                for arm in &dense.protocol.arms {
+                    for &seed in &dense.protocol.seeds {
+                        for name in run_files(arm, seed) {
+                            assert_eq!(
+                                std::fs::read(dense_out.join(&name)).unwrap(),
+                                std::fs::read(out.join(&name)).unwrap(),
+                                "{name} {graph}"
+                            );
+                        }
+                    }
+                }
+                let refused = dir.0.join(format!("wrong-resume-{graph}"));
+                assert!(train(&alternative, &refused, Some(&dense_out)).is_err());
+                assert!(!refused.exists());
+                let resumed = dir.0.join(format!("resumed-{graph}"));
+                train(&alternative, &resumed, Some(&out)).unwrap();
+                assert_eq!(
+                    std::fs::read(out.join("COMPLETE")).unwrap(),
+                    std::fs::read(resumed.join("COMPLETE")).unwrap()
+                );
+            }
+        }
+    }
+
     #[test]
     fn batch_one_checkpoint_matches_frozen_manual_training() {
         use cogno_scirust::*;
