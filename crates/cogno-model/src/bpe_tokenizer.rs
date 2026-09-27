@@ -110,21 +110,15 @@ impl BpeTokenizer {
             .iter()
             .map(|s| s.iter().map(|&b| u16::from(b)).collect())
             .collect();
-        while model.vocab_size() < vocab {
-            let mut counts = BTreeMap::<(u16, u16), usize>::new();
-            for record in &records {
-                for pair in record.windows(2) {
-                    let key = (pair[0], pair[1]);
-                    if model.pieces[usize::from(key.0)].len()
-                        + model.pieces[usize::from(key.1)].len()
-                        <= MAX_TOKEN_BYTES
-                    {
-                        *counts.entry(key).or_default() += 1;
-                    }
-                }
+        let mut counts = BTreeMap::<(u16, u16), usize>::new();
+        for record in &records {
+            for pair in record.windows(2) {
+                *counts.entry((pair[0], pair[1])).or_default() += 1;
             }
+        }
+        while model.vocab_size() < vocab {
             let mut best = None;
-            for (pair, frequency) in counts {
+            for (&pair, &frequency) in &counts {
                 if frequency >= 2 && best.is_none_or(|(_, n)| frequency > n) {
                     best = Some((pair, frequency));
                 }
@@ -135,7 +129,7 @@ impl BpeTokenizer {
             let id = model.vocab_size() as u16;
             model.append_merge(pair)?;
             for record in &mut records {
-                merge(record, pair, id);
+                merge_counted(record, pair, id, &mut counts, &model.pieces);
             }
         }
         Ok(model)
@@ -348,6 +342,61 @@ impl BpeTokenizer {
     }
 }
 
+// Update only adjacency edges changed by a left-to-right non-overlapping merge.
+// In particular, repeated symbols count overlapping candidates during selection,
+// while application still merges disjoint occurrences, matching the reference.
+fn merge_counted(
+    ids: &mut Vec<u16>,
+    pair: (u16, u16),
+    output: u16,
+    counts: &mut BTreeMap<(u16, u16), usize>,
+    pieces: &[Vec<u8>],
+) {
+    let mut read = 0;
+    let mut write = 0usize;
+    while read < ids.len() {
+        if read + 1 < ids.len() && (ids[read], ids[read + 1]) == pair {
+            let prev = write.checked_sub(1).map(|p| ids[p]);
+            let next = ids.get(read + 2).copied();
+            for edge in [
+                prev.map(|v| (v, pair.0)),
+                Some(pair),
+                next.map(|v| (pair.1, v)),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if pieces[usize::from(edge.0)].len() + pieces[usize::from(edge.1)].len()
+                    <= MAX_TOKEN_BYTES
+                {
+                    let n = counts.get_mut(&edge).expect("counted live adjacency");
+                    *n -= 1;
+                    if *n == 0 {
+                        counts.remove(&edge);
+                    }
+                }
+            }
+            for edge in [prev.map(|v| (v, output)), next.map(|v| (output, v))]
+                .into_iter()
+                .flatten()
+            {
+                if pieces[usize::from(edge.0)].len() + pieces[usize::from(edge.1)].len()
+                    <= MAX_TOKEN_BYTES
+                {
+                    *counts.entry(edge).or_default() += 1;
+                }
+            }
+            ids[write] = output;
+            read += 2;
+        } else {
+            ids[write] = ids[read];
+            read += 1;
+        }
+        write += 1;
+    }
+    ids.truncate(write);
+}
+
 fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
     // Leave unchanged prefixes untouched and return immediately for absent pairs.
     let Some(first) = ids.windows(2).position(|w| (w[0], w[1]) == pair) else {
@@ -371,6 +420,66 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reference_train(train: &[&[u8]], vocab: usize) -> BpeTokenizer {
+        let mut model = BpeTokenizer::from_merges(512, &[]).unwrap();
+        let mut records: Vec<Vec<u16>> = train
+            .iter()
+            .map(|s| s.iter().map(|&b| u16::from(b)).collect())
+            .collect();
+        while model.vocab_size() < vocab {
+            let mut counts = BTreeMap::<(u16, u16), usize>::new();
+            for r in &records {
+                for p in r.windows(2) {
+                    if model.pieces[p[0] as usize].len() + model.pieces[p[1] as usize].len()
+                        <= MAX_TOKEN_BYTES
+                    {
+                        *counts.entry((p[0], p[1])).or_default() += 1;
+                    }
+                }
+            }
+            let mut best = None;
+            for (p, n) in counts {
+                if n >= 2 && best.is_none_or(|(_, old)| n > old) {
+                    best = Some((p, n));
+                }
+            }
+            let Some((p, _)) = best else {
+                break;
+            };
+            let id = model.vocab_size() as u16;
+            let mut rules = model.merges.clone();
+            rules.push(p);
+            model = BpeTokenizer::from_merges(512, &rules).unwrap();
+            for r in &mut records {
+                reference_merge(r, p, id);
+            }
+        }
+        model
+    }
+
+    #[test]
+    fn maintained_training_counts_match_full_recount() {
+        for n in 1..=7u32 {
+            for mut x in 0..3usize.pow(n) {
+                let text: Vec<u8> = (0..n)
+                    .map(|_| {
+                        let b = (x % 3) as u8;
+                        x /= 3;
+                        b
+                    })
+                    .collect();
+                let records = [text.as_slice(), text.as_slice(), b"aabaaabaa".as_slice()];
+                let actual = BpeTokenizer::train(&records, 275, 512).unwrap();
+                assert_eq!(actual, reference_train(&records, 275));
+            }
+        }
+        let repeated = vec![b'a'; 16384];
+        assert_eq!(
+            BpeTokenizer::train(&[&repeated], 512, 512).unwrap(),
+            reference_train(&[&repeated], 512)
+        );
+    }
+
     #[test]
     fn incremental_vocabulary_matches_rebuilt_prefixes_and_rejects_atomically() {
         let mut t = BpeTokenizer::from_merges(512, &[]).unwrap();
