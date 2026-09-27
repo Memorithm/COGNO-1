@@ -90,3 +90,9 @@ RemoteOps run `36303253691` (job `108574837971`) qualified the explicit v3 dense
 The fixed v2 protocol permits one dense/gather pair under its 100,000-update budget: 55,296 updates, 18 byte-matched run artifacts per round, and `model_promoted=false`. Thor recorded dense at 28,715,786,569 ns and gather at 4,851,739,391 ns on `aarch64`. These are one-host CPU training timings for this declared shape; they do not establish a general speedup or model-quality change.
 
 The completion marker binds protocol, corpus and provenance hashes. The raw marker and both bundle identities are retained in `thor-v3-graph-summary.json`; failed attempts before this run were not accepted as evidence.
+
+The committed record is checked by `scripts/verify_rust50_v3_graph_evidence.py`; the same verifier and its tamper tests run in Rust50 v2 integration CI. To validate only this record:
+
+```sh
+python3 scripts/verify_rust50_v3_graph_evidence.py
+```
