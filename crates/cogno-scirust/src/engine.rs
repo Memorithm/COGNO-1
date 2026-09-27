@@ -27,6 +27,8 @@ pub enum Op {
     Sub,
     Mul, // elementwise
     MatMul,
+    /// Row indices retained for sparse embedding gradient accumulation.
+    GatherRows(Vec<usize>),
     Sum,
     Stack,
     Scale(f32),
@@ -212,6 +214,68 @@ impl Tape {
             inputs: vec![a.idx, b.idx],
             value,
             grad: vec![0.0; out_len],
+        })
+    }
+
+    /// Select rank-2 rows without constructing a dense one-hot matrix.
+    /// Repeated indices accumulate gradients in input order. Admission failures
+    /// leave the tape unchanged; unused source rows must also be finite.
+    pub fn gather_rows(&mut self, source: Var, rows: &[usize]) -> SciRustResult<Var> {
+        if rows.is_empty() {
+            return Err(SciRustError::Empty);
+        }
+        let node = self.nodes.get(source.idx).ok_or(SciRustError::Index {
+            idx: source.idx,
+            len: self.nodes.len(),
+        })?;
+        let shape = node.value.shape.as_slice();
+        if shape.len() != 2 || Shape::checked_len(shape)? != node.value.data.len() {
+            return Err(SciRustError::Shape {
+                lhs: shape.to_vec(),
+                rhs: vec![node.value.data.len()],
+            });
+        }
+        let columns = shape[1];
+        let len = rows
+            .len()
+            .checked_mul(columns)
+            .ok_or(SciRustError::Overflow)?;
+        if len > self.max_elements {
+            return Err(SciRustError::CapacityExceeded {
+                requested: len,
+                maximum: self.max_elements,
+            });
+        }
+        for &row in rows {
+            if row >= shape[0] {
+                return Err(SciRustError::Index {
+                    idx: row,
+                    len: shape[0],
+                });
+            }
+        }
+        for &value in &node.value.data {
+            ensure_finite(value)?;
+        }
+        let mut data = Vec::with_capacity(len);
+        for &row in rows {
+            // Match the dense selector's zero-initialized accumulation,
+            // including a selected negative zero.
+            data.extend(
+                node.value.data[row * columns..(row + 1) * columns]
+                    .iter()
+                    .map(|&x| 0.0 + x),
+            );
+        }
+        self.push(Node {
+            op: Op::GatherRows(rows.to_vec()),
+            inputs: vec![source.idx],
+            value: Tensor::try_new(
+                Shape::try_new(&[rows.len(), columns])?,
+                data,
+                self.max_elements,
+            )?,
+            grad: vec![0.0; len],
         })
     }
 
@@ -516,6 +580,17 @@ impl Tape {
                     }
                     let _ = out_val;
                 }
+                Op::GatherRows(rows) => {
+                    let source = inputs[0];
+                    let columns = self.nodes[source].value.shape.as_slice()[1];
+                    for (output_row, source_row) in rows.into_iter().enumerate() {
+                        for column in 0..columns {
+                            let value = &mut self.nodes[source].grad[source_row * columns + column];
+                            *value += out_grad[output_row * columns + column];
+                            ensure_finite(*value)?;
+                        }
+                    }
+                }
                 Op::Scale(c) => {
                     let a = inputs[0];
                     for (k, &ogk) in out_grad.iter().enumerate() {
@@ -661,5 +736,47 @@ mod tests {
             tape.stack_scalars(&[vector]),
             Err(SciRustError::Shape { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+mod gather_tests {
+    use super::*;
+    #[test]
+    fn repeated_gather_matches_dense_forward_and_backward() {
+        let mut tape = Tape::new(12, 32);
+        let source = tape
+            .variable(
+                Tensor::try_new(
+                    Shape::try_new(&[3, 2]).unwrap(),
+                    vec![1., 2., 3., 4., 5., 6.],
+                    32,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let gathered = tape.gather_rows(source, &[2, 0, 2]).unwrap();
+        assert_eq!(
+            tape.value_of(gathered).as_slice(),
+            &[5., 6., 1., 2., 5., 6.]
+        );
+        let loss = tape.sum(gathered).unwrap();
+        tape.backward(loss).unwrap();
+        assert_eq!(tape.grad_of(source), &[1., 1., 0., 0., 2., 2.]);
+    }
+    #[test]
+    fn gather_refuses_bad_inputs_without_adding_nodes() {
+        let mut tape = Tape::new(12, 4);
+        let source = tape
+            .variable(Tensor::try_new(Shape::try_new(&[2, 2]).unwrap(), vec![1.; 4], 4).unwrap())
+            .unwrap();
+        for rows in [&[][..], &[2][..], &[0, 0, 0][..]] {
+            assert!(tape.gather_rows(source, rows).is_err());
+            assert_eq!(tape.nodes.len(), 1);
+        }
+        assert!(tape.gather_rows(Var { idx: usize::MAX }, &[0]).is_err());
+        tape.nodes[0].value.data[3] = f32::NAN;
+        assert!(tape.gather_rows(source, &[0]).is_err());
+        assert_eq!(tape.nodes.len(), 1);
     }
 }
