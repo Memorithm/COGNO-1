@@ -89,3 +89,26 @@ v3 dense and v3 gather, with two arms, two seeds, and batches one and two. They
 also verify complete-run replay and changed-protocol refusal. These bounded
 fixtures establish arithmetic equivalence; end-to-end timing requires a separate
 recorded experiment, and model quality is unchanged in these comparisons.
+
+## Paired full-training timing
+
+`rust_train_v2 compare-graphs PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE NEW_OUTPUT ROUNDS`
+
+This explicit experiment compares v3 dense and gather variants of an admitted
+protocol, preserving every other field. It accepts 1–5 rounds, alternates which
+graph runs first, and retains both complete training directories for every round.
+The total update budget includes **both graphs × every round × every arm × every
+seed**. Invalid rounds or an excessive total budget fail before creating output.
+
+Every pair must reproduce identical checkpoint bytes, epoch journals and
+train/validation predictions before a timing row is accepted. The sample table
+records every elapsed nanosecond count, order, matched-file count and both bundle
+identities. The final marker binds the input protocol and sample table and is
+written after all rounds pass. Its hash is printed for independent retention.
+No fastest-round selection, speedup assertion or test-based model selection occurs.
+
+Timing includes training, metrics, checkpoint I/O and bundle verification. Shared
+corpus admission/BPE fitting and the cross-graph byte comparison are excluded.
+Results depend on the declared shape, data, build profile and host; retain those
+alongside raw samples. This is a CPU training comparison, not inference latency,
+GPU scaling, or evidence of improved prediction quality.

@@ -2,13 +2,28 @@ name: Rust50 v2 integration
 on:
   pull_request:
     paths:
-      - 'scripts/*rust50_v2*'
+      # The qualification compiles and executes the Rust crates and every
+      # helper under scripts. Keep the full input surface here so a change to
+      # a consumed implementation cannot bypass deterministic evidence checks.
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'crates/**'
+      - 'scripts/**'
+      - 'experiments/domain-holdout-v1/**'
+      - 'experiments/external-corpus-v2/**'
       - 'experiments/rust50-v2/**'
       - '.github/workflows/rust50-v2.yml'
   push:
     branches: [main]
     paths:
-      - 'scripts/*rust50_v2*'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'crates/**'
+      - 'scripts/**'
+      - 'experiments/domain-holdout-v1/**'
+      - 'experiments/external-corpus-v2/**'
       - 'experiments/rust50-v2/**'
       - '.github/workflows/rust50-v2.yml'
 permissions:
