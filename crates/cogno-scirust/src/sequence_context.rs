@@ -12,7 +12,7 @@ pub(super) fn validate_strength(strength: f32) -> SciRustResult<()> {
 impl SequenceEncoder {
     /// Direct inference matching the experimental contextual tape. Each token
     /// embedding receives `strength * previous_embedding` before position and
-    /// projection. The left boundary repeats the first token; strength is [0,1].
+    /// projection. The left boundary repeats the first token; strength is `0..=1`.
     pub fn forward_contextual(&self, token_ids: &[u16], strength: f32) -> SciRustResult<Vec<f32>> {
         self.validate_tokens(token_ids)?;
         validate_strength(strength)?;
