@@ -174,6 +174,16 @@ impl BpeTokenizer {
         Ok(model)
     }
 
+    /// Fit from the admitted corpus's training-only capability. This preferred
+    /// corpus entry point cannot inspect held-out records through the view.
+    pub fn train_from_view(
+        train: &crate::rust_corpus::RustTrainingView<'_>,
+        vocab: usize,
+        max_tokens: usize,
+    ) -> Result<Self, BpeError> {
+        Self::train(&train.sources(), vocab, max_tokens)
+    }
+
     /// Actual vocabulary size (training can stop before the requested target).
     pub fn vocab_size(&self) -> usize {
         self.pieces.len()
@@ -614,6 +624,45 @@ mod tests {
     }
 
     #[test]
+    fn typed_training_ignores_changed_validation_and_test_sources() {
+        fn corpus(heldout: &str) -> crate::rust_corpus::RustCorpus {
+            fn hex(b: &[u8]) -> String {
+                b.iter().map(|x| format!("{x:02x}")).collect()
+            }
+            let mut wire = String::from("CRUST001\n");
+            for split in ["train", "validation", "test"] {
+                for label in 0..2 {
+                    let prefix = if split == "train" {
+                        "fn main() { let x = 0; }"
+                    } else {
+                        heldout
+                    };
+                    let source = format!("{prefix} // {split}-{label}");
+                    wire.push_str(&format!(
+                        "{split}\t{split}-project\t{label}\t{}\t{}\n",
+                        hex(&Sha256::digest(source.as_bytes())),
+                        hex(source.as_bytes())
+                    ));
+                }
+            }
+            crate::rust_corpus::RustCorpus::parse(
+                wire.as_bytes(),
+                Sha256::digest(wire.as_bytes()).into(),
+            )
+            .unwrap()
+        }
+        let a = corpus("heldout");
+        let b = corpus("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        let ta = BpeTokenizer::train_from_view(&a.training_view().unwrap(), 300, 512).unwrap();
+        let tb = BpeTokenizer::train_from_view(&b.training_view().unwrap(), 300, 512).unwrap();
+        assert_eq!(ta.to_bytes(), tb.to_bytes());
+        assert_eq!(
+            ta,
+            BpeTokenizer::train(&a.training_view().unwrap().sources(), 300, 512).unwrap()
+        );
+    }
+
+    #[test]
     fn batch_preserves_refusals_order_and_aggregate_bounds() {
         let t = BpeTokenizer::from_merges(4, &[(97, 98)]).unwrap();
         let mut workspace = BpeWorkspace::new();
@@ -625,7 +674,10 @@ mod tests {
         );
         assert!(t.encode_batch(&[], &mut workspace).unwrap().is_empty());
         assert_eq!(
-            t.encode_batch(&vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1], &mut workspace),
+            t.encode_batch(
+                &vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1],
+                &mut workspace
+            ),
             Err(BpeError::Capacity)
         );
         let full = vec![0; MAX_BPE_TRAIN_BYTES];
