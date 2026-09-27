@@ -498,3 +498,7 @@ mod clipping_tests {
         assert_eq!(zero[1].to_bits(), (-0.0f32).to_bits());
     }
 }
+
+mod accumulate;
+mod checkpoint;
+pub use accumulate::GradientAccumulator;

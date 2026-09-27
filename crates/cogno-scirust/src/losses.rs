@@ -469,3 +469,84 @@ mod tests {
         assert!(tape.grad_of(negative_b)[0] > 0.0);
     }
 }
+
+/// Cross entropy with a validated probability target. Supports opt-in label
+/// smoothing and teacher distributions without detaching the logits graph.
+#[derive(Clone, Debug)]
+pub struct SoftTargetCrossEntropy {
+    max_classes: usize,
+}
+impl SoftTargetCrossEntropy {
+    pub fn try_new(max_classes: usize) -> SciRustResult<Self> {
+        if max_classes < 2 {
+            return Err(crate::SciRustError::Empty);
+        }
+        if max_classes > 65_536 {
+            return Err(crate::SciRustError::CapacityExceeded {
+                requested: max_classes,
+                maximum: 65_536,
+            });
+        }
+        Ok(Self { max_classes })
+    }
+    /// Uniform label smoothing: (1 - smoothing) * one_hot + smoothing / K.
+    pub fn smoothed_target(
+        &self,
+        classes: usize,
+        label: usize,
+        smoothing: f32,
+    ) -> SciRustResult<Vec<f32>> {
+        self.validate_classes(classes)?;
+        if label >= classes {
+            return Err(crate::SciRustError::Index {
+                idx: label,
+                len: classes,
+            });
+        }
+        if !smoothing.is_finite() || !(0.0..=1.0).contains(&smoothing) {
+            return Err(crate::SciRustError::NonFinite);
+        }
+        let mut target = vec![smoothing / classes as f32; classes];
+        target[label] += 1.0 - smoothing;
+        Ok(target)
+    }
+    fn validate_classes(&self, classes: usize) -> SciRustResult<()> {
+        if classes < 2 {
+            return Err(crate::SciRustError::Empty);
+        }
+        if classes > self.max_classes {
+            return Err(crate::SciRustError::CapacityExceeded {
+                requested: classes,
+                maximum: self.max_classes,
+            });
+        }
+        Ok(())
+    }
+    /// Target mass must be one within 1e-6 (f32 rounding tolerance). The admitted
+    /// weights are used as given; no silently inferred renormalization occurs.
+    pub fn loss(&self, tape: &mut Tape, logits: Var, target: &[f32]) -> SciRustResult<Var> {
+        self.validate_classes(target.len())?;
+        let shape = tape.value_of(logits).shape.clone();
+        if shape.as_slice() != [target.len()] {
+            return Err(crate::SciRustError::Shape {
+                lhs: shape.as_slice().to_vec(),
+                rhs: vec![target.len()],
+            });
+        }
+        let mut total = 0.0f64;
+        for &weight in target {
+            if !weight.is_finite() || !(0.0..=1.0).contains(&weight) {
+                return Err(crate::SciRustError::NonFinite);
+            }
+            total += f64::from(weight);
+        }
+        if (total - 1.0).abs() > 1e-6 {
+            return Err(crate::SciRustError::NonFinite);
+        }
+        let log_probs = tape.log_softmax(logits)?;
+        let target = tape.variable(Tensor::try_new(shape, target.to_vec(), self.max_classes)?)?;
+        let weighted = tape.mul(log_probs, target)?;
+        let sum = tape.sum(weighted)?;
+        tape.neg(sum)
+    }
+}
