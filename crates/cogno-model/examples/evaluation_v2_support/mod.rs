@@ -94,10 +94,10 @@ pub fn groups(bytes: &[u8], corpus: &RustCorpus) -> Result<BTreeMap<String, Stri
         if result.insert(f[0].into(), f[1].into()).is_some() {
             return Err("duplicate group project".into());
         }
-        if let Some(old) = group_splits.insert(f[1], f[2]) {
-            if old != f[2] {
-                return Err("group crosses splits".into());
-            }
+        if let Some(old) = group_splits.insert(f[1], f[2])
+            && old != f[2]
+        {
+            return Err("group crosses splits".into());
         }
     }
     if result.len() != projects.len() {
