@@ -246,6 +246,56 @@ impl SequenceClassifier {
         Ok(loss)
     }
 
+    /// Class logits using an explicit normalized pooling mask.
+    pub fn logits_weighted(&self, token_ids: &[u16], weights: &[f32]) -> SciRustResult<Vec<f32>> {
+        let max_elements = self
+            .encoder
+            .required_gather_max_elements(token_ids.len())?
+            .max(self.head_weights.len())
+            .max(self.config.num_classes);
+        let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TAPE_NODES, max_elements);
+        let encoder = self
+            .encoder
+            .append_to_tape_weighted(&mut tape, token_ids, weights)?;
+        let graph = self.append_head(&mut tape, encoder)?;
+        Ok(tape.value_of(graph.logits).as_slice().to_vec())
+    }
+
+    /// End-to-end masked training; masks must be supplied consistently at evaluation.
+    pub fn loss_and_gradients_weighted(
+        &self,
+        token_ids: &[u16],
+        weights: &[f32],
+        target_class: usize,
+    ) -> SciRustResult<(f32, SequenceClassifierGradients)> {
+        self.validate_target(target_class)?;
+        let max_elements = self
+            .encoder
+            .required_gather_max_elements(token_ids.len())?
+            .max(self.head_weights.len())
+            .max(self.config.num_classes);
+        let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES, max_elements);
+        let encoder = self
+            .encoder
+            .append_to_tape_weighted(&mut tape, token_ids, weights)?;
+        let graph = self.append_head(&mut tape, encoder)?;
+        self.loss_from_graph(tape, graph, target_class)
+    }
+
+    /// Atomic masked AdamW update; no parameters change if mask admission fails.
+    pub fn train_step_weighted(
+        &mut self,
+        optimizer: &mut SequenceClassifierAdamW,
+        token_ids: &[u16],
+        weights: &[f32],
+        target_class: usize,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) =
+            self.loss_and_gradients_weighted(token_ids, weights, target_class)?;
+        optimizer.step(self, &gradients)?;
+        Ok(loss)
+    }
+
     fn loss_from_graph(
         &self,
         mut tape: Tape,
@@ -781,5 +831,56 @@ mod gather_training_tests {
             );
             assert_eq!(dense, gather);
         }
+    }
+}
+
+#[cfg(test)]
+mod weighted_training_tests {
+    use super::*;
+    #[test]
+    fn weighted_training_masks_gradients_and_reduces_nll() {
+        let config = SequenceClassifierConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: 8,
+                max_tokens: 12,
+                embedding_dim: 4,
+                hidden_dim: 7,
+                seed: 42,
+            },
+            num_classes: 2,
+            head_seed: 7,
+        };
+        let mut model = SequenceClassifier::try_new(config).unwrap();
+        let tokens = &[1, 2, 3];
+        assert_eq!(
+            model.loss_and_gradients(tokens, 1).unwrap(),
+            model
+                .loss_and_gradients_weighted(tokens, &[1.; 3], 1)
+                .unwrap()
+        );
+        let weights = &[0., 1., 0.];
+        let (before, gradients) = model
+            .loss_and_gradients_weighted(tokens, weights, 1)
+            .unwrap();
+        assert_eq!(&gradients.encoder.token_embeddings()[4..8], &[0.; 4]);
+        assert_eq!(&gradients.encoder.token_embeddings()[12..16], &[0.; 4]);
+        let mut optimizer = SequenceClassifierAdamW::try_new(0.01, &model).unwrap();
+        for _ in 0..20 {
+            model
+                .train_step_weighted(&mut optimizer, tokens, weights, 1)
+                .unwrap();
+        }
+        assert!(
+            model
+                .loss_and_gradients_weighted(tokens, weights, 1)
+                .unwrap()
+                .0
+                < before
+        );
+        let saved = model.clone();
+        assert!(model
+            .train_step_weighted(&mut optimizer, tokens, &[0.; 3], 1)
+            .is_err());
+        assert_eq!(model, saved);
     }
 }
