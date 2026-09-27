@@ -1,0 +1,37 @@
+source_sha256=12910eba30b0d477e504228fc3ba8076a082cd19b738c1d568c0cd07d8b1610f bytes=12172
+source_sha256=a8b064bbed0783a5cc6ef5ff413050a819bcfc9558444594147951e21c5f7a83 bytes=10776
+source_sha256=315c00ead56cc1292f58b4743a979bcf6f8426b3f086946e45765c573ee16bcc bytes=5093
+tokenizer_sha256=092d8817b519a57499b679932b0d22ad6dde4c710a9ca5b237dfc5d30f744bed vocabulary=384 context=512
+workload=whole accepted=0 refused=3 bytes=28041
+workload=prefix128 accepted=3 refused=0 bytes=384
+sample,operation,implementation,workload,iterations,elapsed_ns
+0,train,full_recount,whole,1,228293118
+0,train,adjacency_delta,whole,1,16217768
+0,encode,rank_scan,whole,100,337924920
+0,encode,reused_heap,whole,100,523003339
+0,encode,rank_scan,prefix128,100,4153518
+0,encode,reused_heap,prefix128,100,2696987
+1,train,adjacency_delta,whole,1,16817442
+1,train,full_recount,whole,1,285008005
+1,encode,reused_heap,whole,100,668794616
+1,encode,rank_scan,whole,100,426529885
+1,encode,reused_heap,prefix128,100,2833012
+1,encode,rank_scan,prefix128,100,5011821
+2,train,full_recount,whole,1,326817895
+2,train,adjacency_delta,whole,1,35891863
+2,encode,rank_scan,whole,100,505267775
+2,encode,reused_heap,whole,100,608710574
+2,encode,rank_scan,prefix128,100,4266742
+2,encode,reused_heap,prefix128,100,3161858
+3,train,adjacency_delta,whole,1,19151923
+3,train,full_recount,whole,1,258991675
+3,encode,reused_heap,whole,100,527786040
+3,encode,rank_scan,whole,100,334793675
+3,encode,reused_heap,prefix128,100,3260112
+3,encode,rank_scan,prefix128,100,4427122
+4,train,full_recount,whole,1,254059288
+4,train,adjacency_delta,whole,1,18294186
+4,encode,rank_scan,whole,100,352908074
+4,encode,reused_heap,whole,100,530783426
+4,encode,rank_scan,prefix128,100,4717616
+4,encode,reused_heap,prefix128,100,2867396

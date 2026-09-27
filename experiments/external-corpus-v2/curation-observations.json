@@ -1,0 +1,132 @@
+[
+  {
+    "derived_sha256": "eeeef7b866e136ce356f93ccb4065c9eccb3a87772ab4d547e0174c0379f388b",
+    "diagnostics": [
+      "E0277"
+    ],
+    "id": "trybuild-compile-fail-3",
+    "label": 0
+  },
+  {
+    "derived_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "diagnostics": [],
+    "id": "trybuild-run-pass-0",
+    "label": 1
+  },
+  {
+    "derived_sha256": "22099cbd86975647f43382a3a5cb2d9421f3c4ab6c7f60a9cd955f80ab4daee7",
+    "diagnostics": [],
+    "id": "trybuild-run-fail",
+    "label": 1
+  },
+  {
+    "derived_sha256": "e962604cb9fe129334c228cddf2fb41c6d647df3328d5259d908986cee56540b",
+    "diagnostics": [],
+    "id": "trybuild-print-stdout",
+    "label": 1
+  },
+  {
+    "derived_sha256": "af735c66d1a8e56d2ac9843a34ce751281d75fea48e4e1424e8a8489cbb9754e",
+    "diagnostics": [
+      "E0425"
+    ],
+    "id": "rustlings-variables1",
+    "label": 0
+  },
+  {
+    "derived_sha256": "4a52d46b5f59c5a09a82461eabce1ff65148b2a5bf68290cdd6e11ade8411664",
+    "diagnostics": [],
+    "id": "rustlings-variables1-solution",
+    "label": 1
+  },
+  {
+    "derived_sha256": "01f65f9e5dad0f3a84c93638e2725188a1740492bc2e12c537630a3e46e227ac",
+    "diagnostics": [
+      "E0283"
+    ],
+    "id": "rustlings-variables2",
+    "label": 0
+  },
+  {
+    "derived_sha256": "d586d9ed9db0faa21a73dbc645c2645531f38f5442ffb8374947989b9007e7fa",
+    "diagnostics": [],
+    "id": "rustlings-variables2-solution",
+    "label": 1
+  },
+  {
+    "derived_sha256": "f5fde2f4492171c4b39d1c77c2df45037a8ef5cee53e3010f9316f7be9c7fb7c",
+    "diagnostics": [
+      "E0381"
+    ],
+    "id": "rustlings-variables3",
+    "label": 0
+  },
+  {
+    "derived_sha256": "13f3a79ba14ae5c6075e32f4de778bc0340f274f7b3d68688b361454ffbc7ed3",
+    "diagnostics": [
+      "E0384"
+    ],
+    "id": "rustlings-variables4",
+    "label": 0
+  },
+  {
+    "derived_sha256": "d8f7b267599ab9e30d09da66cf6067ac60e576b574f412631332faad903f2fbe",
+    "diagnostics": [],
+    "id": "rustlings-variables4-solution",
+    "label": 1
+  },
+  {
+    "derived_sha256": "cad40430ac297932b0b6a59504111e52460f5f736c599c5495e27c92aeea0174",
+    "diagnostics": [],
+    "id": "rust-borrowck-move-by-capture-ok",
+    "label": 1
+  },
+  {
+    "derived_sha256": "5c8d6c601ec62f6b953319bf0848bd168210bcfb6fbddbbae6664cfb0727c80e",
+    "diagnostics": [],
+    "id": "rust-borrowck-borrow-from-expr-block",
+    "label": 1
+  },
+  {
+    "derived_sha256": "06af35ad8aaed05377a35c1e9a1f81adfd52f0837edd597e35b26c19c0eaf82e",
+    "diagnostics": [],
+    "id": "rust-borrowck-borrow-of-mut-base-ptr-safe",
+    "label": 1
+  },
+  {
+    "derived_sha256": "050f3715a00d775883e111cb856045a99ca5f6efc24479018e3bd0537365e64a",
+    "diagnostics": [
+      "E0515"
+    ],
+    "id": "rust-borrowck-local-borrow-outlives-fn",
+    "label": 0
+  },
+  {
+    "derived_sha256": "84b69ebe7bb2c595f369df9b8f78b8ffe61f66b01b6732ab8ad18b908bcef110",
+    "diagnostics": [
+      "E0499",
+      "E0502",
+      "E0596"
+    ],
+    "id": "rust-borrowck-borrow-from-owned-ptr",
+    "label": 0
+  },
+  {
+    "derived_sha256": "24dfffb35f034e24c0947ecbec28461c0088642949d42780330d449ddb9bc795",
+    "diagnostics": [
+      "E0499",
+      "E0502",
+      "E0596"
+    ],
+    "id": "rust-borrowck-borrow-from-stack-variable",
+    "label": 0
+  },
+  {
+    "derived_sha256": "fa3a1960aef86270b48abe01ee18a4d3312601d6be09f6555c33320c11b5697d",
+    "diagnostics": [
+      "E0499"
+    ],
+    "id": "rust-borrowck-borrow-mut-object-twice",
+    "label": 0
+  }
+]
