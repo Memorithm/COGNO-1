@@ -82,3 +82,11 @@ cargo build --release --locked -p cogno-scirust --example sequence_paths_probe -
 python3 scripts/qualify_rust50_v2.py /tmp/new-rust50-run --binaries target/release/examples --rustc "$(rustup which rustc)"
 python3 scripts/verify_rust50_v2_evidence.py /tmp/new-rust50-run
 ```
+
+## Rust50 v3 dense/gather comparison on Thor
+
+RemoteOps run `36303253691` (job `108574837971`) qualified the explicit v3 dense/gather full-training comparison at COGNO commit `80cf940b1165b16a721185d27b63a55e8e6b4a7c`, tree `ffdd8918dacd80f0412099ef5bd3d764f5c939ee`, using RemoteOps commit `4ca2f5d3e8ca38b46da05f3d4820cc0290cdc1dc` and Rust 1.97.1.
+
+The fixed v2 protocol permits one dense/gather pair under its 100,000-update budget: 55,296 updates, 18 byte-matched run artifacts per round, and `model_promoted=false`. Thor recorded dense at 28,715,786,569 ns and gather at 4,851,739,391 ns on `aarch64`. These are one-host CPU training timings for this declared shape; they do not establish a general speedup or model-quality change.
+
+The completion marker binds protocol, corpus and provenance hashes. The raw marker and both bundle identities are retained in `thor-v3-graph-summary.json`; failed attempts before this run were not accepted as evidence.
