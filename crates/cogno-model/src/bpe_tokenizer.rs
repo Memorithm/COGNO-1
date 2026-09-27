@@ -312,6 +312,36 @@ impl BpeTokenizer {
         }
     }
 
+    /// Encode bounded batches while retaining one outcome per source in order.
+    /// Aggregate bounds are checked before any encoding. A source exceeding its
+    /// byte/context cap is a per-record refusal, never silently skipped or cut.
+    /// The outer limit is 4096 records and 1 MiB total source bytes; workspace
+    /// allocation is reused across records, and returned token vectors are owned.
+    pub fn encode_batch(
+        &self,
+        sources: &[&[u8]],
+        workspace: &mut BpeWorkspace,
+    ) -> Result<Vec<Result<Vec<u16>, BpeError>>, BpeError> {
+        workspace.output.clear();
+        if sources.len() > MAX_BPE_TRAIN_RECORDS {
+            return Err(BpeError::Capacity);
+        }
+        let total = sources
+            .iter()
+            .try_fold(0usize, |n, s| n.checked_add(s.len()))
+            .ok_or(BpeError::Capacity)?;
+        if total > MAX_BPE_TRAIN_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        Ok(sources
+            .iter()
+            .map(|source| {
+                self.encode_with_workspace(source, workspace)
+                    .map(<[u16]>::to_vec)
+            })
+            .collect())
+    }
+
     /// Training augmentation only: apply exactly the first `merge_count` ranks.
     /// Zero exposes byte fallback IDs; the full prefix is identical to `encode`.
     /// This does not mutate the tokenizer or change its inference/artifact contract.
@@ -581,6 +611,33 @@ mod tests {
             }
         }
         model
+    }
+
+    #[test]
+    fn batch_preserves_refusals_order_and_aggregate_bounds() {
+        let t = BpeTokenizer::from_merges(4, &[(97, 98)]).unwrap();
+        let mut workspace = BpeWorkspace::new();
+        let oversized = vec![0; MAX_BPE_BYTES + 1];
+        let sources = [b"ab".as_slice(), b"abc", b"abcd", oversized.as_slice(), b""];
+        assert_eq!(
+            t.encode_batch(&sources, &mut workspace).unwrap(),
+            sources.iter().map(|s| t.encode(s)).collect::<Vec<_>>()
+        );
+        assert!(t.encode_batch(&[], &mut workspace).unwrap().is_empty());
+        assert_eq!(
+            t.encode_batch(&vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1], &mut workspace),
+            Err(BpeError::Capacity)
+        );
+        let full = vec![0; MAX_BPE_TRAIN_BYTES];
+        assert_eq!(
+            t.encode_batch(&[&full, b"a"], &mut workspace),
+            Err(BpeError::Capacity)
+        );
+        assert!(workspace.output.is_empty());
+        assert_eq!(
+            t.encode_batch(&[b"ab"], &mut workspace).unwrap(),
+            [t.encode(b"ab")]
+        );
     }
 
     #[test]
