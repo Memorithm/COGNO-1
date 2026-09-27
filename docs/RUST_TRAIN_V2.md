@@ -31,3 +31,7 @@ Arms are `full`, `byte_mix`, `half_mix`, `cycle_mix`, with the frozen curriculum
 `rust_train_v2 train PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE NEW_OUTPUT_DIR`
 
 Creates a new directory (existing directories are refused), stores the exact protocol and admitted plan, and trains every arm × seed for the full epoch budget. Train indices use the frozen `epoch_order` permutation. Consecutive chunks form minibatches with a final partial batch; there is no oversampling, class balancing or dropped row. Minibatch gradients are averaged by actual batch size. Batch one calls the frozen single-row training step, retaining arithmetic and head seeds 1/2/3/4. No validation or test examples contribute gradients. Each run writes a loadable CBPC checkpoint containing its fitted BPE tokenizer.
+
+## Epoch accounting
+
+Every run emits an `.epochs.tsv` journal after each complete epoch, including actual updates, rows seen, emitted tokens including framing, and train/validation counts, correct predictions and mean NLL. Both metric splits use full BPE independent of training arm. Probability clipping is fixed at `[1e-7, 1-1e-7]`; tied class probabilities choose class 0. Test predictions are not evaluated during training. Validation is observed only for reporting: no early stopping, budget changes or best-epoch selection. A journal without a completed checkpoint is a partial run, not admissible evidence.
