@@ -23,8 +23,8 @@ use crate::taste_decision::{
 };
 use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
-    ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy,
-    TaskCapabilityScope, ToolProposalView,
+    ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, TaskCapabilityScope,
+    ToolProposalView,
 };
 use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 
