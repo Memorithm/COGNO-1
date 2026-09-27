@@ -585,8 +585,9 @@ pub fn compare_graphs(a: &Admission, out: &Path, rounds: usize) -> Result<(), St
         .map_err(|e| e.to_string())?;
         samples.flush().map_err(|e| e.to_string())?;
     }
-    let complete = format!("rust-graph-comparison-v1\nsource_protocol_sha256\t{}\nrounds\t{rounds}\nupdates\t{updates}\ncheckpoints_per_graph_per_round\t{}\nsamples_sha256\t{}\nmodel_promoted\tfalse\n",
-        digest(&a.protocol_bytes), a.protocol.arms.len() * a.protocol.seeds.len(),
+    let complete = format!("rust-graph-comparison-v2\nsource_protocol_sha256\t{}\nsource_corpus_sha256\t{}\nsource_provenance_sha256\t{}\nrounds\t{rounds}\nupdates\t{updates}\ncheckpoints_per_graph_per_round\t{}\nsamples_sha256\t{}\nmodel_promoted\tfalse\n",
+        digest(&a.protocol_bytes), a.protocol.corpus_sha256, a.protocol.provenance_sha256,
+        a.protocol.arms.len() * a.protocol.seeds.len(),
         digest(&read_bounded(&out.join("samples.tsv"), 65536)?));
     write_new(&out.join("COMPLETE"), complete.as_bytes())?;
     println!(
@@ -1123,7 +1124,16 @@ mod qualification {
             }
         }
         let complete = std::fs::read_to_string(out.join("COMPLETE")).unwrap();
+        assert!(complete.starts_with("rust-graph-comparison-v2\n"));
         assert!(complete.contains("rounds\t2\nupdates\t64\n"));
+        assert!(complete.contains(&format!(
+            "source_corpus_sha256\t{}\n",
+            a.protocol.corpus_sha256
+        )));
+        assert!(complete.contains(&format!(
+            "source_provenance_sha256\t{}\n",
+            a.protocol.provenance_sha256
+        )));
         assert!(complete.contains(&digest(samples.as_bytes())));
         assert!(compare_graphs(&a, &out, 2).is_err());
         std::fs::write(out.join("round-0-gather/full-seed-1.cbpc"), b"changed").unwrap();
