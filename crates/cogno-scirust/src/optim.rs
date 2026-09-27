@@ -126,6 +126,74 @@ impl AdamW {
     }
 }
 
+/// Upper bound for opt-in reusable optimizer workspaces.
+pub const MAX_OPTIMIZER_WORKSPACE_ELEMENTS: usize = 1_048_576;
+
+/// Reusable transactional storage for [`AdamW::step_with_workspace`].
+/// One workspace belongs to one parameter shape and can be reused across steps.
+#[derive(Clone, Debug)]
+pub struct AdamWWorkspace {
+    candidate: AdamW,
+    values: Vec<f32>,
+}
+
+impl AdamWWorkspace {
+    pub fn try_new(elements: usize) -> SciRustResult<Self> {
+        validate_workspace_size(elements)?;
+        Ok(Self {
+            candidate: AdamW::try_new(1.0, elements)?,
+            values: vec![0.0; elements],
+        })
+    }
+}
+
+fn validate_workspace_size(elements: usize) -> SciRustResult<()> {
+    if elements == 0 {
+        return Err(SciRustError::Empty);
+    }
+    if elements > MAX_OPTIMIZER_WORKSPACE_ELEMENTS {
+        return Err(SciRustError::CapacityExceeded {
+            requested: elements,
+            maximum: MAX_OPTIMIZER_WORKSPACE_ELEMENTS,
+        });
+    }
+    Ok(())
+}
+
+impl AdamW {
+    /// Same arithmetic and atomic failure semantics as `step`, with reusable
+    /// candidate buffers. A successful call makes no new heap allocations.
+    /// Scratch contents after a failed call are unspecified; retry is safe.
+    pub fn step_with_workspace(
+        &mut self,
+        param: &mut [f32],
+        grad: &[f32],
+        workspace: &mut AdamWWorkspace,
+    ) -> SciRustResult<()> {
+        validate_state(&self.state, param, grad)?;
+        validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
+        if workspace.values.len() != param.len() {
+            return Err(SciRustError::Shape {
+                lhs: vec![workspace.values.len()], rhs: vec![param.len()],
+            });
+        }
+        workspace.candidate.lr = self.lr;
+        workspace.candidate.beta1 = self.beta1;
+        workspace.candidate.beta2 = self.beta2;
+        workspace.candidate.eps = self.eps;
+        workspace.candidate.weight_decay = self.weight_decay;
+        workspace.candidate.state.m.copy_from_slice(&self.state.m);
+        workspace.candidate.state.v.copy_from_slice(&self.state.v);
+        workspace.candidate.state.v_hat.copy_from_slice(&self.state.v_hat);
+        workspace.candidate.state.step = self.state.step;
+        workspace.values.copy_from_slice(param);
+        workspace.candidate.step_candidate(&mut workspace.values, grad)?;
+        param.copy_from_slice(&workspace.values);
+        std::mem::swap(self, &mut workspace.candidate);
+        Ok(())
+    }
+}
+
 /// AMSGrad (uses the max of past v to avoid negative learning rates on sparse
 /// gradients).
 #[derive(Clone, Debug)]
