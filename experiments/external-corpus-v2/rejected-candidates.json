@@ -1,0 +1,72 @@
+[
+  {
+    "path": "solutions/01_variables/variables3.rs",
+    "raw_sha256": "704b161040ecff322bb72ffbf067271843c6ac3746186aeeac59424349225ba2",
+    "reason": "unreviewed lowercase namespace dependency",
+    "repository": "rust-lang/rustlings",
+    "revision": "a650509c789da1656f813392b16aa1fa043b7f3e"
+  },
+  {
+    "path": "tests/ui/run-pass-1.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-2.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-3.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-4.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-5.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-6.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-7.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-8.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  },
+  {
+    "path": "tests/ui/run-pass-9.rs",
+    "raw_sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4",
+    "reason": "exact duplicate of tests/ui/run-pass-0.rs; no extra independent example",
+    "repository": "dtolnay/trybuild",
+    "revision": "4b511198467970a3ec448df3e3837f53e0677940"
+  }
+]

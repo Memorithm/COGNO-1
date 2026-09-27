@@ -7,15 +7,19 @@ use cogno_runtime::{
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn root() -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time")
         .as_nanos();
+    let sequence = ROOT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!(
-        "cogno-persisted-chain-{}-{nonce}",
+        "cogno-persisted-chain-{}-{nonce}-{sequence}",
         std::process::id()
     ))
 }

@@ -1,0 +1,20 @@
+{
+  "repositories": [
+    {
+      "lineage_group": "rust-compiler",
+      "repository": "rust-lang/rust",
+      "split": "train"
+    },
+    {
+      "lineage_group": "rustlings-exercises",
+      "repository": "rust-lang/rustlings",
+      "split": "validation"
+    },
+    {
+      "lineage_group": "trybuild-harness",
+      "repository": "dtolnay/trybuild",
+      "split": "test"
+    }
+  ],
+  "schema": 1
+}

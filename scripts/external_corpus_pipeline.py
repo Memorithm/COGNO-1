@@ -17,7 +17,7 @@ def bounded(path,limit):
     return data
 
 
-def prepare(inventory_bytes,inventory_sha,split_bytes,split_sha,cache,output,rustc,known):
+def prepare(inventory_bytes,inventory_sha,split_bytes,split_sha,cache,output,rustc,known,finalize=True):
     if output.exists():raise ValueError('output must be new')
     inventory=validate(inventory_bytes,inventory_sha)
     mapping=assignments(split_bytes,split_sha,inventory['sources'])
@@ -43,7 +43,12 @@ def prepare(inventory_bytes,inventory_sha,split_bytes,split_sha,cache,output,rus
     # Validate before creating the destination; write_admitted revalidates during emission.
     from admit_rust_corpus import admit
     admit(data,{'MIT','Apache-2.0'})
-    output.mkdir();(output/'raw').mkdir();(output/'source').mkdir();(output/'licenses').mkdir()
+    output.mkdir();(output/'raw').mkdir();(output/'source').mkdir();(output/'licenses').mkdir();(output/'known').mkdir()
+    for index,((known_path,known_sha),item) in enumerate(zip(known,known_evidence)):
+        snapshot=bounded(known_path,4_194_304)
+        if digest(snapshot)!=known_sha:raise ValueError('known corpus changed before preservation')
+        item['artifact']=f'known/{index}.jsonl'
+        (output/item['artifact']).write_bytes(snapshot)
     admitted=write_admitted(data,output/'admitted',['MIT','Apache-2.0'])
     for name,raw,source in payloads:
         (output/'raw'/f'{name}.rs').write_bytes(raw);(output/'source'/f'{name}.rs').write_bytes(source)
@@ -56,7 +61,7 @@ def prepare(inventory_bytes,inventory_sha,split_bytes,split_sha,cache,output,rus
         sources=len(records),raw_and_derived_compilations=len(records)*2,
         contamination=dict(exact_or_whitespace_matches=0,semantic_independence_proven=False),
         source_execution=False,model_trained=False,curated_observed_panel=True)
-    (output/'COMPLETE.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+    if finalize:(output/'COMPLETE.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
     return manifest
 
 
