@@ -1,0 +1,37 @@
+name: Rust50 v2 integration
+on:
+  pull_request:
+    paths:
+      - 'scripts/*rust50_v2*'
+      - 'experiments/rust50-v2/**'
+      - '.github/workflows/rust50-v2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/*rust50_v2*'
+      - 'experiments/rust50-v2/**'
+      - '.github/workflows/rust50-v2.yml'
+permissions:
+  contents: read
+concurrency:
+  group: rust50-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - name: Python admission and evidence tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Build qualification binaries
+        run: |
+          cargo build --release --locked -p cogno-model --example rust_project_split --example bpe_curriculum_probe --example rust_train_v2 --example bpe_tokenizer_bench
+          cargo build --release --locked -p cogno-scirust --example sequence_paths_probe --example optimizer_training_probe
+      - name: Reproduce frozen models and qualify all components
+        run: python3 scripts/qualify_rust50_v2.py "$RUNNER_TEMP/rust50-v2" --binaries target/release/examples --rustc "$(rustup which rustc)"
+      - name: Compare the entire fresh result with saved Thor and local evidence
+        run: python3 scripts/verify_rust50_v2_evidence.py "$RUNNER_TEMP/rust50-v2"

@@ -1,0 +1,8 @@
+rust-train-v2-run
+protocol_sha256	d22e03d490425e0f2b0938e6a577912b47e7054d4415f2aa32c723ad888c4df5
+arm	cycle_mix
+seed	42
+file	sha256
+cycle_mix-seed-42.cbpc	9556e13a637c844ce628946dc70736f9c65166b4443aabe22c251e492eb30877
+cycle_mix-seed-42.epochs.tsv	95bccdb9a9a8430a6be82c8b51bdf97263fc179949872f41841e13ea0ab9c529
+cycle_mix-seed-42.predictions.tsv	227606218b1f514c4d9c33cdc3a0a70580b142f9949ef5845f84891ff7e841d2

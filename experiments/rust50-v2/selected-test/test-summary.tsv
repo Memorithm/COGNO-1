@@ -1,0 +1,4 @@
+arm	seed	selected	unique_test_sources_per_seed	correct	mean_nll
+cycle_mix	1	true	48	29	0.682760468109874
+cycle_mix	7	true	48	28	0.6750786332429876
+cycle_mix	42	true	48	30	0.6776345878704282

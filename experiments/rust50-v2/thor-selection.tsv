@@ -1,0 +1,8 @@
+rust-train-v2-selection
+protocol_sha256	d22e03d490425e0f2b0938e6a577912b47e7054d4415f2aa32c723ad888c4df5
+bundle_sha256	1a39007a9430133c85f6c101b4409df86d08a077c811940e9612ae549f0be4f6
+selected_arm	cycle_mix
+rule	mean_seed_validation_nll_then_protocol_order
+arm	seed_count	validation_observations	validation_correct	mean_validation_nll
+full	3	144	88	1.1553523230501623
+cycle_mix	3	144	85	0.6745453191534424

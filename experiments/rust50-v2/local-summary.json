@@ -1,0 +1,37 @@
+{
+  "architecture": "x86_64",
+  "benchmark_logs": {
+    "bpe_tokenizer_bench.txt": "3dcc688e75e28d747612d752249536868d2f67bb22c04f300d3a4d974030cc6e",
+    "optimizer_training_probe.txt": "e80407d59839b4cf5ecad878eea05693958a5f7ae6cc82051371bd5295d8b2c1",
+    "sequence_paths_probe.txt": "fa7c429e45e1c79da0c1cbd4d6b13cfca8228ceda42d70bbe990ae3e42efed4f"
+  },
+  "blind_test": false,
+  "configurable_bundle_sha256": "1a39007a9430133c85f6c101b4409df86d08a077c811940e9612ae549f0be4f6",
+  "configurable_checkpoints": {
+    "cycle_mix-seed-1.cbpc": "7b4a8701808f9e58a8db516418b2f119a6d018d29475ab8cab4e21d3006ed793",
+    "cycle_mix-seed-42.cbpc": "9556e13a637c844ce628946dc70736f9c65166b4443aabe22c251e492eb30877",
+    "cycle_mix-seed-7.cbpc": "9715f9abdf5338240842ee2d4b4ea3e0fbb30625762bd5bf5b27aa04aad2c075",
+    "full-seed-1.cbpc": "156516ce63ebc4fdb527348302117e7c8283917232cc3c33b2cc5526e33d5ce6",
+    "full-seed-42.cbpc": "3daab539061fe17d69c4f9f4e9018193a99a2aef006f43e44555ae25720a98d2",
+    "full-seed-7.cbpc": "70ef727384b0674726536aea8773fa714de34a0a2fa06702bb5beee150216474"
+  },
+  "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+  "external_corpus_sha256": "09263fd03150916481db10a7c636ee9ecdd5e13b9c10637efb716433d0e1113d",
+  "external_repositories": [
+    "dtolnay/trybuild",
+    "rust-lang/rust",
+    "rust-lang/rustlings"
+  ],
+  "external_sources": 18,
+  "frozen_checkpoints": 12,
+  "frozen_predictions": 3456,
+  "gpu_training": false,
+  "model_promoted": false,
+  "predictions_sha256": "051f5e2936629a81c92c89e3cf6161b7240d4e28dbcbc2c9e193362a15c356d3",
+  "protocol_sha256": "e9f991f4332706d2b69f60762991f3a019b6488bcf34ccb62bc49f24d915f94d",
+  "schema": 1,
+  "selected_test_sha256": "924ba1379df78d03872be67110879f2da4ac1e698c0302ea71b868d2b87b78d4",
+  "selection_sha256": "6d3c81d015b25f1db74fd2fd55735e1306451106a3cd54a483b2df0b8e70700a",
+  "source_commit": "fb7a866e5647783489bf4a5d5a0b0e1ab95893db",
+  "source_tree": "128579f774083d33fad7a83804ee916691996063"
+}

@@ -9,6 +9,9 @@ new implementation's integrated experiments. It deliberately reuses the known
 domain holdout for engineering regression checks. Those observations are not a
 new blind benchmark and must not be used to advertise generalization gains.
 
+Completed execution, raw measurements, cross-architecture reproduction and scope
+limitations are documented in `experiments/rust50-v2/README.md`.
+
 Qualification has five parts:
 
 1. Preserve all 12 frozen domain-holdout checkpoint hashes and all 3,456

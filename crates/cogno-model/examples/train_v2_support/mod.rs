@@ -615,8 +615,8 @@ pub fn test_selected(
     let mut summary =
         String::from("arm\tseed\tselected\tunique_test_sources_per_seed\tcorrect\tmean_nll\n");
     let mut manifest = format!("rust-train-v2-test\nprotocol_sha256\t{}\nbundle_sha256\t{expected}\nselection_sha256\t{}\nfile\tsha256\nselection.tsv\t{}\n", digest(&a.protocol_bytes), digest(&frozen), digest(&frozen));
-    // Selection is fixed before test evaluation; retain all preregistered controls.
-    for arm in &a.protocol.arms {
+    // Evaluate only the frozen selected arm; no test-based reselection.
+    for arm in [&selected] {
         for &seed in &a.protocol.seeds {
             let model = load_run(a, out, arm, seed)?;
             let (n, correct, nll) = metrics(model.heads(), a, CorpusSplit::Test)?;
@@ -748,4 +748,222 @@ fn verify_run(a: &Admission, out: &Path, arm: &str, seed: u64) -> Result<(), Str
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod qualification {
+    use super::*;
+    use std::path::PathBuf;
+    struct Scratch(PathBuf);
+    impl Scratch {
+        fn new() -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            loop {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos();
+                let path = std::env::temp_dir().join(format!(
+                    "cogno-train-v2-{now}-{}",
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                match std::fs::create_dir(&path) {
+                    Ok(()) => return Self(path),
+                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                    Err(e) => panic!("{e}"),
+                }
+            }
+        }
+    }
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    fn fixture(root: &Path, batch: usize) -> (Admission, Vec<String>) {
+        let mut corpus = String::from("CRUST001\n");
+        for (split, labels) in [
+            ("train", vec![0, 1, 0]),
+            ("validation", vec![0, 1]),
+            ("test", vec![0, 1]),
+        ] {
+            for (i, label) in labels.into_iter().enumerate() {
+                let source = format!(
+                    "fn {split}_{i}() {{ let x:u8={}; }}",
+                    if label == 1 { "1" } else { "\"bad\"" }
+                );
+                corpus.push_str(&format!(
+                    "{split}\t{split}_project\t{label}\t{}\t{}\n",
+                    digest(source.as_bytes()),
+                    hex(source.as_bytes())
+                ));
+            }
+        }
+        let provenance = b"unit test fixture; compiler labels are not a qualification dataset\n";
+        let protocol = format!("version\trust-train-v2\ncorpus_sha256\t{}\nprovenance_sha256\t{}\nseeds\t1,7\narms\tfull,cycle_mix\nepochs\t2\nvocab\t259\ncontext\t96\nembedding\t2\nhidden\t3\nbatch\t{batch}\nlearning_rate\t0.003\nmax_updates\t100\n", digest(corpus.as_bytes()), digest(provenance));
+        for (name, bytes) in [
+            ("corpus", corpus.as_bytes()),
+            ("provenance", provenance.as_slice()),
+            ("protocol", protocol.as_bytes()),
+        ] {
+            write_new(&root.join(name), bytes).unwrap();
+        }
+        let args = vec![
+            root.join("protocol").display().to_string(),
+            digest(protocol.as_bytes()),
+            root.join("corpus").display().to_string(),
+            root.join("provenance").display().to_string(),
+        ];
+        (admit(&args).unwrap(), args)
+    }
+    #[test]
+    fn complete_training_selection_test_and_bundle_tamper_detection() {
+        let dir = Scratch::new();
+        let (a, _) = fixture(&dir.0, 2);
+        let out = dir.0.join("out");
+        assert_eq!(a.updates, 16); // 3 rows -> 2 minibatches, 2 epochs, 4 runs.
+        train(&a, &out, None).unwrap();
+        let hash = digest(&std::fs::read(out.join("COMPLETE")).unwrap());
+        verify(&a, &out, &hash).unwrap();
+        assert!(train(&a, &out, None).is_err());
+        let choice = dir.0.join("selection");
+        select(&a, &out, &hash, &choice).unwrap();
+        let report = std::fs::read_to_string(&choice).unwrap();
+        // No merge rules: the arms are mathematically identical; exact ties use protocol order.
+        assert!(report.contains("selected_arm\tfull\n"));
+        assert!(report.contains("full\t2\t4\t"));
+        let evaluation = dir.0.join("test");
+        test_selected(&a, &out, &hash, &choice, &evaluation).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(evaluation.join("test-summary.tsv"))
+                .unwrap()
+                .lines()
+                .count(),
+            3
+        );
+        for arm in &a.protocol.arms {
+            for seed in &a.protocol.seeds {
+                let train =
+                    std::fs::read_to_string(out.join(format!("{arm}-seed-{seed}.predictions.tsv")))
+                        .unwrap();
+                assert!(!train.lines().any(|l| l.starts_with("test\t")));
+                assert_eq!(train.lines().count(), 6);
+                let test_path = evaluation.join(format!("{arm}-seed-{seed}.test.tsv"));
+                if arm == "full" {
+                    let test = std::fs::read_to_string(test_path).unwrap();
+                    assert_eq!(test.lines().count(), 3);
+                } else {
+                    assert!(!test_path.exists());
+                }
+            }
+        }
+        std::fs::write(&choice, "selected_arm\tcycle_mix\n").unwrap();
+        let bad_test = dir.0.join("bad-test");
+        assert!(test_selected(&a, &out, &hash, &choice, &bad_test).is_err());
+        assert!(!bad_test.exists());
+        std::fs::write(out.join("full-seed-1.predictions.tsv"), "tampered").unwrap();
+        assert!(verify(&a, &out, &hash).is_err());
+    }
+    #[test]
+    fn interrupted_run_restarts_without_losing_completed_seed() {
+        let dir = Scratch::new();
+        let (a, _) = fixture(&dir.0, 1);
+        let original = dir.0.join("original");
+        train(&a, &original, None).unwrap();
+        let partial = dir.0.join("partial");
+        std::fs::create_dir(&partial).unwrap();
+        for name in [
+            "protocol.tsv".to_owned(),
+            "plan.tsv".to_owned(),
+            "full-seed-1.DONE".to_owned(),
+        ]
+        .into_iter()
+        .chain(run_files("full", 1))
+        {
+            std::fs::copy(original.join(&name), partial.join(&name)).unwrap();
+        }
+        // This is an interrupted inference checkpoint, not restorable optimizer state.
+        std::fs::write(partial.join("full-seed-7.cbpc"), "partial").unwrap();
+        let resumed = dir.0.join("resumed");
+        train(&a, &resumed, Some(&partial)).unwrap();
+        for name in files(&a).into_iter().chain(["COMPLETE".to_owned()]) {
+            assert_eq!(
+                std::fs::read(original.join(&name)).unwrap(),
+                std::fs::read(resumed.join(&name)).unwrap(),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            std::fs::read(partial.join("full-seed-7.cbpc")).unwrap(),
+            b"partial"
+        );
+        std::fs::write(partial.join("full-seed-1.epochs.tsv"), "corrupt").unwrap();
+        assert!(train(&a, &dir.0.join("refused"), Some(&partial)).is_err());
+    }
+    #[test]
+    fn admission_rejects_changed_provenance_protocol_and_budget() {
+        let dir = Scratch::new();
+        let (_, args) = fixture(&dir.0, 1);
+        let mut wrong = args.clone();
+        wrong[1] = "0".repeat(64);
+        assert!(admit(&wrong).is_err());
+        let original = std::fs::read_to_string(&args[0]).unwrap();
+        let over = original.replace("max_updates\t100", "max_updates\t1");
+        std::fs::write(&args[0], &over).unwrap();
+        wrong = args.clone();
+        wrong[1] = digest(over.as_bytes());
+        assert!(admit(&wrong).is_err());
+        std::fs::write(&args[0], original).unwrap();
+        std::fs::write(&args[3], "changed").unwrap();
+        assert!(admit(&args).is_err());
+    }
+    #[test]
+    fn batch_one_checkpoint_matches_frozen_manual_training() {
+        use cogno_scirust::*;
+        let dir = Scratch::new();
+        let (a, _) = fixture(&dir.0, 1);
+        let out = dir.0.join("out");
+        train(&a, &out, None).unwrap();
+        let p = &a.protocol;
+        let mut heads = SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: a.tokenizer.vocab_size(),
+                max_tokens: p.context,
+                embedding_dim: p.embedding,
+                hidden_dim: p.hidden,
+                seed: 1,
+            },
+            num_classes: 2,
+            num_rules: 1,
+            classification_seed: 1,
+            preference_seed: 2,
+            symbolic_seed: 3,
+            contradiction_seed: 4,
+        })
+        .unwrap();
+        let mut optimizer = SequenceCognitiveAdamW::try_new(p.learning_rate, &heads).unwrap();
+        let rows: Vec<_> = a
+            .corpus
+            .records()
+            .iter()
+            .filter(|r| r.split == CorpusSplit::Train)
+            .collect();
+        for epoch in 0..p.epochs {
+            for i in cogno_model::training_order::epoch_order(rows.len(), 1, epoch as u64).unwrap()
+            {
+                let tokens = a.tokenizer.encode(&rows[i].source).unwrap();
+                heads
+                    .train_classification_step(
+                        &mut optimizer,
+                        CognitiveClassification {
+                            token_ids: &tokens,
+                            target_class: rows[i].label,
+                        },
+                    )
+                    .unwrap();
+            }
+        }
+        assert_eq!(load_run(&a, &out, "full", 1).unwrap().heads(), &heads);
+    }
 }

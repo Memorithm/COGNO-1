@@ -1,0 +1,8 @@
+rust-train-v2-run
+protocol_sha256	d22e03d490425e0f2b0938e6a577912b47e7054d4415f2aa32c723ad888c4df5
+arm	full
+seed	42
+file	sha256
+full-seed-42.cbpc	3daab539061fe17d69c4f9f4e9018193a99a2aef006f43e44555ae25720a98d2
+full-seed-42.epochs.tsv	b861cc9d08e5105a322530b2db05a17b3d314fabc2fc5b945aac44ebb06050c2
+full-seed-42.predictions.tsv	aa7fa66602d48edad73602f56e925ddceebda7f91bcecdecdd08a6ac5e57fd77
