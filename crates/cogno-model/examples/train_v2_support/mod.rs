@@ -564,3 +564,45 @@ pub fn select(a: &Admission, out: &Path, expected: &str, destination: &Path) -> 
     println!("SELECTION_SHA256={}", digest(report.as_bytes()));
     Ok(())
 }
+
+pub fn test_selected(
+    a: &Admission,
+    out: &Path,
+    expected: &str,
+    selection_path: &Path,
+    destination: &Path,
+) -> Result<(), String> {
+    let (selected, report) = selection(a, out, expected)?;
+    let frozen = read_bounded(selection_path, 64 * 1024)?;
+    if frozen != report.as_bytes() {
+        return Err("selection file differs from validation-only decision".into());
+    }
+    std::fs::create_dir(destination).map_err(|e| e.to_string())?;
+    write_new(&destination.join("selection.tsv"), &frozen)?;
+    let mut summary =
+        String::from("arm\tseed\tselected\tunique_test_sources_per_seed\tcorrect\tmean_nll\n");
+    let mut manifest = format!("rust-train-v2-test\nprotocol_sha256\t{}\nbundle_sha256\t{expected}\nselection_sha256\t{}\nfile\tsha256\nselection.tsv\t{}\n", digest(&a.protocol_bytes), digest(&frozen), digest(&frozen));
+    // Selection is fixed before test evaluation; retain all preregistered controls.
+    for arm in &a.protocol.arms {
+        for &seed in &a.protocol.seeds {
+            let model = load_run(a, out, arm, seed)?;
+            let (n, correct, nll) = metrics(model.heads(), a, CorpusSplit::Test)?;
+            let predictions = predictions(&model, a, true)?;
+            let name = format!("{arm}-seed-{seed}.test.tsv");
+            write_new(&destination.join(&name), predictions.as_bytes())?;
+            manifest.push_str(&format!("{name}\t{}\n", digest(predictions.as_bytes())));
+            summary.push_str(&format!(
+                "{arm}\t{seed}\t{}\t{n}\t{correct}\t{nll}\n",
+                arm == &selected
+            ));
+        }
+    }
+    write_new(&destination.join("test-summary.tsv"), summary.as_bytes())?;
+    manifest.push_str(&format!(
+        "test-summary.tsv\t{}\n",
+        digest(summary.as_bytes())
+    ));
+    write_new(&destination.join("COMPLETE"), manifest.as_bytes())?;
+    println!("TEST_COMPLETE_SHA256={}", digest(manifest.as_bytes()));
+    Ok(())
+}
