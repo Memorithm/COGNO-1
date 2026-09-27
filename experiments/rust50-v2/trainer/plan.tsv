@@ -1,0 +1,12 @@
+protocol_sha256	d22e03d490425e0f2b0938e6a577912b47e7054d4415f2aa32c723ad888c4df5
+corpus_sha256	fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f
+provenance_sha256	e57d9fc4c498d47b442ab8179e7ff489780937aca8ea97559f68fbc6ab39d926
+rows	288
+updates	27648
+runs	6
+epochs	24
+batch	1
+embedding	8
+hidden	16
+learning_rate	0.003
+tokenizer_sha256	e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6

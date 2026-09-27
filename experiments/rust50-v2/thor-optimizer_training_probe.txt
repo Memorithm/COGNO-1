@@ -1,0 +1,9 @@
+synthetic_initial_loss=0.693147182 synthetic_final_loss=0.146234949 steps=120
+repeat=0 legacy_ns=65556106 workspace_ns=52712345 checkpoint_equal=true
+repeat=1 legacy_ns=52692864 workspace_ns=52681134 checkpoint_equal=true
+repeat=2 legacy_ns=52709117 workspace_ns=52661571 checkpoint_equal=true
+repeat=3 legacy_ns=52798941 workspace_ns=52695349 checkpoint_equal=true
+repeat=4 legacy_ns=52763589 workspace_ns=52644894 checkpoint_equal=true
+repeat=5 legacy_ns=52744051 workspace_ns=52642727 checkpoint_equal=true
+repeat=6 legacy_ns=52584589 workspace_ns=52589615 checkpoint_equal=true
+elements=16384 updates=256 median_legacy_ns=52744051 median_workspace_ns=52661571 observed_ratio=1.0016

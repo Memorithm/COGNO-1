@@ -1,0 +1,13 @@
+version	rust-train-v2
+corpus_sha256	fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f
+provenance_sha256	e57d9fc4c498d47b442ab8179e7ff489780937aca8ea97559f68fbc6ab39d926
+seeds	1,7,42
+arms	full,cycle_mix
+epochs	24
+vocab	384
+context	512
+embedding	8
+hidden	16
+batch	1
+learning_rate	0.003
+max_updates	100000

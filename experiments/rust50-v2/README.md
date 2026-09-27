@@ -1,0 +1,84 @@
+# Rust50 v2: completed CPU qualification
+
+The fixed protocol was published in COGNO-1 #193 before integrated experiments.
+The batch consists of COGNO-1 #193–241 and RemoteOps #50: 50 pull requests.
+Incremental component reviews cover native training/gradients, tokenizer,
+optimizer/losses, evaluation, and external source admission. Final integrated
+evidence is attached to COGNO-1 #235.
+
+## Reproduction
+
+Thor execution **36296752085**, job **108556928364**, completed successfully.
+It used COGNO commit `3624917ae1f98843adeb8920799b1c3487b5248e`, tree
+`9074a29c5857757808f709bdf8954db22b9acaac`, and Rust 1.97.1. RemoteOps #50
+merged at `d5f9a2d5bf71d97b3449db5cabdfeb230a980cd8`. Full weights, source,
+compiler reports and logs remain in
+`/srv/cogno-rust50-v2/run-36296752085-1` on Thor.
+
+The final local run used the same implementation; a Rustdoc comment was corrected
+while it ran. Its recorded source tree differs only by that documentation line.
+Both machines produced exactly the same:
+
+- 12 historical checkpoint identities and 3,456 predictions;
+- six configurable-trainer checkpoints (two arms × three seeds × 24 epochs);
+- complete configurable training bundle, epoch journals and predictions;
+- validation-only selection and selected-arm test bundle;
+- admitted external corpus from 18 sources in three actual upstream repositories.
+
+The new configurable trainer performs 27,648 updates. Verified completed-run
+replay produces an identical bundle. This is bounded CPU qualification, not
+large-scale GPU training. The 288 synthetic examples and existing test split were
+already observed. The external panel is curated and observed, and qualifies the
+acquisition pipeline rather than establishing expert Rust performance.
+
+`cycle_mix` remains selected. Its three test scores are 29/48, 28/48 and 30/48
+(60.42% mean). They repeat the prior result: no new accuracy improvement is claimed.
+The trainable system remains a compiler-acceptance classifier, not a Rust code
+generator. No model is promoted.
+
+## Measured implementation performance on Thor
+
+| Operation and workload | Reference median | New path median | Interpretation |
+|---|---:|---:|---|
+| Sequence loss + backward, vocab384 / tokens192 / embed8 / hidden16 | 4.065 ms | 0.090 ms | 45.3× for this shape; exact gradients and 12 updates |
+| BPE fit, three Rust files / 28,041 bytes / vocab384 | 130.799 ms | 7.623 ms | 17.2× against the independent full-recount/rebuild oracle |
+| Encode three 128-byte prefixes, 100 passes | 3.193 ms | 1.721 ms | Heap faster for these admitted prefixes |
+| Encode three full files, 100 passes | 217.018 ms | 315.132 ms | Heap slower; all three exceed context and are refused |
+| AdamW, 16,384 elements / 256 updates | 52.744 ms | 52.662 ms | Approximately equal; no meaningful speedup claim |
+
+Raw samples and input hashes are retained in `thor-*.txt` and `local-*.txt`.
+The sequence probe currently retains seven-round medians, not each individual
+round. These are shared-machine microbenchmarks, not universal speed guarantees
+or end-to-end trading latency. The default tokenizer encoder remains rank-scan.
+Gather/context/mask training paths are explicit options; legacy artifacts do not
+store contextual strength or masks, so callers must retain those experiment
+settings. Production runtime authority is unchanged.
+
+## Evidence and checks
+
+`trainer/` retains every non-weight training artifact, including all six seeds'
+train/validation predictions, journals and completion manifests. Checkpoint
+bytes are reproducibly regenerated and remain on Thor; their identities appear
+in both summaries. `selected-test/` retains only the frozen selected arm's three
+test predictions. The historical four-arm predictions are retained separately
+in `experiments/domain-holdout-v1`.
+
+Local integration passed 99 Python tests before the three final evidence tests
+were added; those three also pass. Model/SciRust all-target tests passed 392 test
+executions, with strict Clippy, formatting and documentation checks. GitHub's
+workspace and offline checks cover the runtime in its supported PID environment.
+An initial local Python invocation lacked `rustup` on PATH; it was corrected and
+the entire 99-test suite rerun successfully. Rustdoc rejected a literal range
+link; the documentation was fixed and rechecked.
+
+The evidence verifier rejects changed predictions, completion manifests,
+benchmarks or unsuccessful/mismatched Thor execution. Integration CI repeats
+all 18 training runs and compares the full deterministic bundle against these
+saved results. To reproduce:
+
+```sh
+cargo build --release --locked -p cogno-model --example rust_project_split --example bpe_curriculum_probe --example rust_train_v2 --example bpe_tokenizer_bench
+cargo build --release --locked -p cogno-scirust --example sequence_paths_probe --example optimizer_training_probe
+python3 scripts/qualify_rust50_v2.py /tmp/new-rust50-run --binaries target/release/examples --rustc "$(rustup which rustc)"
+python3 scripts/verify_rust50_v2_evidence.py /tmp/new-rust50-run
+```

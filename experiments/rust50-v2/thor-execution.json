@@ -1,0 +1,10 @@
+{
+  "repository": "Memorithm/RemoteOps",
+  "pull_request": 50,
+  "merge_commit": "d5f9a2d5bf71d97b3449db5cabdfeb230a980cd8",
+  "run_id": 36296752085,
+  "job_id": 108556928364,
+  "conclusion": "success",
+  "run_directory": "/srv/cogno-rust50-v2/run-36296752085-1",
+  "source_commit": "3624917ae1f98843adeb8920799b1c3487b5248e"
+}

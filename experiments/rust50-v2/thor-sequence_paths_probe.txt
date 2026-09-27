@@ -1,0 +1,15 @@
+metric	value
+architecture	aarch64
+iterations_per_round	10
+timing_rounds	7
+gradient_and_12_update_parity	true
+dense_peak_tensor_elements	98304
+gather_peak_tensor_elements	4096
+dense_loss_backward_median_ns	4064850
+gather_loss_backward_median_ns	89802
+contextual_loss_backward_median_ns	101422
+direct_encoder_median_ns	19946
+workspace_encoder_median_ns	19804
+contextual_one_example_nll_before	0.66544294
+contextual_one_example_nll_after	0.38394734
+promoted	false

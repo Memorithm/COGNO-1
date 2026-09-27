@@ -1,0 +1,7 @@
+synthetic_initial_loss=0.693147182 synthetic_final_loss=0.146234949 steps=120
+repeat=0 legacy_ns=189211412 workspace_ns=80319994 checkpoint_equal=true
+repeat=1 legacy_ns=82534849 workspace_ns=92727590 checkpoint_equal=true
+repeat=2 legacy_ns=80461628 workspace_ns=92268734 checkpoint_equal=true
+repeat=3 legacy_ns=79170472 workspace_ns=79527791 checkpoint_equal=true
+repeat=4 legacy_ns=80069828 workspace_ns=94172485 checkpoint_equal=true
+repeat=5 legacy_ns=79806868 workspace_ns=78264537 checkpoint_equal=true

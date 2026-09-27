@@ -33,3 +33,5 @@ jobs:
           cargo build --release --locked -p cogno-scirust --example sequence_paths_probe --example optimizer_training_probe
       - name: Reproduce frozen models and qualify all components
         run: python3 scripts/qualify_rust50_v2.py "$RUNNER_TEMP/rust50-v2" --binaries target/release/examples --rustc "$(rustup which rustc)"
+      - name: Compare the entire fresh result with saved Thor and local evidence
+        run: python3 scripts/verify_rust50_v2_evidence.py "$RUNNER_TEMP/rust50-v2"

@@ -1,0 +1,15 @@
+metric	value
+architecture	x86_64
+iterations_per_round	10
+timing_rounds	7
+gradient_and_12_update_parity	true
+dense_peak_tensor_elements	98304
+gather_peak_tensor_elements	4096
+dense_loss_backward_median_ns	18403776
+gather_loss_backward_median_ns	151818
+contextual_loss_backward_median_ns	172176
+direct_encoder_median_ns	32396
+workspace_encoder_median_ns	33219
+contextual_one_example_nll_before	0.66544294
+contextual_one_example_nll_after	0.38394734
+promoted	false
