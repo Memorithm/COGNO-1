@@ -35,6 +35,7 @@ class EvidenceTests(unittest.TestCase):
         for row in rows:
             if row['split'] == 'test':
                 row['prediction'] = row['target']
+                row['p_compile'] = '0.9' if row['target'] == '1' else '0.1'
         changed = summarize(rows, corpus)
         self.assertEqual(report['selection'], changed['selection'])
         self.assertTrue(all(r['test_accuracy'] == 1 for r in changed['arm_means']))
@@ -44,7 +45,7 @@ class EvidenceTests(unittest.TestCase):
         for bad in (rows[:-1], rows[1:] + [rows[1]]):
             with self.assertRaises(ValueError):
                 summarize(bad, corpus)
-        for field, value in [('p_compile', 'nan'), ('p_compile', '1.1'), ('split', 'test'),
+        for field, value in [('p_compile', 'nan'), ('p_compile', '1.1'), ('p_compile', '0.9'), ('split', 'test'),
                              ('arm', 'unknown'), ('seed', '2'), ('tokens', '513'),
                              ('source_sha256', 'f'*64), ('target', '9')]:
             bad = copy.deepcopy(rows)

@@ -41,6 +41,10 @@ def summarize(rows, corpus):
                 or not math.isfinite(probability) or not 0 <= probability <= 1
                 or not 2 <= int(row['tokens']) <= 512):
             raise ValueError('prediction metadata or probability mismatch')
+        # Only p(class=1) is logged. Permit f32 normalization/tie rounding near
+        # 0.5; outside that narrow band the predicted class must agree with it.
+        if abs(probability - 0.5) > 1e-7 and prediction != int(probability > 0.5):
+            raise ValueError('predicted class contradicts probability')
         probability = min(1-1e-7, max(1e-7, probability))
         item = (int(prediction == label), -math.log(probability if label else 1-probability))
         groups[arm, seed, split].append(item)
