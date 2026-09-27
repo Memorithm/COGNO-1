@@ -1,0 +1,9 @@
+{
+  "architecture": "x86_64",
+  "affinity_cpus": 9,
+  "rustc": "1.97.1",
+  "protocol_pr": 191,
+  "protocol_head": "76356c2078e30a1d707976b79b628cfc39abd465",
+  "training_gpu": false,
+  "timing_claim": false
+}

@@ -1,0 +1,238 @@
+{
+  "campaign": "domain-holdout-v1",
+  "compiler_admissions": {
+    "async_futures": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "1ab4e289ed9f2f5181dfa043e3d4a63ee76d7cd998d8ea9f9f702cd0f0b650ad",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "68ab9eacfe18e70bd771c04c0718f32dee61d98d96f9de2842d690d86008ce76",
+      "provenance_sha256": "68ab9eacfe18e70bd771c04c0718f32dee61d98d96f9de2842d690d86008ce76",
+      "records": 24,
+      "schema": 1
+    },
+    "borrowing": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "4f35af3bf9e226fdad682f19e2f3cab053302b9eb1b9ca49ee28e1860eb09a3a",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "72e24bd08310c1d5e0205eae799bc6fc8ab921b0aaa4f87cf1bacd850d9ddde6",
+      "provenance_sha256": "72e24bd08310c1d5e0205eae799bc6fc8ab921b0aaa4f87cf1bacd850d9ddde6",
+      "records": 24,
+      "schema": 1
+    },
+    "closures": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "e7c78ba1e043f3c8da9aecd399c55c3fb18235fc5bced4fa165a643e719da31e",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "0f90149d41cd898928f09ce779bfedbabc832f56aa6dbce3a8141da2837d06af",
+      "provenance_sha256": "0f90149d41cd898928f09ce779bfedbabc832f56aa6dbce3a8141da2837d06af",
+      "records": 24,
+      "schema": 1
+    },
+    "concurrency": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "fe42e50c8ba1cbd3727c7fcec80b10b40d805952b41b24358ac8320dd9a7ad37",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "070431afa833a93d36874c1c8fe2d0c158e559cea45fa9bd3fe8ee177c3e039f",
+      "provenance_sha256": "070431afa833a93d36874c1c8fe2d0c158e559cea45fa9bd3fe8ee177c3e039f",
+      "records": 24,
+      "schema": 1
+    },
+    "error_handling": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "3320d0409e975c96e2def708ddf6f42efe1d6a5dca3f0a1639acf526b034fb76",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "52b0f90351775da6ee0571edaf2204c45921b752b6bdbf49443937c4f34eb8b5",
+      "provenance_sha256": "52b0f90351775da6ee0571edaf2204c45921b752b6bdbf49443937c4f34eb8b5",
+      "records": 24,
+      "schema": 1
+    },
+    "iterators": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "3c293adb58b34b0460d98b009331d9d4e8f946c74b97eff160b04b421d89054d",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "ba4c7fb95b51462396626278d21b1983da9b00638e9c81302b1738ce6c6a1eb4",
+      "provenance_sha256": "ba4c7fb95b51462396626278d21b1983da9b00638e9c81302b1738ce6c6a1eb4",
+      "records": 24,
+      "schema": 1
+    },
+    "lifetimes": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "b473b9435188c60e8cbe0582dc040ce5b54ddeb78fa86986c8911217d74ecc94",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "ff605b046f1a479250cefce6a3b0305ff7fa9119e11f0bd2846a79a998ba0d9b",
+      "provenance_sha256": "ff605b046f1a479250cefce6a3b0305ff7fa9119e11f0bd2846a79a998ba0d9b",
+      "records": 24,
+      "schema": 1
+    },
+    "macros": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "573fcc5083ed40f5d31d584b37574f89f429c0e0f8e845d49153e05c23552af8",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "c570144dbfddee9cd35a0fbd18af815d9bb3c5d35372ddfdb3905e0bd2b44b0f",
+      "provenance_sha256": "c570144dbfddee9cd35a0fbd18af815d9bb3c5d35372ddfdb3905e0bd2b44b0f",
+      "records": 24,
+      "schema": 1
+    },
+    "ownership": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "3ef020a2fd2645cabd661751bc4eff223fb42e3353c997e5fa379a406b3174a4",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "6ba54b4a90cace38d0d29eb09a5c338919783439818c01f25468a68cac00b827",
+      "provenance_sha256": "6ba54b4a90cace38d0d29eb09a5c338919783439818c01f25468a68cac00b827",
+      "records": 24,
+      "schema": 1
+    },
+    "pattern_matching": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "808dd8c3b697422b4074e5b701bd82785839157fc238232d7e609292103ea60e",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "25cc2d959d8952dfdb4f2d50879806b81248a5b663e1f9bdc7eac15bd5f7c36c",
+      "provenance_sha256": "25cc2d959d8952dfdb4f2d50879806b81248a5b663e1f9bdc7eac15bd5f7c36c",
+      "records": 24,
+      "schema": 1
+    },
+    "smart_pointers": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "7efbb4738f1633911383b66070895d86b7ffd51ac15cfd980438538d3d80e02f",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "78e05d117844deeff1f8664fb3b0afd6111a4acfe2119f9e2c234ddcef98567c",
+      "provenance_sha256": "78e05d117844deeff1f8664fb3b0afd6111a4acfe2119f9e2c234ddcef98567c",
+      "records": 24,
+      "schema": 1
+    },
+    "traits": {
+      "approved_licenses": [
+        "MIT"
+      ],
+      "corpus_sha256": "a546119257d78238c65c54b00f044ddfa3e3a4a0fb5b9dc7ffef457c4036ec10",
+      "counts": {
+        "test": 4,
+        "train": 16,
+        "validation": 4
+      },
+      "evaluation_only": false,
+      "input_sha256": "24de5925f4814a3a3087476d1f3681588a290632e9283aa2a1a47b29d65a72f1",
+      "provenance_sha256": "24de5925f4814a3a3087476d1f3681588a290632e9283aa2a1a47b29d65a72f1",
+      "records": 24,
+      "schema": 1
+    }
+  },
+  "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+  "counts": {
+    "test": 48,
+    "train": 192,
+    "validation": 48
+  },
+  "domains": {
+    "async_futures": "validation",
+    "borrowing": "train",
+    "closures": "train",
+    "concurrency": "test",
+    "error_handling": "train",
+    "iterators": "train",
+    "lifetimes": "train",
+    "macros": "test",
+    "ownership": "train",
+    "pattern_matching": "train",
+    "smart_pointers": "validation",
+    "traits": "train"
+  },
+  "groups_sha256": "ea343f65801e0da63b6de455bf9731fca8586c3d1c39b63ce1aab7675fd8c606",
+  "independent_upstream_projects": false,
+  "original": {
+    "approved_licenses": [
+      "MIT"
+    ],
+    "corpus_sha256": "e4c59e1dc0a2da9e0923715e92b62dc9045c3a4e321dcd7a8bed072423770ccf",
+    "counts": {
+      "test": 48,
+      "train": 192,
+      "validation": 48
+    },
+    "evaluation_only": false,
+    "input_sha256": "b90d171f7fb9a762afcc7af56ec31117188a5e6441d4aaa45a197d437d0fd2f2",
+    "provenance_sha256": "b90d171f7fb9a762afcc7af56ec31117188a5e6441d4aaa45a197d437d0fd2f2",
+    "records": 288,
+    "schema": 1
+  },
+  "previously_published_sources": true,
+  "records": 288,
+  "schema": 1
+}

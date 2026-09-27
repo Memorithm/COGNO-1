@@ -60,6 +60,23 @@ inactif, outils désactivés**.
 | Décision multi-candidats | ✅ même provenance V4/Meta, score entier, tie-break stable |
 | Outils | 🔒 refusés par défaut |
 
+## Qualification Rust en cours
+
+Le programme expérimental comprend désormais **288 cas synthétiques** vérifiés
+avec Rust 1.97.1. Un outil Rust impose les groupes de projets et leurs partitions
+à partir d'un inventaire explicite lié par SHA-256. Une campagne sépare des
+domaines entiers : 192 exemples d'entraînement, 48 de validation et 48 de test.
+
+La variante choisie sur la perte de validation obtient **60,42 %** de précision
+test moyenne sur trois graines, contre **55,56 %** pour le BPE complet. Ce sont
+48 sources répétées avec trois graines, pas 144 exemples indépendants. Cette
+classification de compilabilité ne démontre ni expertise Rust, ni génération
+de code, ni capacité financière. Aucun modèle n'est promu sur ces résultats.
+
+- [Protocole figé](docs/DOMAIN_HOLDOUT_CAMPAIGN.md)
+- [Résultats complets et limites](experiments/domain-holdout-v1/README.md)
+- [Regroupement explicite des projets](docs/RUST_PROJECT_SPLIT.md)
+
 ## Architecture du modèle V4
 
 Le modèle actuel n'est **pas un Transformer** et n'utilise pas d'attention.
