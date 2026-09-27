@@ -7,6 +7,7 @@ on:
       - 'crates/cogno-model/examples/rust_project_split.rs'
       - 'crates/cogno-model/examples/bpe_curriculum_probe.rs'
       - 'experiments/rust-curriculum/**'
+      - 'experiments/domain-holdout-v1/**'
       - '.github/workflows/domain-holdout.yml'
   push:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - 'crates/cogno-model/examples/rust_project_split.rs'
       - 'crates/cogno-model/examples/bpe_curriculum_probe.rs'
       - 'experiments/rust-curriculum/**'
+      - 'experiments/domain-holdout-v1/**'
       - '.github/workflows/domain-holdout.yml'
 permissions:
   contents: read
@@ -33,5 +35,5 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_curriculum_probe_selection.py' -v
       - name: Recertify all 288 sources and admit domain groups
         run: |
-          cargo build --release --locked -p cogno-model --example rust_project_split
-          python3 scripts/prepare_domain_holdout.py "$RUNNER_TEMP/domain-holdout" --split-executable target/release/examples/rust_project_split --rustc "$(rustup which rustc)"
+          cargo build --release --locked -p cogno-model --example rust_project_split --example bpe_curriculum_probe
+          python3 scripts/verify_domain_holdout.py "$RUNNER_TEMP/domain-holdout" --split-executable target/release/examples/rust_project_split --runner target/release/examples/bpe_curriculum_probe --rustc "$(rustup which rustc)"

@@ -1,0 +1,1955 @@
+{
+  "arm_means": [
+    {
+      "arm": "full",
+      "test_accuracy": 0.5555555555555555,
+      "test_nll": 1.216771427334451,
+      "train_accuracy": 0.9652777777777777,
+      "train_nll": 0.18768399916099895,
+      "validation_accuracy": 0.6111111111111112,
+      "validation_nll": 1.155352721581319
+    },
+    {
+      "arm": "byte_mix",
+      "test_accuracy": 0.548611111111111,
+      "test_nll": 0.7341835992458994,
+      "train_accuracy": 0.7864583333333334,
+      "train_nll": 0.5410311362955517,
+      "validation_accuracy": 0.5972222222222222,
+      "validation_nll": 0.6818552825534336
+    },
+    {
+      "arm": "half_mix",
+      "test_accuracy": 0.5902777777777778,
+      "test_nll": 0.6968467048364894,
+      "train_accuracy": 0.7586805555555555,
+      "train_nll": 0.5374701296925528,
+      "validation_accuracy": 0.5902777777777778,
+      "validation_nll": 0.7006444365226837
+    },
+    {
+      "arm": "cycle_mix",
+      "test_accuracy": 0.6041666666666666,
+      "test_nll": 0.6784912290790804,
+      "train_accuracy": 0.6996527777777778,
+      "train_nll": 0.6318114089133404,
+      "validation_accuracy": 0.5902777777777778,
+      "validation_nll": 0.6745453166353714
+    }
+  ],
+  "checkpoints": [
+    {
+      "arm": "full",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "full-seed-1.cbpc",
+      "parameters": "7398",
+      "seed": "1",
+      "sha256": "156516ce63ebc4fdb527348302117e7c8283917232cc3c33b2cc5526e33d5ce6",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "full",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "full-seed-7.cbpc",
+      "parameters": "7398",
+      "seed": "7",
+      "sha256": "70ef727384b0674726536aea8773fa714de34a0a2fa06702bb5beee150216474",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "full",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "full-seed-42.cbpc",
+      "parameters": "7398",
+      "seed": "42",
+      "sha256": "3daab539061fe17d69c4f9f4e9018193a99a2aef006f43e44555ae25720a98d2",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "byte_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "byte_mix-seed-1.cbpc",
+      "parameters": "7398",
+      "seed": "1",
+      "sha256": "69fa38a99ca559668b3f21847696f8e069824dad47d92472c50c97616e010f8a",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "byte_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "byte_mix-seed-7.cbpc",
+      "parameters": "7398",
+      "seed": "7",
+      "sha256": "302f2607646635077bb829d84f93eaae4d2f1757fa84090fd4e3e437c08b07e4",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "byte_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "byte_mix-seed-42.cbpc",
+      "parameters": "7398",
+      "seed": "42",
+      "sha256": "02fbeb363a660b3858e6e53fb27cb3bb8a97574fa8617e58f5c1df7220f99c81",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "half_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "half_mix-seed-1.cbpc",
+      "parameters": "7398",
+      "seed": "1",
+      "sha256": "6db374c8dbef9e493b177ad598be161daa40268b27c917760f334ec7745721a1",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "half_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "half_mix-seed-7.cbpc",
+      "parameters": "7398",
+      "seed": "7",
+      "sha256": "3b0d5449fa8e9dfbbf4d1f20cc68bb754cc23337ec92d8d09e8965b0fe3cb0a1",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "half_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "half_mix-seed-42.cbpc",
+      "parameters": "7398",
+      "seed": "42",
+      "sha256": "f4074a1e333de6a6a6b5014fdf92932a6117775309828d47482cd2ed6a2afc20",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "cycle_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "cycle_mix-seed-1.cbpc",
+      "parameters": "7398",
+      "seed": "1",
+      "sha256": "7b4a8701808f9e58a8db516418b2f119a6d018d29475ab8cab4e21d3006ed793",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "cycle_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "cycle_mix-seed-7.cbpc",
+      "parameters": "7398",
+      "seed": "7",
+      "sha256": "9715f9abdf5338240842ee2d4b4ea3e0fbb30625762bd5bf5b27aa04aad2c075",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    },
+    {
+      "arm": "cycle_mix",
+      "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+      "file": "cycle_mix-seed-42.cbpc",
+      "parameters": "7398",
+      "seed": "42",
+      "sha256": "9556e13a637c844ce628946dc70736f9c65166b4443aabe22c251e492eb30877",
+      "tokenizer_sha256": "e9d665b509f568308584d853850dabfd19bf27c9b7e1e1166dce785317add7a6"
+    }
+  ],
+  "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+  "model_promoted": false,
+  "per_domain": [
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "byte_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.6716692514018847,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.5652843044519618,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "byte_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.5603466504507931,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "byte_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.6945861001507249,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "byte_mix",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.44397456437408156,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5758231119728878,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.5066108063298772,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "byte_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.6790156921795263,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.875,
+      "arm": "byte_mix",
+      "correct": 21,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.5377031303610053,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.5371190216977544,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "byte_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.647610695290087,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "byte_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.5611954852785516,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "byte_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.5577579266434628,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "byte_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6773061377158762,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "byte_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.5102144940791974,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.766105833130712,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.3922395337612543,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "byte_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5500193255602913,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "byte_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.4986634457654731,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.8700435909375178,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "byte_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.5343032594045779,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "byte_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.47797086432459573,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "byte_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.8700995111406864,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "byte_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.6097835856219306,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.686617745436925,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "byte_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6001020361746913,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.5683584949115769,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "byte_mix",
+      "correct": 12,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.6748432924507978,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "byte_mix",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.4899737387720012,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "byte_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5802749595875492,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "byte_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.5320957169053157,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "byte_mix",
+      "correct": 12,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.7205070866261177,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.875,
+      "arm": "byte_mix",
+      "correct": 21,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.5733806046867215,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "byte_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.5252328638095927,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6573765654075562,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "byte_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.5767711350956836,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "cycle_mix",
+      "correct": 12,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.6778221608221443,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6699327184932589,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.6538229912026093,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.683144411598065,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "cycle_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.6032628086571866,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.6628728966381232,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.6501829428725729,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.6823765168507485,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "cycle_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.6482813948899432,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "cycle_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.639345738693372,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6661651693081794,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "cycle_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.6425841272740368,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.6637355280891251,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6661660641649427,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "cycle_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.6256416083499466,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.6795317700050948,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "cycle_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.567151737834016,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "cycle_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.6070089956555086,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.6237752523304904,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.6706254884455664,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "cycle_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.6232553940277884,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.5970770705686436,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6737499013029936,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.6225492178404697,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.6915669885415868,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6747820910538948,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.6457205651979041,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.6771986940325753,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "cycle_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.5785233201161971,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "cycle_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.634116262448011,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.6398840301488986,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.678070493542433,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.6531421234149896,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.606045148449904,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6742321517481997,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "cycle_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.6283493135974614,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "full",
+      "correct": 14,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 1.5569372005754136,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.24097481698493384,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.875,
+      "arm": "full",
+      "correct": 21,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.2800380496894429,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 13,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 1.564756743355571,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.07154824218285775,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.2350396821481809,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.13569845230902203,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "full",
+      "correct": 15,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.9002042729936227,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.15648220796526421,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.14620749288145826,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "full",
+      "correct": 14,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 1.1621850315787297,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.1878979149948615,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "full",
+      "correct": 16,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 1.1738339645697609,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.26117708770558185,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.20535278777024665,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "full",
+      "correct": 14,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 1.348193139749271,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.08312244759623184,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.875,
+      "arm": "full",
+      "correct": 21,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.27154802926139526,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.14078607519783842,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "full",
+      "correct": 12,
+      "count": 24,
+      "domain": "macros",
+      "nll": 1.3128064034623637,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.15903514193540194,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.12538514833122913,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "full",
+      "correct": 15,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 1.0165015962982473,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.1534374929552316,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 13,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 1.2429499158036597,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.9166666666666666,
+      "arm": "full",
+      "correct": 22,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.3227326377579548,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "arm": "full",
+      "correct": 23,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.2231134560117014,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 13,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 1.0819066994908835,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.13607096412736977,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.9166666666666666,
+      "arm": "full",
+      "correct": 22,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.2513675333481526,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.1648144875722988,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 13,
+      "count": 24,
+      "domain": "macros",
+      "nll": 1.092761304954994,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.20805972198325365,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "full",
+      "correct": 24,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.14366281847742926,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "full",
+      "correct": 16,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.7797086206621041,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.9166666666666666,
+      "arm": "full",
+      "correct": 22,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.2008632906766364,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "half_mix",
+      "correct": 12,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.717909685798458,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "half_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.5894749517237562,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "half_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.5463915380952152,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "half_mix",
+      "correct": 12,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.7131402683180611,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "half_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.4415814230416341,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "half_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5853435096884209,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "half_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.560918593945775,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.664764407786055,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.579189796809361,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.875,
+      "arm": "half_mix",
+      "correct": 21,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.5238714013874507,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6452262961024674,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "half_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.5318406261269908,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.6883244665740748,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6305697303624371,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "half_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.5287921900466063,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "half_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.7345389880800912,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7916666666666666,
+      "arm": "half_mix",
+      "correct": 19,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.39847747122741195,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5520288531884963,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "half_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.5299371030279258,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "half_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.6806766926963942,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.5895492043321428,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "half_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.48493145017942707,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.7421937563653024,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "half_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.5193268852631581,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "half_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "async_futures",
+      "nll": 0.7623747384998231,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "half_mix",
+      "correct": 13,
+      "count": 24,
+      "domain": "borrowing",
+      "nll": 0.6431199726299613,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "half_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "closures",
+      "nll": 0.534711300524655,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "half_mix",
+      "correct": 15,
+      "count": 24,
+      "domain": "concurrency",
+      "nll": 0.6975717759777926,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 1.0,
+      "arm": "half_mix",
+      "correct": 24,
+      "count": 24,
+      "domain": "error_handling",
+      "nll": 0.4396687975957312,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "half_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "iterators",
+      "nll": 0.5425297974317972,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "half_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "lifetimes",
+      "nll": 0.5155244226379502,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 14,
+      "count": 24,
+      "domain": "macros",
+      "nll": 0.6903880961605418,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.75,
+      "arm": "half_mix",
+      "correct": 18,
+      "count": 24,
+      "domain": "ownership",
+      "nll": 0.5671394488464844,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.8333333333333334,
+      "arm": "half_mix",
+      "correct": 20,
+      "count": 24,
+      "domain": "pattern_matching",
+      "nll": 0.5188898010468337,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6666666666666666,
+      "arm": "half_mix",
+      "correct": 16,
+      "count": 24,
+      "domain": "smart_pointers",
+      "nll": 0.6478376757959763,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "half_mix",
+      "correct": 17,
+      "count": 24,
+      "domain": "traits",
+      "nll": 0.5454748434616451,
+      "seed": 42,
+      "split": "train"
+    }
+  ],
+  "per_seed": [
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "byte_mix",
+      "correct": 29,
+      "count": 48,
+      "nll": 0.6868008961651255,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.8229166666666666,
+      "arm": "byte_mix",
+      "correct": 158,
+      "count": 192,
+      "nll": 0.5360071343646141,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "byte_mix",
+      "correct": 29,
+      "count": 48,
+      "nll": 0.6596399733459859,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 26,
+      "count": 48,
+      "nll": 0.8180747120341149,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7135416666666666,
+      "arm": "byte_mix",
+      "correct": 137,
+      "count": 192,
+      "nll": 0.5313125807791496,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6458333333333334,
+      "arm": "byte_mix",
+      "correct": 31,
+      "count": 48,
+      "nll": 0.7139287188920745,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "byte_mix",
+      "correct": 24,
+      "count": 48,
+      "nll": 0.6976751895384578,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.8229166666666666,
+      "arm": "byte_mix",
+      "correct": 158,
+      "count": 192,
+      "nll": 0.5557736937428915,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "byte_mix",
+      "correct": 26,
+      "count": 48,
+      "nll": 0.6719971554222406,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "cycle_mix",
+      "correct": 29,
+      "count": 48,
+      "nll": 0.6827604642244068,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7083333333333334,
+      "arm": "cycle_mix",
+      "correct": 136,
+      "count": 192,
+      "nll": 0.6462857023401379,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5625,
+      "arm": "cycle_mix",
+      "correct": 27,
+      "count": 48,
+      "nll": 0.6719936650651618,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.6750786292253306,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.6979166666666666,
+      "arm": "cycle_mix",
+      "correct": 134,
+      "count": 192,
+      "nll": 0.6165781675964758,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 30,
+      "count": 48,
+      "nll": 0.6687427146960593,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.625,
+      "arm": "cycle_mix",
+      "correct": 30,
+      "count": 48,
+      "nll": 0.677634593787504,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.6927083333333334,
+      "arm": "cycle_mix",
+      "correct": 133,
+      "count": 192,
+      "nll": 0.6325703568034076,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "cycle_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.6828995701448933,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "full",
+      "correct": 28,
+      "count": 48,
+      "nll": 1.2324805081745969,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.96875,
+      "arm": "full",
+      "correct": 186,
+      "count": 192,
+      "nll": 0.18173585739450268,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "full",
+      "correct": 28,
+      "count": 48,
+      "nll": 1.3595611160770718,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 26,
+      "count": 48,
+      "nll": 1.3304997716058173,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.9635416666666666,
+      "arm": "full",
+      "correct": 185,
+      "count": 192,
+      "nll": 0.1749805263441446,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6458333333333334,
+      "arm": "full",
+      "correct": 31,
+      "count": 48,
+      "nll": 1.095167780434004,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "full",
+      "correct": 26,
+      "count": 48,
+      "nll": 1.0873340022229387,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.9635416666666666,
+      "arm": "full",
+      "correct": 185,
+      "count": 192,
+      "nll": 0.20633561374434958,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "full",
+      "correct": 29,
+      "count": 48,
+      "nll": 1.0113292682328818,
+      "seed": 42,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.688952338052058,
+      "seed": 1,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.7760416666666666,
+      "arm": "half_mix",
+      "correct": 149,
+      "count": 192,
+      "nll": 0.5448264801023255,
+      "seed": 1,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.6815679909504627,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.7076078403882428,
+      "seed": 7,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.71875,
+      "arm": "half_mix",
+      "correct": 138,
+      "count": 192,
+      "nll": 0.5292016109534506,
+      "seed": 7,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.5833333333333334,
+      "arm": "half_mix",
+      "correct": 28,
+      "count": 48,
+      "nll": 0.7152591114696887,
+      "seed": 7,
+      "split": "validation"
+    },
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "half_mix",
+      "correct": 29,
+      "count": 48,
+      "nll": 0.6939799360691672,
+      "seed": 42,
+      "split": "test"
+    },
+    {
+      "accuracy": 0.78125,
+      "arm": "half_mix",
+      "correct": 150,
+      "count": 192,
+      "nll": 0.5383822980218823,
+      "seed": 42,
+      "split": "train"
+    },
+    {
+      "accuracy": 0.6041666666666666,
+      "arm": "half_mix",
+      "correct": 29,
+      "count": 48,
+      "nll": 0.7051062071478996,
+      "seed": 42,
+      "split": "validation"
+    }
+  ],
+  "predictions": 3456,
+  "schema": 1,
+  "selection": {
+    "expert_claim": false,
+    "scores": [
+      {
+        "arm": "full",
+        "validation_nll": 1.155352721581319
+      },
+      {
+        "arm": "byte_mix",
+        "validation_nll": 0.6818552825534336
+      },
+      {
+        "arm": "half_mix",
+        "validation_nll": 0.7006444365226837
+      },
+      {
+        "arm": "cycle_mix",
+        "validation_nll": 0.6745453166353714
+      }
+    ],
+    "seeds": [
+      1,
+      7,
+      42
+    ],
+    "selection": {
+      "arm": "cycle_mix",
+      "validation_nll": 0.6745453166353714
+    }
+  },
+  "synthetic_domains": true,
+  "uniform_nll": 0.6931471805599453,
+  "unique_test_sources": 48
+}

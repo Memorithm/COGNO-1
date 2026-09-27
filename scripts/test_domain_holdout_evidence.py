@@ -5,6 +5,7 @@ import unittest
 from prepare_domain_holdout import DOMAIN_SPLITS
 from select_curriculum_probe import ARMS, SEEDS
 from summarize_domain_holdout import summarize
+from verify_domain_holdout import compare_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,6 +26,15 @@ def fixture():
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_report_rejects_tampered_metrics_and_inventory(self):
+        value = dict(count=48, nll=0.6, models=['seed-1'], promoted=False)
+        compare_report(value, dict(value, nll=0.6+1e-14))
+        for altered in (dict(value, count=47), dict(value, nll=0.7),
+                        dict(value, nll=float('nan')), dict(value, models=[]),
+                        dict(value, promoted=True), dict(value, extra=0)):
+            with self.assertRaises(ValueError):
+                compare_report(value, altered)
+
     def test_complete_uniform_and_test_independent_selection(self):
         rows, corpus = fixture()
         report = summarize(rows, corpus)
