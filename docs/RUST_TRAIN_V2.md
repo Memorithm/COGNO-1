@@ -35,3 +35,11 @@ Creates a new directory (existing directories are refused), stores the exact pro
 ## Epoch accounting
 
 Every run emits an `.epochs.tsv` journal after each complete epoch, including actual updates, rows seen, emitted tokens including framing, and train/validation counts, correct predictions and mean NLL. Both metric splits use full BPE independent of training arm. Probability clipping is fixed at `[1e-7, 1-1e-7]`; tied class probabilities choose class 0. Test predictions are not evaluated during training. Validation is observed only for reporting: no early stopping, budget changes or best-epoch selection. A journal without a completed checkpoint is a partial run, not admissible evidence.
+
+## Completed bundle admission
+
+Each checkpoint is reloaded and compared exactly with its in-memory model before exporting source-bound train/validation predictions. `COMPLETE` is written last and binds the exact protocol, plan, all epoch journals, checkpoints and prediction files. Training prints `COMPLETE_SHA256`; retain that value in an independent trusted record. A hash supplied from the same untrusted directory is not authentication.
+
+`rust_train_v2 verify PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA`
+
+Verification rejects incomplete inventories, changed bytes or protocol/configuration mismatches and independently recomputes every stored prediction from its checkpoint. A valid bundle certifies reproducible artifact contents, not that a claimed training history or compiler label is truthful. No test outcomes enter the completed training bundle.

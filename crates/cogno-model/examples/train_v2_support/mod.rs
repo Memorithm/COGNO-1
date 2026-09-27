@@ -381,13 +381,137 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
             )
             .map_err(|e| format!("{e:?}"))?;
             let bytes = encode_checkpoint(&model);
-            std::fs::write(out.join(format!("{arm}-seed-{seed}.cbpc")), bytes)
+            std::fs::write(out.join(format!("{arm}-seed-{seed}.cbpc")), &bytes)
                 .map_err(|e| e.to_string())?;
+            let restored = load_run(a, out, arm, seed)?;
+            if restored != model {
+                return Err("checkpoint round-trip differs".into());
+            }
+            std::fs::write(
+                out.join(format!("{arm}-seed-{seed}.predictions.tsv")),
+                predictions(&restored, a, false)?,
+            )
+            .map_err(|e| e.to_string())?;
             eprintln!("completed arm={arm} seed={seed} updates={completed_updates}");
         }
     }
     if completed_updates != a.updates {
         return Err("update accounting mismatch".into());
+    }
+    let complete = bundle(a, out)?;
+    let hash = digest(complete.as_bytes());
+    std::fs::write(out.join("COMPLETE"), complete).map_err(|e| e.to_string())?;
+    verify(a, out, &hash)?;
+    println!("COMPLETE_SHA256={hash}");
+    Ok(())
+}
+
+fn predictions(
+    model: &cogno_model::bpe_cognitive::BpeCognitiveModel,
+    a: &Admission,
+    test_only: bool,
+) -> Result<String, String> {
+    let mut out =
+        String::from("split\tproject\tsource_sha256\ttarget\tprediction\tp0\tp1\ttokens\n");
+    for row in a
+        .corpus
+        .records()
+        .iter()
+        .filter(|r| (r.split == CorpusSplit::Test) == test_only)
+    {
+        let probs = model.classify(&row.source).map_err(|e| format!("{e:?}"))?;
+        let tokens = model
+            .tokenizer()
+            .encode(&row.source)
+            .map_err(|e| format!("{e:?}"))?;
+        let split = match row.split {
+            CorpusSplit::Train => "train",
+            CorpusSplit::Validation => "validation",
+            CorpusSplit::Test => "test",
+        };
+        out.push_str(&format!(
+            "{split}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            row.project,
+            hex(&row.source_hash),
+            row.label,
+            usize::from(probs[1] > probs[0]),
+            probs[0],
+            probs[1],
+            tokens.len()
+        ));
+    }
+    Ok(out)
+}
+fn files(a: &Admission) -> Vec<String> {
+    let mut names = vec!["protocol.tsv".to_owned(), "plan.tsv".to_owned()];
+    for arm in &a.protocol.arms {
+        for seed in &a.protocol.seeds {
+            for suffix in ["cbpc", "epochs.tsv", "predictions.tsv"] {
+                names.push(format!("{arm}-seed-{seed}.{suffix}"));
+            }
+        }
+    }
+    names
+}
+fn bundle(a: &Admission, out: &Path) -> Result<String, String> {
+    let mut manifest = String::from("rust-train-v2-bundle\nfile\tsha256\n");
+    for name in files(a) {
+        let bytes = read_bounded(&out.join(&name), 8 * 1024 * 1024)?;
+        manifest.push_str(&format!("{name}\t{}\n", digest(&bytes)));
+    }
+    Ok(manifest)
+}
+fn load_run(
+    a: &Admission,
+    out: &Path,
+    arm: &str,
+    seed: u64,
+) -> Result<cogno_model::bpe_cognitive::BpeCognitiveModel, String> {
+    use cogno_model::bpe_checkpoint::{checkpoint_hash, load_checkpoint, MAX_BPE_CHECKPOINT_BYTES};
+    let bytes = read_bounded(
+        &out.join(format!("{arm}-seed-{seed}.cbpc")),
+        MAX_BPE_CHECKPOINT_BYTES,
+    )?;
+    let model = load_checkpoint(&bytes, checkpoint_hash(&bytes)).map_err(|e| format!("{e:?}"))?;
+    let cfg = model.heads().config();
+    if model.tokenizer() != &a.tokenizer
+        || cfg.encoder.seed != seed
+        || cfg.encoder.embedding_dim != a.protocol.embedding
+        || cfg.encoder.hidden_dim != a.protocol.hidden
+        || cfg.encoder.max_tokens != a.protocol.context
+        || cfg.num_classes != 2
+        || cfg.num_rules != 1
+        || cfg.classification_seed != 1
+        || cfg.preference_seed != 2
+        || cfg.symbolic_seed != 3
+        || cfg.contradiction_seed != 4
+        || model.candidate_cap() != 2
+    {
+        return Err("checkpoint configuration differs from protocol".into());
+    }
+    Ok(model)
+}
+pub fn verify(a: &Admission, out: &Path, expected: &str) -> Result<(), String> {
+    let complete = read_bounded(&out.join("COMPLETE"), 64 * 1024)?;
+    if digest(&complete) != expected || complete != bundle(a, out)?.as_bytes() {
+        return Err("bundle hash or inventory mismatch".into());
+    }
+    if read_bounded(&out.join("protocol.tsv"), 4096)? != a.protocol_bytes
+        || read_bounded(&out.join("plan.tsv"), 4096)? != plan(a).as_bytes()
+    {
+        return Err("bundle protocol mismatch".into());
+    }
+    for arm in &a.protocol.arms {
+        for &seed in &a.protocol.seeds {
+            let model = load_run(a, out, arm, seed)?;
+            let actual = read_bounded(
+                &out.join(format!("{arm}-seed-{seed}.predictions.tsv")),
+                8 * 1024 * 1024,
+            )?;
+            if actual != predictions(&model, a, false)?.as_bytes() {
+                return Err("checkpoint predictions differ".into());
+            }
+        }
     }
     Ok(())
 }
