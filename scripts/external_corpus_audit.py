@@ -6,7 +6,7 @@ from external_corpus_inventory import SOURCE_LIMIT,digest
 def derive(raw):
     if not 1<=len(raw)<=SOURCE_LIMIT:raise ValueError('source byte bound')
     text=raw.decode('utf-8')
-    if '\r' in text or '/*' in text or '*/' in text or re.search(r'\br#*"',text):
+    if '\r' in text or '/*' in text or '*/' in text or re.search(r'\b(?:b|c)?r#*"',text):
         raise ValueError('unsupported CR, block comment, or raw string')
     output=[];removed=[]
     for number,line in enumerate(text.splitlines(keepends=True),1):

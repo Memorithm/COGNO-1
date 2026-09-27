@@ -10,3 +10,14 @@ class AuditTests(unittest.TestCase):
     def test_unsupported_lexical_cases_fail_closed(self):
         for s in [b'/* x */ fn main(){}',b'let x=r#"x"#;',b'let x="line\nbreak";',b'//only comment']:
             with self.assertRaises(ValueError):derive(s)
+    def test_all_raw_string_prefixes_refused_before_comment_scanning(self):
+        for prefix in (b'r', b'br', b'cr'):
+            for hashes in (b'', b'#', b'##'):
+                with self.subTest(prefix=prefix, hashes=hashes):
+                    source = b'fn main(){let _=' + prefix + hashes + b'"https://x"' + hashes + b';}\n'
+                    with self.assertRaisesRegex(ValueError, 'raw string'):
+                        derive(source)
+            with self.subTest(prefix=prefix, internal_quote=True):
+                source = b'fn main(){let _=' + prefix + b'#"quoted "//still literal"#;}\n'
+                with self.assertRaisesRegex(ValueError, 'raw string'):
+                    derive(source)
