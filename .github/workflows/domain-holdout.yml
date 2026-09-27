@@ -29,7 +29,7 @@ jobs:
           toolchain: 1.97.1
       - name: Fixed selection and grouping tests
         run: |
-          python3 -m unittest discover -s scripts -p 'test_domain_holdout.py' -v
+          python3 -m unittest discover -s scripts -p 'test_domain_holdout*.py' -v
           python3 -m unittest discover -s scripts -p 'test_curriculum_probe_selection.py' -v
       - name: Recertify all 288 sources and admit domain groups
         run: |
