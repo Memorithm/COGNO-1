@@ -7,7 +7,8 @@
 
 use crate::tokenizer::{BOS_TOKEN, EOS_TOKEN, SEP_TOKEN};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
 
 const BASE: usize = 259;
 const MAGIC: &[u8; 8] = b"CBPE0001";
@@ -39,6 +40,51 @@ pub struct BpeTokenizer {
     max_tokens: usize,
     merges: Vec<(u16, u16)>,
     pieces: Vec<Vec<u8>>,
+    ranks: BTreeMap<(u16, u16), u16>,
+}
+
+/// Exact half-open byte range in the original source for one framed token.
+/// BOS and EOS have zero-width ranges. Offsets are not Unicode character
+/// positions: an arbitrary byte tokenizer may split a UTF-8 code point.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BpeTokenSpan {
+    pub token: u16,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// A context-sized, lossless segment of an already tokenized source. Chunks
+/// retain source identity externally; they are not independent data examples.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BpeSourceChunk {
+    pub start: usize,
+    pub end: usize,
+    pub tokens: Vec<u16>,
+}
+
+/// Caller-owned scratch space for rank-heap encoding. Reusing this value avoids
+/// rebuilding its allocations. It stores no model parameters and may be reused
+/// with a different tokenizer. Input remains bounded by `MAX_BPE_BYTES`.
+#[derive(Debug, Default)]
+pub struct BpeWorkspace {
+    nodes: Vec<BpeNode>,
+    candidates: BinaryHeap<Reverse<(u16, usize, usize)>>,
+    output: Vec<u16>,
+}
+
+#[derive(Debug)]
+struct BpeNode {
+    id: u16,
+    prev: Option<usize>,
+    next: Option<usize>,
+    alive: bool,
+}
+
+impl BpeWorkspace {
+    /// Empty scratch buffers; storage grows only for admitted bounded inputs.
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl BpeTokenizer {
@@ -53,6 +99,7 @@ impl BpeTokenizer {
             max_tokens,
             merges: Vec::with_capacity(merges.len()),
             pieces,
+            ranks: BTreeMap::new(),
         };
         for &pair in merges {
             model.append_merge(pair)?;
@@ -79,6 +126,7 @@ impl BpeTokenizer {
             return Err(BpeError::InvalidMerge);
         }
         self.pieces.push(piece);
+        self.ranks.insert(pair, self.merges.len() as u16);
         self.merges.push(pair);
         Ok(())
     }
@@ -110,21 +158,15 @@ impl BpeTokenizer {
             .iter()
             .map(|s| s.iter().map(|&b| u16::from(b)).collect())
             .collect();
-        while model.vocab_size() < vocab {
-            let mut counts = BTreeMap::<(u16, u16), usize>::new();
-            for record in &records {
-                for pair in record.windows(2) {
-                    let key = (pair[0], pair[1]);
-                    if model.pieces[usize::from(key.0)].len()
-                        + model.pieces[usize::from(key.1)].len()
-                        <= MAX_TOKEN_BYTES
-                    {
-                        *counts.entry(key).or_default() += 1;
-                    }
-                }
+        let mut counts = BTreeMap::<(u16, u16), usize>::new();
+        for record in &records {
+            for pair in record.windows(2) {
+                *counts.entry((pair[0], pair[1])).or_default() += 1;
             }
+        }
+        while model.vocab_size() < vocab {
             let mut best = None;
-            for (pair, frequency) in counts {
+            for (&pair, &frequency) in &counts {
                 if frequency >= 2 && best.is_none_or(|(_, n)| frequency > n) {
                     best = Some((pair, frequency));
                 }
@@ -135,10 +177,20 @@ impl BpeTokenizer {
             let id = model.vocab_size() as u16;
             model.append_merge(pair)?;
             for record in &mut records {
-                merge(record, pair, id);
+                merge_counted(record, pair, id, &mut counts, &model.pieces);
             }
         }
         Ok(model)
+    }
+
+    /// Fit from the admitted corpus's training-only capability. This preferred
+    /// corpus entry point cannot inspect held-out records through the view.
+    pub fn train_from_view(
+        train: &crate::rust_corpus::RustTrainingView<'_>,
+        vocab: usize,
+        max_tokens: usize,
+    ) -> Result<Self, BpeError> {
+        Self::train(&train.sources(), vocab, max_tokens)
     }
 
     /// Actual vocabulary size (training can stop before the requested target).
@@ -190,6 +242,171 @@ impl BpeTokenizer {
         out.extend(ids);
         out.push(EOS_TOKEN);
         Ok(out)
+    }
+
+    /// Encode with lossless source locations for Rust diagnostics and attribution.
+    /// Uses the same capacity checks and IDs as `encode`, including framing.
+    pub fn encode_with_offsets(&self, bytes: &[u8]) -> Result<Vec<BpeTokenSpan>, BpeError> {
+        let ids = self.encode(bytes)?;
+        let mut cursor = 0;
+        Ok(ids
+            .into_iter()
+            .map(|token| {
+                let start = cursor;
+                cursor += self.pieces[usize::from(token)].len();
+                BpeTokenSpan {
+                    token,
+                    start,
+                    end: cursor,
+                }
+            })
+            .collect())
+    }
+
+    /// Segment long sources at final token boundaries without truncating bytes.
+    /// Each result is independently BOS/EOS framed and within this artifact's
+    /// context. This explicit preprocessing API does not relax `encode` admission.
+    /// `max_chunks` bounds result allocation; exceeding it refuses the whole input.
+    /// Byte ranges may split UTF-8 characters and do not imply valid Rust fragments.
+    pub fn encode_chunks(
+        &self,
+        bytes: &[u8],
+        max_chunks: usize,
+    ) -> Result<Vec<BpeSourceChunk>, BpeError> {
+        if !(1..=MAX_BPE_BYTES).contains(&max_chunks) {
+            return Err(BpeError::InvalidConfig);
+        }
+        let ids = self.raw(bytes)?;
+        let payload_cap = self.max_tokens - 2;
+        let count = ids.len().div_ceil(payload_cap).max(1);
+        if count > max_chunks {
+            return Err(BpeError::Capacity);
+        }
+        if ids.is_empty() {
+            return Ok(vec![BpeSourceChunk {
+                start: 0,
+                end: 0,
+                tokens: vec![BOS_TOKEN, EOS_TOKEN],
+            }]);
+        }
+        let mut cursor = 0;
+        Ok(ids
+            .chunks(payload_cap)
+            .map(|payload| {
+                let start = cursor;
+                cursor += payload
+                    .iter()
+                    .map(|&id| self.pieces[usize::from(id)].len())
+                    .sum::<usize>();
+                let mut tokens = Vec::with_capacity(payload.len() + 2);
+                tokens.push(BOS_TOKEN);
+                tokens.extend_from_slice(payload);
+                tokens.push(EOS_TOKEN);
+                BpeSourceChunk {
+                    start,
+                    end: cursor,
+                    tokens,
+                }
+            })
+            .collect())
+    }
+
+    /// Exact rank-priority encoding using a reusable heap and linked positions.
+    /// This opt-in path has the same framing, IDs and refusal rules as `encode`.
+    /// An error leaves no usable output in the workspace. Stale heap entries are
+    /// discarded by validating live adjacency before each merge.
+    pub fn encode_with_workspace<'a>(
+        &self,
+        bytes: &[u8],
+        workspace: &'a mut BpeWorkspace,
+    ) -> Result<&'a [u16], BpeError> {
+        workspace.output.clear();
+        if bytes.len() > MAX_BPE_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        workspace.nodes.clear();
+        workspace.candidates.clear();
+        workspace
+            .nodes
+            .extend(bytes.iter().enumerate().map(|(i, &b)| BpeNode {
+                id: u16::from(b),
+                prev: i.checked_sub(1),
+                next: (i + 1 < bytes.len()).then_some(i + 1),
+                alive: true,
+            }));
+        for left in 0..bytes.len().saturating_sub(1) {
+            self.queue_candidate(workspace, left);
+        }
+        let mut count = bytes.len();
+        while let Some(Reverse((rank, left, right))) = workspace.candidates.pop() {
+            if !workspace.nodes[left].alive
+                || !workspace.nodes[right].alive
+                || workspace.nodes[left].next != Some(right)
+                || (workspace.nodes[left].id, workspace.nodes[right].id)
+                    != self.merges[usize::from(rank)]
+            {
+                continue;
+            }
+            workspace.nodes[left].id = (BASE + usize::from(rank)) as u16;
+            workspace.nodes[left].next = workspace.nodes[right].next;
+            workspace.nodes[right].alive = false;
+            if let Some(next) = workspace.nodes[left].next {
+                workspace.nodes[next].prev = Some(left);
+            }
+            count -= 1;
+            if let Some(prev) = workspace.nodes[left].prev {
+                self.queue_candidate(workspace, prev);
+            }
+            self.queue_candidate(workspace, left);
+        }
+        if count + 2 > self.max_tokens {
+            return Err(BpeError::Capacity);
+        }
+        workspace.output.push(BOS_TOKEN);
+        workspace
+            .output
+            .extend(workspace.nodes.iter().filter(|n| n.alive).map(|n| n.id));
+        workspace.output.push(EOS_TOKEN);
+        Ok(&workspace.output)
+    }
+
+    fn queue_candidate(&self, workspace: &mut BpeWorkspace, left: usize) {
+        if let Some(right) = workspace.nodes[left].next {
+            let pair = (workspace.nodes[left].id, workspace.nodes[right].id);
+            if let Some(&rank) = self.ranks.get(&pair) {
+                workspace.candidates.push(Reverse((rank, left, right)));
+            }
+        }
+    }
+
+    /// Encode bounded batches while retaining one outcome per source in order.
+    /// Aggregate bounds are checked before any encoding. A source exceeding its
+    /// byte/context cap is a per-record refusal, never silently skipped or cut.
+    /// The outer limit is 4096 records and 1 MiB total source bytes; workspace
+    /// allocation is reused across records, and returned token vectors are owned.
+    pub fn encode_batch(
+        &self,
+        sources: &[&[u8]],
+        workspace: &mut BpeWorkspace,
+    ) -> Result<Vec<Result<Vec<u16>, BpeError>>, BpeError> {
+        workspace.output.clear();
+        if sources.len() > MAX_BPE_TRAIN_RECORDS {
+            return Err(BpeError::Capacity);
+        }
+        let total = sources
+            .iter()
+            .try_fold(0usize, |n, s| n.checked_add(s.len()))
+            .ok_or(BpeError::Capacity)?;
+        if total > MAX_BPE_TRAIN_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        Ok(sources
+            .iter()
+            .map(|source| {
+                self.encode_with_workspace(source, workspace)
+                    .map(<[u16]>::to_vec)
+            })
+            .collect())
     }
 
     /// Training augmentation only: apply exactly the first `merge_count` ranks.
@@ -348,6 +565,61 @@ impl BpeTokenizer {
     }
 }
 
+// Update only adjacency edges changed by a left-to-right non-overlapping merge.
+// In particular, repeated symbols count overlapping candidates during selection,
+// while application still merges disjoint occurrences, matching the reference.
+fn merge_counted(
+    ids: &mut Vec<u16>,
+    pair: (u16, u16),
+    output: u16,
+    counts: &mut BTreeMap<(u16, u16), usize>,
+    pieces: &[Vec<u8>],
+) {
+    let mut read = 0;
+    let mut write = 0usize;
+    while read < ids.len() {
+        if read + 1 < ids.len() && (ids[read], ids[read + 1]) == pair {
+            let prev = write.checked_sub(1).map(|p| ids[p]);
+            let next = ids.get(read + 2).copied();
+            for edge in [
+                prev.map(|v| (v, pair.0)),
+                Some(pair),
+                next.map(|v| (pair.1, v)),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if pieces[usize::from(edge.0)].len() + pieces[usize::from(edge.1)].len()
+                    <= MAX_TOKEN_BYTES
+                {
+                    let n = counts.get_mut(&edge).expect("counted live adjacency");
+                    *n -= 1;
+                    if *n == 0 {
+                        counts.remove(&edge);
+                    }
+                }
+            }
+            for edge in [prev.map(|v| (v, output)), next.map(|v| (output, v))]
+                .into_iter()
+                .flatten()
+            {
+                if pieces[usize::from(edge.0)].len() + pieces[usize::from(edge.1)].len()
+                    <= MAX_TOKEN_BYTES
+                {
+                    *counts.entry(edge).or_default() += 1;
+                }
+            }
+            ids[write] = output;
+            read += 2;
+        } else {
+            ids[write] = ids[read];
+            read += 1;
+        }
+        write += 1;
+    }
+    ids.truncate(write);
+}
+
 fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
     // Leave unchanged prefixes untouched and return immediately for absent pairs.
     let Some(first) = ids.windows(2).position(|w| (w[0], w[1]) == pair) else {
@@ -371,6 +643,240 @@ fn merge(ids: &mut Vec<u16>, pair: (u16, u16), output: u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reference_train(train: &[&[u8]], vocab: usize) -> BpeTokenizer {
+        let mut model = BpeTokenizer::from_merges(512, &[]).unwrap();
+        let mut records: Vec<Vec<u16>> = train
+            .iter()
+            .map(|s| s.iter().map(|&b| u16::from(b)).collect())
+            .collect();
+        while model.vocab_size() < vocab {
+            let mut counts = BTreeMap::<(u16, u16), usize>::new();
+            for r in &records {
+                for p in r.windows(2) {
+                    if model.pieces[p[0] as usize].len() + model.pieces[p[1] as usize].len()
+                        <= MAX_TOKEN_BYTES
+                    {
+                        *counts.entry((p[0], p[1])).or_default() += 1;
+                    }
+                }
+            }
+            let mut best = None;
+            for (p, n) in counts {
+                if n >= 2 && best.is_none_or(|(_, old)| n > old) {
+                    best = Some((p, n));
+                }
+            }
+            let Some((p, _)) = best else {
+                break;
+            };
+            let id = model.vocab_size() as u16;
+            let mut rules = model.merges.clone();
+            rules.push(p);
+            model = BpeTokenizer::from_merges(512, &rules).unwrap();
+            for r in &mut records {
+                reference_merge(r, p, id);
+            }
+        }
+        model
+    }
+
+    #[test]
+    fn chunking_roundtrips_long_sources_without_relaxing_single_context() {
+        let t = BpeTokenizer::from_merges(4, &[(97, 98)]).unwrap();
+        for source in [
+            b"ababababababx".as_slice(),
+            "日本語".as_bytes(),
+            b"",
+            b"\xff\0",
+        ] {
+            let chunks = t.encode_chunks(source, 32).unwrap();
+            let mut restored = Vec::new();
+            let mut cursor = 0;
+            for chunk in &chunks {
+                assert_eq!(chunk.start, cursor);
+                assert!(chunk.tokens.len() <= t.max_tokens());
+                let decoded = t.decode(&chunk.tokens).unwrap();
+                assert_eq!(decoded, source[chunk.start..chunk.end]);
+                restored.extend(decoded);
+                cursor = chunk.end;
+            }
+            assert_eq!(cursor, source.len());
+            assert_eq!(restored, source);
+        }
+        assert_eq!(t.encode(b"abababab"), Err(BpeError::Capacity));
+        assert_eq!(t.encode_chunks(b"abababab", 1), Err(BpeError::Capacity));
+        assert_eq!(t.encode_chunks(b"", 0), Err(BpeError::InvalidConfig));
+        assert_eq!(
+            t.encode_chunks(&vec![0; MAX_BPE_BYTES + 1], 32),
+            Err(BpeError::Capacity)
+        );
+        let tiny = BpeTokenizer::from_merges(3, &[]).unwrap();
+        assert_eq!(
+            tiny.encode_chunks(&vec![0; MAX_BPE_BYTES], MAX_BPE_BYTES)
+                .unwrap()
+                .len(),
+            MAX_BPE_BYTES
+        );
+    }
+
+    #[test]
+    fn typed_training_ignores_changed_validation_and_test_sources() {
+        fn corpus(heldout: &str) -> crate::rust_corpus::RustCorpus {
+            fn hex(b: &[u8]) -> String {
+                b.iter().map(|x| format!("{x:02x}")).collect()
+            }
+            let mut wire = String::from("CRUST001\n");
+            for split in ["train", "validation", "test"] {
+                for label in 0..2 {
+                    let prefix = if split == "train" {
+                        "fn main() { let x = 0; }"
+                    } else {
+                        heldout
+                    };
+                    let source = format!("{prefix} // {split}-{label}");
+                    wire.push_str(&format!(
+                        "{split}\t{split}-project\t{label}\t{}\t{}\n",
+                        hex(&Sha256::digest(source.as_bytes())),
+                        hex(source.as_bytes())
+                    ));
+                }
+            }
+            crate::rust_corpus::RustCorpus::parse(
+                wire.as_bytes(),
+                Sha256::digest(wire.as_bytes()).into(),
+            )
+            .unwrap()
+        }
+        let a = corpus("heldout");
+        let b = corpus("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        let ta = BpeTokenizer::train_from_view(&a.training_view().unwrap(), 300, 512).unwrap();
+        let tb = BpeTokenizer::train_from_view(&b.training_view().unwrap(), 300, 512).unwrap();
+        assert_eq!(ta.to_bytes(), tb.to_bytes());
+        assert_eq!(
+            ta,
+            BpeTokenizer::train(&a.training_view().unwrap().sources(), 300, 512).unwrap()
+        );
+    }
+
+    #[test]
+    fn batch_preserves_refusals_order_and_aggregate_bounds() {
+        let t = BpeTokenizer::from_merges(4, &[(97, 98)]).unwrap();
+        let mut workspace = BpeWorkspace::new();
+        let oversized = vec![0; MAX_BPE_BYTES + 1];
+        let sources = [b"ab".as_slice(), b"abc", b"abcd", oversized.as_slice(), b""];
+        assert_eq!(
+            t.encode_batch(&sources, &mut workspace).unwrap(),
+            sources.iter().map(|s| t.encode(s)).collect::<Vec<_>>()
+        );
+        assert!(t.encode_batch(&[], &mut workspace).unwrap().is_empty());
+        assert_eq!(
+            t.encode_batch(
+                &vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1],
+                &mut workspace
+            ),
+            Err(BpeError::Capacity)
+        );
+        let full = vec![0; MAX_BPE_TRAIN_BYTES];
+        assert_eq!(
+            t.encode_batch(&[&full, b"a"], &mut workspace),
+            Err(BpeError::Capacity)
+        );
+        assert!(workspace.output.is_empty());
+        assert_eq!(
+            t.encode_batch(&[b"ab"], &mut workspace).unwrap(),
+            [t.encode(b"ab")]
+        );
+    }
+
+    #[test]
+    fn byte_offsets_cover_exact_rust_source_and_binary_payloads() {
+        let source =
+            r####"fn café<'a>(s: &'a str) -> &'a str { r###"日本語\n"###; s }"####.as_bytes();
+        let t = BpeTokenizer::train(&[source, source], 300, 512).unwrap();
+        for bytes in [source, b"\xff\0", b""] {
+            let spans = t.encode_with_offsets(bytes).unwrap();
+            assert_eq!(
+                spans.iter().map(|s| s.token).collect::<Vec<_>>(),
+                t.encode(bytes).unwrap()
+            );
+            let mut cursor = 0;
+            for span in &spans {
+                assert_eq!(span.start, cursor);
+                assert_eq!(&bytes[span.start..span.end], t.pieces[span.token as usize]);
+                cursor = span.end;
+            }
+            assert_eq!(cursor, bytes.len());
+            assert_eq!(spans.first().unwrap().start, 0);
+            assert_eq!(spans.last().unwrap().end, bytes.len());
+        }
+        let tiny = BpeTokenizer::from_merges(3, &[]).unwrap();
+        assert_eq!(tiny.encode_with_offsets(b"ab"), Err(BpeError::Capacity));
+    }
+
+    #[test]
+    fn heap_encoding_matches_rank_scans_and_workspace_reuse() {
+        let mut workspace = BpeWorkspace::new();
+        for rules in [
+            vec![],
+            vec![(0, 0), (259, 0), (1, 2)],
+            vec![(1, 2), (0, 1), (0, 259)],
+        ] {
+            let t = BpeTokenizer::from_merges(512, &rules).unwrap();
+            for n in 0..=8u32 {
+                for mut x in 0..3usize.pow(n) {
+                    let bytes: Vec<u8> = (0..n)
+                        .map(|_| {
+                            let b = (x % 3) as u8;
+                            x /= 3;
+                            b
+                        })
+                        .collect();
+                    assert_eq!(
+                        t.encode_with_workspace(&bytes, &mut workspace).unwrap(),
+                        t.encode(&bytes).unwrap()
+                    );
+                }
+            }
+        }
+        let t = BpeTokenizer::train(&[b"fn main() { let x = vec![1,2]; }"], 300, 512).unwrap();
+        for n in [0, 1, 511, 512, MAX_BPE_BYTES, MAX_BPE_BYTES + 1] {
+            let bytes = vec![b'x'; n];
+            assert_eq!(
+                t.encode_with_workspace(&bytes, &mut workspace)
+                    .map(<[u16]>::to_vec),
+                t.encode(&bytes)
+            );
+        }
+        assert!(workspace.output.is_empty());
+        assert_eq!(
+            t.encode_with_workspace(b"", &mut workspace).unwrap(),
+            [BOS_TOKEN, EOS_TOKEN]
+        );
+    }
+
+    #[test]
+    fn maintained_training_counts_match_full_recount() {
+        for n in 1..=7u32 {
+            for mut x in 0..3usize.pow(n) {
+                let text: Vec<u8> = (0..n)
+                    .map(|_| {
+                        let b = (x % 3) as u8;
+                        x /= 3;
+                        b
+                    })
+                    .collect();
+                let records = [text.as_slice(), text.as_slice(), b"aabaaabaa".as_slice()];
+                let actual = BpeTokenizer::train(&records, 275, 512).unwrap();
+                assert_eq!(actual, reference_train(&records, 275));
+            }
+        }
+        let repeated = vec![b'a'; 16384];
+        assert_eq!(
+            BpeTokenizer::train(&[&repeated], 512, 512).unwrap(),
+            reference_train(&[&repeated], 512)
+        );
+    }
+
     #[test]
     fn incremental_vocabulary_matches_rebuilt_prefixes_and_rejects_atomically() {
         let mut t = BpeTokenizer::from_merges(512, &[]).unwrap();

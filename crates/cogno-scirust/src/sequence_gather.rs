@@ -28,6 +28,50 @@ impl SequenceEncoder {
         token_ids: &[u16],
     ) -> SciRustResult<SequenceEncoderGraph> {
         self.validate_tokens(token_ids)?;
+        let scale = (token_ids.len() as f32).recip();
+        self.append_gather_pool(tape, token_ids, vec![scale; token_ids.len()], None)
+    }
+
+    /// Differentiable masked pooling. Weights are fixed external controls;
+    /// gradients flow through unmasked token/position embeddings and projection.
+    pub fn append_to_tape_weighted(
+        &self,
+        tape: &mut Tape,
+        token_ids: &[u16],
+        weights: &[f32],
+    ) -> SciRustResult<SequenceEncoderGraph> {
+        self.validate_tokens(token_ids)?;
+        let weights = super::features::normalized_pool_weights(weights, token_ids.len())?;
+        self.append_gather_pool(tape, token_ids, weights, None)
+    }
+
+    /// Experimental causal adjacent-token mixing before the existing projection.
+    /// The first token repeats itself at the left boundary. Strength is an
+    /// explicit inference/training control, not stored in existing artifacts.
+    pub fn append_to_tape_contextual(
+        &self,
+        tape: &mut Tape,
+        token_ids: &[u16],
+        strength: f32,
+    ) -> SciRustResult<SequenceEncoderGraph> {
+        self.validate_tokens(token_ids)?;
+        super::context::validate_strength(strength)?;
+        let scale = (token_ids.len() as f32).recip();
+        self.append_gather_pool(
+            tape,
+            token_ids,
+            vec![scale; token_ids.len()],
+            Some(strength),
+        )
+    }
+
+    fn append_gather_pool(
+        &self,
+        tape: &mut Tape,
+        token_ids: &[u16],
+        weights: Vec<f32>,
+        context_strength: Option<f32>,
+    ) -> SciRustResult<SequenceEncoderGraph> {
         let required = self.required_gather_max_elements(token_ids.len())?;
         validate_bound(required, tape.max_elements)?;
         let token_embeddings = tape.variable(Tensor::try_new(
@@ -37,6 +81,16 @@ impl SequenceEncoder {
         )?)?;
         let indices: Vec<_> = token_ids.iter().copied().map(usize::from).collect();
         let token_features = tape.gather_rows(token_embeddings, &indices)?;
+        let token_features = if let Some(strength) = context_strength {
+            let previous: Vec<_> = (0..indices.len())
+                .map(|index| indices[index.saturating_sub(1)])
+                .collect();
+            let previous = tape.gather_rows(token_embeddings, &previous)?;
+            let previous = tape.scale(previous, strength)?;
+            tape.add(token_features, previous)?
+        } else {
+            token_features
+        };
         let position_embeddings = tape.variable(Tensor::try_new(
             Shape::try_new(&[self.config.max_tokens, self.config.embedding_dim])?,
             self.position_embeddings.clone(),
@@ -52,10 +106,9 @@ impl SequenceEncoder {
         )?)?;
         let mixed = tape.matmul(combined, mixing_weights)?;
         let hidden = tape.relu(mixed)?;
-        let scale = (token_ids.len() as f32).recip();
         let pooling = tape.variable(Tensor::try_new(
             Shape::try_new(&[1, token_ids.len()])?,
-            vec![scale; token_ids.len()],
+            weights,
             tape.max_elements,
         )?)?;
         let pooled = tape.matmul(pooling, hidden)?;

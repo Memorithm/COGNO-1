@@ -1,0 +1,279 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "bytes": 135,
+      "expected_diagnostics": [
+        "E0277"
+      ],
+      "expected_label": 0,
+      "id": "trybuild-compile-fail-3",
+      "license": "MIT",
+      "license_bytes": 1023,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "path": "tests/ui/compile-fail-3.rs",
+      "repository": "dtolnay/trybuild",
+      "revision": "4b511198467970a3ec448df3e3837f53e0677940",
+      "sha256": "eeeef7b866e136ce356f93ccb4065c9eccb3a87772ab4d547e0174c0379f388b"
+    },
+    {
+      "bytes": 13,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "trybuild-run-pass-0",
+      "license": "MIT",
+      "license_bytes": 1023,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "path": "tests/ui/run-pass-0.rs",
+      "repository": "dtolnay/trybuild",
+      "revision": "4b511198467970a3ec448df3e3837f53e0677940",
+      "sha256": "536e506bb90914c243a12b397b9a998f85ae2cbd9ba02dfd03a9e155ca5ca0f4"
+    },
+    {
+      "bytes": 34,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "trybuild-run-fail",
+      "license": "MIT",
+      "license_bytes": 1023,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "path": "tests/ui/run-fail.rs",
+      "repository": "dtolnay/trybuild",
+      "revision": "4b511198467970a3ec448df3e3837f53e0677940",
+      "sha256": "22099cbd86975647f43382a3a5cb2d9421f3c4ab6c7f60a9cd955f80ab4daee7"
+    },
+    {
+      "bytes": 54,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "trybuild-print-stdout",
+      "license": "MIT",
+      "license_bytes": 1023,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "path": "tests/ui/print-stdout.rs",
+      "repository": "dtolnay/trybuild",
+      "revision": "4b511198467970a3ec448df3e3837f53e0677940",
+      "sha256": "e962604cb9fe129334c228cddf2fb41c6d647df3328d5259d908986cee56540b"
+    },
+    {
+      "bytes": 101,
+      "expected_diagnostics": [
+        "E0425"
+      ],
+      "expected_label": 0,
+      "id": "rustlings-variables1",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "exercises/01_variables/variables1.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "d79238495871f0b0dfbfceb39841e6c952ba384eaf127801ecd86130ddf2e4f8"
+    },
+    {
+      "bytes": 122,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rustlings-variables1-solution",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "solutions/01_variables/variables1.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "c380dd1b1b8ba5a45da919dc1edb0b658f6ee5a912ed9495d2644ed19e71803b"
+    },
+    {
+      "bytes": 190,
+      "expected_diagnostics": [
+        "E0283"
+      ],
+      "expected_label": 0,
+      "id": "rustlings-variables2",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "exercises/01_variables/variables2.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "9dc52f662da4804960ae0082d542125e2c01c182045cfaab42d03ae899e085cc"
+    },
+    {
+      "bytes": 463,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rustlings-variables2-solution",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "solutions/01_variables/variables2.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "b22385889365d4758ae8333ab49a30c76f75054de9472f3a61521ff145ae934b"
+    },
+    {
+      "bytes": 121,
+      "expected_diagnostics": [
+        "E0381"
+      ],
+      "expected_label": 0,
+      "id": "rustlings-variables3",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "exercises/01_variables/variables3.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "8a05af8deaff421343204affa11228de4f0f30a22399bdfb25b17854e57f1efd"
+    },
+    {
+      "bytes": 156,
+      "expected_diagnostics": [
+        "E0384"
+      ],
+      "expected_label": 0,
+      "id": "rustlings-variables4",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "exercises/01_variables/variables4.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "5f7806aa7d66c2d981915cf8ff923796417e77f6eb3b3dae1f16afbbf824a943"
+    },
+    {
+      "bytes": 234,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rustlings-variables4-solution",
+      "license": "MIT",
+      "license_bytes": 1095,
+      "license_path": "LICENSE",
+      "license_sha256": "73a94c6d29e8563b3d7bf89a118572f01b4a0a3c984b15c02b95ce2c93f71b2f",
+      "path": "solutions/01_variables/variables4.rs",
+      "repository": "rust-lang/rustlings",
+      "revision": "a650509c789da1656f813392b16aa1fa043b7f3e",
+      "sha256": "90723951070111e7a2f6e0694a152d7772de9c9c7770d894dd438b99484b0cfd"
+    },
+    {
+      "bytes": 125,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rust-borrowck-move-by-capture-ok",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-move-by-capture-ok.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "964d1bc2770940f6b6c4ea8a0f16623bb24f9a9a968babe318d5ca21e6c068e2"
+    },
+    {
+      "bytes": 339,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rust-borrowck-borrow-from-expr-block",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-borrow-from-expr-block.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "4d6aea10fb2c10298c5481d8cf74eeddbb27e6291ea97c8e87bed2b42eac9986"
+    },
+    {
+      "bytes": 517,
+      "expected_diagnostics": [],
+      "expected_label": 1,
+      "id": "rust-borrowck-borrow-of-mut-base-ptr-safe",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-borrow-of-mut-base-ptr-safe.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "f5dae6c1118bd36f0047b0dc23e8b23699549359b59419643f2f738a219f1399"
+    },
+    {
+      "bytes": 144,
+      "expected_diagnostics": [
+        "E0515"
+      ],
+      "expected_label": 0,
+      "id": "rust-borrowck-local-borrow-outlives-fn",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-local-borrow-outlives-fn.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "299998d820679b05f7ecce5a108b6cd0eb4fea310b380bea6c83e7626a9f7501"
+    },
+    {
+      "bytes": 2771,
+      "expected_diagnostics": [
+        "E0499",
+        "E0502",
+        "E0596"
+      ],
+      "expected_label": 0,
+      "id": "rust-borrowck-borrow-from-owned-ptr",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-borrow-from-owned-ptr.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "8e5ebfccef7ca9aa6cb4dd4d891fd39542d93fb3c3a62e1034a93d95df653422"
+    },
+    {
+      "bytes": 2708,
+      "expected_diagnostics": [
+        "E0499",
+        "E0502",
+        "E0596"
+      ],
+      "expected_label": 0,
+      "id": "rust-borrowck-borrow-from-stack-variable",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-borrow-from-stack-variable.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "eddc135f0c5775404eaea1f95882e42d72ee93b153316f25afb544c59a58fc29"
+    },
+    {
+      "bytes": 380,
+      "expected_diagnostics": [
+        "E0499"
+      ],
+      "expected_label": 0,
+      "id": "rust-borrowck-borrow-mut-object-twice",
+      "license": "MIT",
+      "license_bytes": 1068,
+      "license_path": "LICENSE-MIT",
+      "license_sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "path": "tests/ui/borrowck/borrowck-borrow-mut-object-twice.rs",
+      "repository": "rust-lang/rust",
+      "revision": "a22b02eaecd6ac937d752139c79d0159c725932d",
+      "sha256": "b0c22d69d42560c9a56da59feff945e62916a87ed7d7f25768df125029500580"
+    }
+  ]
+}
