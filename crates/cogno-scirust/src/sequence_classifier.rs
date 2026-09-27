@@ -213,6 +213,46 @@ impl SequenceClassifier {
         let max_elements = self.required_max_elements(token_ids.len())?;
         let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES, max_elements);
         let graph = self.append_to_tape(&mut tape, token_ids)?;
+        self.loss_from_graph(tape, graph, target_class)
+    }
+
+    /// Opt-in sparse embedding training with the same parameter and optimizer layout.
+    pub fn loss_and_gradients_gather(
+        &self,
+        token_ids: &[u16],
+        target_class: usize,
+    ) -> SciRustResult<(f32, SequenceClassifierGradients)> {
+        self.validate_target(target_class)?;
+        let max_elements = self
+            .encoder
+            .required_gather_max_elements(token_ids.len())?
+            .max(self.head_weights.len())
+            .max(self.config.num_classes);
+        let mut tape = Tape::new(SEQUENCE_CLASSIFIER_TRAINING_TAPE_NODES, max_elements);
+        let encoder = self.encoder.append_to_tape_gather(&mut tape, token_ids)?;
+        let graph = self.append_head(&mut tape, encoder)?;
+        self.loss_from_graph(tape, graph, target_class)
+    }
+
+    /// One atomic AdamW step using the opt-in gather graph.
+    pub fn train_step_gather(
+        &mut self,
+        optimizer: &mut SequenceClassifierAdamW,
+        token_ids: &[u16],
+        target_class: usize,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.loss_and_gradients_gather(token_ids, target_class)?;
+        optimizer.step(self, &gradients)?;
+        Ok(loss)
+    }
+
+    fn loss_from_graph(
+        &self,
+        mut tape: Tape,
+        graph: SequenceClassifierGraph,
+        target_class: usize,
+    ) -> SciRustResult<(f32, SequenceClassifierGradients)> {
+        let max_elements = tape.max_elements;
         let log_probabilities = tape.log_softmax(graph.logits)?;
         let mut target = vec![0.0f32; self.config.num_classes];
         target[target_class] = 1.0;
@@ -332,6 +372,14 @@ impl SequenceClassifier {
         token_ids: &[u16],
     ) -> SciRustResult<SequenceClassifierGraph> {
         let encoder = self.encoder.append_to_tape(tape, token_ids)?;
+        self.append_head(tape, encoder)
+    }
+
+    fn append_head(
+        &self,
+        tape: &mut Tape,
+        encoder: SequenceEncoderGraph,
+    ) -> SciRustResult<SequenceClassifierGraph> {
         let head_weights = tape.variable(Tensor::try_new(
             Shape::try_new(&[self.config.encoder.hidden_dim, self.config.num_classes])?,
             self.head_weights.clone(),
@@ -697,5 +745,41 @@ mod tests {
             model.loss_and_gradients(&[1, 2], 2),
             Err(SciRustError::Index { idx: 2, len: 2 })
         ));
+    }
+}
+
+#[cfg(test)]
+mod gather_training_tests {
+    use super::*;
+    #[test]
+    fn gather_classifier_training_matches_dense_across_updates() {
+        let config = SequenceClassifierConfig {
+            encoder: SequenceEncoderConfig {
+                vocab_size: 8,
+                max_tokens: 12,
+                embedding_dim: 4,
+                hidden_dim: 7,
+                seed: 42,
+            },
+            num_classes: 2,
+            head_seed: 7,
+        };
+        let mut dense = SequenceClassifier::try_new(config).unwrap();
+        let mut gather = dense.clone();
+        let mut a = SequenceClassifierAdamW::try_new(0.01, &dense).unwrap();
+        let mut b = SequenceClassifierAdamW::try_new(0.01, &gather).unwrap();
+        for step in 0..12 {
+            let tokens = &[1, 2, 1, 3];
+            let label = step % 2;
+            assert_eq!(
+                dense.loss_and_gradients(tokens, label).unwrap(),
+                gather.loss_and_gradients_gather(tokens, label).unwrap()
+            );
+            assert_eq!(
+                dense.train_step(&mut a, tokens, label).unwrap(),
+                gather.train_step_gather(&mut b, tokens, label).unwrap()
+            );
+            assert_eq!(dense, gather);
+        }
     }
 }
