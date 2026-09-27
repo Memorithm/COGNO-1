@@ -53,6 +53,15 @@ pub struct BpeTokenSpan {
     pub end: usize,
 }
 
+/// A context-sized, lossless segment of an already tokenized source. Chunks
+/// retain source identity externally; they are not independent data examples.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BpeSourceChunk {
+    pub start: usize,
+    pub end: usize,
+    pub tokens: Vec<u16>,
+}
+
 /// Caller-owned scratch space for rank-heap encoding. Reusing this value avoids
 /// rebuilding its allocations. It stores no model parameters and may be reused
 /// with a different tokenizer. Input remains bounded by `MAX_BPE_BYTES`.
@@ -249,6 +258,54 @@ impl BpeTokenizer {
                     token,
                     start,
                     end: cursor,
+                }
+            })
+            .collect())
+    }
+
+    /// Segment long sources at final token boundaries without truncating bytes.
+    /// Each result is independently BOS/EOS framed and within this artifact's
+    /// context. This explicit preprocessing API does not relax `encode` admission.
+    /// `max_chunks` bounds result allocation; exceeding it refuses the whole input.
+    /// Byte ranges may split UTF-8 characters and do not imply valid Rust fragments.
+    pub fn encode_chunks(
+        &self,
+        bytes: &[u8],
+        max_chunks: usize,
+    ) -> Result<Vec<BpeSourceChunk>, BpeError> {
+        if !(1..=MAX_BPE_BYTES).contains(&max_chunks) {
+            return Err(BpeError::InvalidConfig);
+        }
+        let ids = self.raw(bytes)?;
+        let payload_cap = self.max_tokens - 2;
+        let count = ids.len().div_ceil(payload_cap).max(1);
+        if count > max_chunks {
+            return Err(BpeError::Capacity);
+        }
+        if ids.is_empty() {
+            return Ok(vec![BpeSourceChunk {
+                start: 0,
+                end: 0,
+                tokens: vec![BOS_TOKEN, EOS_TOKEN],
+            }]);
+        }
+        let mut cursor = 0;
+        Ok(ids
+            .chunks(payload_cap)
+            .map(|payload| {
+                let start = cursor;
+                cursor += payload
+                    .iter()
+                    .map(|&id| self.pieces[usize::from(id)].len())
+                    .sum::<usize>();
+                let mut tokens = Vec::with_capacity(payload.len() + 2);
+                tokens.push(BOS_TOKEN);
+                tokens.extend_from_slice(payload);
+                tokens.push(EOS_TOKEN);
+                BpeSourceChunk {
+                    start,
+                    end: cursor,
+                    tokens,
                 }
             })
             .collect())
@@ -621,6 +678,45 @@ mod tests {
             }
         }
         model
+    }
+
+    #[test]
+    fn chunking_roundtrips_long_sources_without_relaxing_single_context() {
+        let t = BpeTokenizer::from_merges(4, &[(97, 98)]).unwrap();
+        for source in [
+            b"ababababababx".as_slice(),
+            "日本語".as_bytes(),
+            b"",
+            b"\xff\0",
+        ] {
+            let chunks = t.encode_chunks(source, 32).unwrap();
+            let mut restored = Vec::new();
+            let mut cursor = 0;
+            for chunk in &chunks {
+                assert_eq!(chunk.start, cursor);
+                assert!(chunk.tokens.len() <= t.max_tokens());
+                let decoded = t.decode(&chunk.tokens).unwrap();
+                assert_eq!(decoded, source[chunk.start..chunk.end]);
+                restored.extend(decoded);
+                cursor = chunk.end;
+            }
+            assert_eq!(cursor, source.len());
+            assert_eq!(restored, source);
+        }
+        assert_eq!(t.encode(b"abababab"), Err(BpeError::Capacity));
+        assert_eq!(t.encode_chunks(b"abababab", 1), Err(BpeError::Capacity));
+        assert_eq!(t.encode_chunks(b"", 0), Err(BpeError::InvalidConfig));
+        assert_eq!(
+            t.encode_chunks(&vec![0; MAX_BPE_BYTES + 1], 32),
+            Err(BpeError::Capacity)
+        );
+        let tiny = BpeTokenizer::from_merges(3, &[]).unwrap();
+        assert_eq!(
+            tiny.encode_chunks(&vec![0; MAX_BPE_BYTES], MAX_BPE_BYTES)
+                .unwrap()
+                .len(),
+            MAX_BPE_BYTES
+        );
     }
 
     #[test]
