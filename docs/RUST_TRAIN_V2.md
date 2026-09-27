@@ -55,3 +55,11 @@ The selector first verifies the complete Cartesian product of preregistered arms
 `rust_train_v2 test PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA SELECTION_FILE NEW_TEST_DIRECTORY`
 
 This command requires the exact validation-only decision before evaluating test outcomes. It exports every seed of the selected arm **and all preregistered controls**, never changing selection. A separate completed test bundle binds the training bundle, selection and every prediction. Its per-seed source count must not be multiplied into a claim of independent samples. Test sources were admitted and checked for capacity before training, but their outcomes were not computed by the training or selection commands. This separation is procedural: filesystem permissions do not prevent an operator from reading the source corpus or repeatedly running new protocols. Preregister protocols before inspecting outcomes.
+
+## Interrupted experiments
+
+`rust_train_v2 resume PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE PRIOR_OUTPUT NEW_OUTPUT`
+
+Each completed run writes a `.DONE` manifest after checkpoint round-trip and prediction export. Resume validates protocol identity, file hashes, model configuration, recomputed predictions, every epoch's row/update/token accounting and final-checkpoint metrics. It copies only complete valid runs into a **new** output directory. Partial runs restart deterministically from epoch zero: inference checkpoints do not contain AdamW moments and are never presented as optimizer resumes. A malformed `.DONE` fails closed instead of silently retraining. The prior output is preserved.
+
+Resume is for an experiment directory under the operator's control. Its local per-run hashes detect accidental corruption but are not authenticated provenance; completed bundle verification still requires an independently retained `COMPLETE_SHA`. Neither run markers nor final journals prove intermediate optimization steps against a malicious writer. Retain emitted `run_sha256` values externally when stronger audit binding is required.
