@@ -1,0 +1,150 @@
+{
+  "files": [
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-expert-pilot/corpus.jsonl",
+      "sha256": "13841a24f58c0bc8f1c9636b783baef71e0bf62692cde0234d882ce94aec44eb"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/async_futures/corpus.jsonl",
+      "sha256": "68ab9eacfe18e70bd771c04c0718f32dee61d98d96f9de2842d690d86008ce76"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/borrowing/corpus.jsonl",
+      "sha256": "72e24bd08310c1d5e0205eae799bc6fc8ab921b0aaa4f87cf1bacd850d9ddde6"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/closures/corpus.jsonl",
+      "sha256": "0f90149d41cd898928f09ce779bfedbabc832f56aa6dbce3a8141da2837d06af"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/concurrency/corpus.jsonl",
+      "sha256": "070431afa833a93d36874c1c8fe2d0c158e559cea45fa9bd3fe8ee177c3e039f"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/error_handling/corpus.jsonl",
+      "sha256": "52b0f90351775da6ee0571edaf2204c45921b752b6bdbf49443937c4f34eb8b5"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/iterators/corpus.jsonl",
+      "sha256": "ba4c7fb95b51462396626278d21b1983da9b00638e9c81302b1738ce6c6a1eb4"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/lifetimes/corpus.jsonl",
+      "sha256": "ff605b046f1a479250cefce6a3b0305ff7fa9119e11f0bd2846a79a998ba0d9b"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/macros/corpus.jsonl",
+      "sha256": "c570144dbfddee9cd35a0fbd18af815d9bb3c5d35372ddfdb3905e0bd2b44b0f"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/ownership/corpus.jsonl",
+      "sha256": "6ba54b4a90cace38d0d29eb09a5c338919783439818c01f25468a68cac00b827"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/pattern_matching/corpus.jsonl",
+      "sha256": "25cc2d959d8952dfdb4f2d50879806b81248a5b663e1f9bdc7eac15bd5f7c36c"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/smart_pointers/corpus.jsonl",
+      "sha256": "78e05d117844deeff1f8664fb3b0afd6111a4acfe2119f9e2c234ddcef98567c"
+    },
+    {
+      "kind": "jsonl",
+      "path": "experiments/rust-curriculum/traits/corpus.jsonl",
+      "sha256": "24de5925f4814a3a3087476d1f3681588a290632e9283aa2a1a47b29d65a72f1"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/assign-never-type.rs",
+      "sha256": "89ca7e842215f07cb1bccefb6740ce7b6dec8cfe557348cda4f9150442dbd20d"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrow-immutable-deref-box.rs",
+      "sha256": "844646cce272c80c7a4eef91b9f87b478d7078b9674411286272d9650fa2aa3f"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-and-init.rs",
+      "sha256": "a1ad72efa8e0a86d57402b1e20d98b073fb2ab9ee472278562b6f7e43b214e98"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-assign-to-constants.rs",
+      "sha256": "16d048a918a7912a6dcd3ec041565dcf68b67571912e6d4a2060f4bcb208d4ee"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-assignment-to-static-mut.rs",
+      "sha256": "cb236d0691bc22707eba21acdf7e19d31a682b36d1b5158dc67c66e1d2addc72"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-binding-mutbl.rs",
+      "sha256": "38a51cc3c71d8e31ad1484b034a11c3f9d19a95db6bb830635d7a90ebec947e1"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-block-uninit.rs",
+      "sha256": "23878d143e2d445d912a8d73730c44e4b1a6ec9069f47a8e7e201a2bea68aa35"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/source/borrowck-borrow-from-temporary.rs",
+      "sha256": "5ab5a35e9a927418017e0856895f4f831d0aeb43cda880724c082ca83889d791"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/assign-never-type.rs",
+      "sha256": "1722edeb7f79fea513a59775a1e82f26adbd6441048c5a5567f4261cb96f0532"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrow-immutable-deref-box.rs",
+      "sha256": "19a064f1251666f4e5fdd4e984d569ed0a5083a7db9b3000b19c88a5c99d6162"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-and-init.rs",
+      "sha256": "d53a465df9bd38e70ca4d5f720a2b1a6aaa228718a0a4cf2598e9b2c5c1fffa7"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-assign-to-constants.rs",
+      "sha256": "0a20ac2457db7caf5c82925002453235231c67a2c2a5843a31e764f2a8852c08"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-assignment-to-static-mut.rs",
+      "sha256": "749a58cfa8e789db437cf3100f08d9e29e9030054719b9bb3c7b8b15bc526133"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-binding-mutbl.rs",
+      "sha256": "fba46da33f338e64ae90976cd8d89fa772aaf8e281ccb6ef2a7636c185ee29e4"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-block-uninit.rs",
+      "sha256": "2f7aa1ff9b33e0e669afdbe56050fcab706b16dad9a63b51be3adfef8cca500a"
+    },
+    {
+      "kind": "source",
+      "path": "experiments/external-rust-panel/upstream/borrowck-borrow-from-temporary.rs",
+      "sha256": "e8a28e685ebb642e9ed13a17e7557975505662e0bb336f856fc2c4fb76367d3c"
+    }
+  ],
+  "schema": 1
+}
