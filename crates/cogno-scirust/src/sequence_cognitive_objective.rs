@@ -274,6 +274,26 @@ impl SequenceCognitiveHeads {
         &self,
         observation: CognitiveClassification<'_>,
     ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        self.classification_gradients_with_gather(observation, false)
+    }
+
+    /// Classification-only NLL with sparse row selectors in the shared encoder.
+    ///
+    /// Parameter layout, pooling and inactive-head semantics match the dense
+    /// reference. This removes token-by-vocabulary selector tensors; parameter
+    /// gradients and AdamW state remain dense.
+    pub fn classification_loss_and_gradients_gather(
+        &self,
+        observation: CognitiveClassification<'_>,
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
+        self.classification_gradients_with_gather(observation, true)
+    }
+
+    fn classification_gradients_with_gather(
+        &self,
+        observation: CognitiveClassification<'_>,
+        gather: bool,
+    ) -> SciRustResult<(f32, SequenceCognitiveGradients)> {
         if observation.target_class >= self.config().num_classes {
             return Err(SciRustError::Index {
                 idx: observation.target_class,
@@ -282,9 +302,14 @@ impl SequenceCognitiveHeads {
         }
         let hidden = self.config().encoder.hidden_dim;
         let classes = self.config().num_classes;
-        let max_elements = self
-            .encoder()
-            .required_max_elements(observation.token_ids.len())?
+        let encoder_elements = if gather {
+            self.encoder()
+                .required_gather_max_elements(observation.token_ids.len())?
+        } else {
+            self.encoder()
+                .required_max_elements(observation.token_ids.len())?
+        };
+        let max_elements = encoder_elements
             .max(hidden.checked_mul(classes).ok_or(SciRustError::Overflow)?)
             .max(classes);
         let mut tape = Tape::new(SEQUENCE_ENCODER_TAPE_NODES + 16, max_elements);
@@ -298,9 +323,13 @@ impl SequenceCognitiveHeads {
             self.classification_bias().to_vec(),
             max_elements,
         )?)?;
-        let graph = self
-            .encoder()
-            .append_to_tape(&mut tape, observation.token_ids)?;
+        let graph = if gather {
+            self.encoder()
+                .append_to_tape_gather(&mut tape, observation.token_ids)?
+        } else {
+            self.encoder()
+                .append_to_tape(&mut tape, observation.token_ids)?
+        };
         let logits = tape.matmul(graph.pooled(), weights)?;
         let logits = tape.add(logits, bias)?;
         let loss = nll_loss(
@@ -338,6 +367,18 @@ impl SequenceCognitiveHeads {
         observation: CognitiveClassification<'_>,
     ) -> SciRustResult<f32> {
         let (loss, gradients) = self.classification_loss_and_gradients(observation)?;
+        self.apply_classification_gradients(optimizer, &gradients)?;
+        Ok(loss)
+    }
+
+    /// Atomic classification-only AdamW update through the gather encoder graph.
+    /// Inactive heads and their optimizer states remain unchanged.
+    pub fn train_classification_step_gather(
+        &mut self,
+        optimizer: &mut SequenceCognitiveAdamW,
+        observation: CognitiveClassification<'_>,
+    ) -> SciRustResult<f32> {
+        let (loss, gradients) = self.classification_loss_and_gradients_gather(observation)?;
         self.apply_classification_gradients(optimizer, &gradients)?;
         Ok(loss)
     }
