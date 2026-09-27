@@ -43,6 +43,16 @@ pub struct BpeTokenizer {
     ranks: BTreeMap<(u16, u16), u16>,
 }
 
+/// Exact half-open byte range in the original source for one framed token.
+/// BOS and EOS have zero-width ranges. Offsets are not Unicode character
+/// positions: an arbitrary byte tokenizer may split a UTF-8 code point.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BpeTokenSpan {
+    pub token: u16,
+    pub start: usize,
+    pub end: usize,
+}
+
 /// Caller-owned scratch space for rank-heap encoding. Reusing this value avoids
 /// rebuilding its allocations. It stores no model parameters and may be reused
 /// with a different tokenizer. Input remains bounded by `MAX_BPE_BYTES`.
@@ -213,6 +223,25 @@ impl BpeTokenizer {
         out.extend(ids);
         out.push(EOS_TOKEN);
         Ok(out)
+    }
+
+    /// Encode with lossless source locations for Rust diagnostics and attribution.
+    /// Uses the same capacity checks and IDs as `encode`, including framing.
+    pub fn encode_with_offsets(&self, bytes: &[u8]) -> Result<Vec<BpeTokenSpan>, BpeError> {
+        let ids = self.encode(bytes)?;
+        let mut cursor = 0;
+        Ok(ids
+            .into_iter()
+            .map(|token| {
+                let start = cursor;
+                cursor += self.pieces[usize::from(token)].len();
+                BpeTokenSpan {
+                    token,
+                    start,
+                    end: cursor,
+                }
+            })
+            .collect())
     }
 
     /// Exact rank-priority encoding using a reusable heap and linked positions.
@@ -552,6 +581,31 @@ mod tests {
             }
         }
         model
+    }
+
+    #[test]
+    fn byte_offsets_cover_exact_rust_source_and_binary_payloads() {
+        let source =
+            r####"fn café<'a>(s: &'a str) -> &'a str { r###"日本語\n"###; s }"####.as_bytes();
+        let t = BpeTokenizer::train(&[source, source], 300, 512).unwrap();
+        for bytes in [source, b"\xff\0", b""] {
+            let spans = t.encode_with_offsets(bytes).unwrap();
+            assert_eq!(
+                spans.iter().map(|s| s.token).collect::<Vec<_>>(),
+                t.encode(bytes).unwrap()
+            );
+            let mut cursor = 0;
+            for span in &spans {
+                assert_eq!(span.start, cursor);
+                assert_eq!(&bytes[span.start..span.end], t.pieces[span.token as usize]);
+                cursor = span.end;
+            }
+            assert_eq!(cursor, bytes.len());
+            assert_eq!(spans.first().unwrap().start, 0);
+            assert_eq!(spans.last().unwrap().end, bytes.len());
+        }
+        let tiny = BpeTokenizer::from_merges(3, &[]).unwrap();
+        assert_eq!(tiny.encode_with_offsets(b"ab"), Err(BpeError::Capacity));
     }
 
     #[test]
