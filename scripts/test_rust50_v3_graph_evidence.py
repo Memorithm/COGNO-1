@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from verify_rust50_v3_graph_evidence import REFERENCE, verify
+from verify_rust50_v3_graph_evidence import EXPECTED, REFERENCE, verify, verify_actual
 
 
 class GraphEvidenceTests(unittest.TestCase):
@@ -14,6 +14,27 @@ class GraphEvidenceTests(unittest.TestCase):
         shutil.copytree(REFERENCE, target)
         self.addCleanup(directory.cleanup)
         return target
+
+    def actual_summary(self):
+        return {
+            "schema": 1,
+            "architecture": "aarch64",
+            "source_commit": "a" * 40,
+            "source_tree": "b" * 40,
+            "source_protocol_sha256": EXPECTED["protocol_sha256"],
+            "source_corpus_sha256": EXPECTED["corpus_sha256"],
+            "source_provenance_sha256": EXPECTED["provenance_sha256"],
+            "rounds": 1,
+            "updates": 55296,
+            "matched_files_per_round": 18,
+            "dense_ns": 123,
+            "gather_ns": 456,
+            "dense_bundle_sha256": EXPECTED["dense_bundle_sha256"],
+            "gather_bundle_sha256": EXPECTED["gather_bundle_sha256"],
+            "comparison_complete_sha256": "c" * 64,
+            "gpu_training": False,
+            "model_promoted": False,
+        }
 
     def test_saved_thor_records_are_complete(self):
         result = verify()
@@ -26,6 +47,30 @@ class GraphEvidenceTests(unittest.TestCase):
         self.assertEqual(result["gated_remoteops_job_id"], 108576919803)
         self.assertFalse(result["gpu_training"])
         self.assertFalse(result["model_promoted"])
+
+    def test_fresh_summary_is_checked_against_the_declared_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "summary.json"
+            path.write_text(json.dumps(self.actual_summary()))
+            result = verify_actual(path, "a" * 40, "b" * 40)
+            self.assertEqual(result["updates"], 55296)
+            self.assertEqual(result["source_tree"], "b" * 40)
+
+    def test_changed_fresh_summary_is_rejected(self):
+        for field, value in [
+            ("source_commit", "0" * 40),
+            ("source_protocol_sha256", "0" * 64),
+            ("dense_ns", 0),
+            ("comparison_complete_sha256", "not-a-digest"),
+            ("model_promoted", True),
+        ]:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "summary.json"
+                summary = self.actual_summary()
+                summary[field] = value
+                path.write_text(json.dumps(summary))
+                with self.assertRaises(ValueError):
+                    verify_actual(path, "a" * 40, "b" * 40)
 
     def test_changed_identity_measurement_or_scope_is_rejected(self):
         for filename, field, value in [

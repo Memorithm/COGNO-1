@@ -1,4 +1,4 @@
-"""Verify the committed Rust50 v3 Thor graph comparison records."""
+"""Verify committed Rust50 v3 records and fresh graph comparison summaries."""
 import argparse
 import json
 import re
@@ -111,6 +111,97 @@ def load_gated_summary(reference=REFERENCE):
     return load_record(reference, GATED_FILENAME, GATED_EXPECTED)
 
 
+ACTUAL_FIELDS = {
+    "schema",
+    "architecture",
+    "source_commit",
+    "source_tree",
+    "source_protocol_sha256",
+    "source_corpus_sha256",
+    "source_provenance_sha256",
+    "rounds",
+    "updates",
+    "matched_files_per_round",
+    "dense_ns",
+    "gather_ns",
+    "dense_bundle_sha256",
+    "gather_bundle_sha256",
+    "comparison_complete_sha256",
+    "gpu_training",
+    "model_promoted",
+}
+ACTUAL_HASH_FIELDS = {
+    "source_protocol_sha256",
+    "source_corpus_sha256",
+    "source_provenance_sha256",
+    "dense_bundle_sha256",
+    "gather_bundle_sha256",
+    "comparison_complete_sha256",
+}
+ACTUAL_POSITIVE_FIELDS = {
+    "rounds",
+    "updates",
+    "matched_files_per_round",
+    "dense_ns",
+    "gather_ns",
+}
+
+
+def load_actual(path, source_commit, source_tree):
+    try:
+        summary = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"unable to read fresh v3 graph summary: {path}") from exc
+    if not isinstance(summary, dict):
+        raise ValueError("fresh v3 graph summary must be a JSON object")
+    if set(summary) != ACTUAL_FIELDS:
+        raise ValueError("fresh v3 graph summary fields changed")
+    expected = {
+        "schema": 1,
+        "architecture": "aarch64",
+        "source_commit": source_commit,
+        "source_tree": source_tree,
+        "source_protocol_sha256": EXPECTED["protocol_sha256"],
+        "source_corpus_sha256": EXPECTED["corpus_sha256"],
+        "source_provenance_sha256": EXPECTED["provenance_sha256"],
+        "rounds": 1,
+        "updates": 55296,
+        "matched_files_per_round": 18,
+        "dense_bundle_sha256": EXPECTED["dense_bundle_sha256"],
+        "gather_bundle_sha256": EXPECTED["gather_bundle_sha256"],
+        "gpu_training": False,
+        "model_promoted": False,
+    }
+    for field, value in expected.items():
+        if summary[field] != value:
+            raise ValueError(f"fresh v3 graph summary value changed: {field}")
+    if not re.fullmatch(r"[0-9a-f]{40}", summary["source_commit"]):
+        raise ValueError("fresh source commit is not a lowercase commit identity")
+    if not re.fullmatch(r"[0-9a-f]{40}", summary["source_tree"]):
+        raise ValueError("fresh source tree is not a lowercase tree identity")
+    for field in ACTUAL_HASH_FIELDS:
+        if not re.fullmatch(r"[0-9a-f]{64}", summary[field]):
+            raise ValueError(f"fresh {field} is not a lowercase SHA-256 digest")
+    for field in ACTUAL_POSITIVE_FIELDS:
+        if type(summary[field]) is not int or summary[field] <= 0:
+            raise ValueError(f"fresh {field} must be a positive integer")
+    return summary
+
+
+def verify_actual(path, source_commit, source_tree):
+    summary = load_actual(path, source_commit, source_tree)
+    return {
+        "source_commit": summary["source_commit"],
+        "source_tree": summary["source_tree"],
+        "updates": summary["updates"],
+        "matched_files_per_round": summary["matched_files_per_round"],
+        "dense_ns": summary["dense_ns"],
+        "gather_ns": summary["gather_ns"],
+        "gpu_training": summary["gpu_training"],
+        "model_promoted": summary["model_promoted"],
+}
+
+
 def verify(reference=REFERENCE):
     summary = load_summary(reference)
     gated = load_gated_summary(reference)
@@ -131,5 +222,16 @@ def verify(reference=REFERENCE):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("reference", type=Path, nargs="?", default=REFERENCE)
+    parser.add_argument("--actual", type=Path)
+    parser.add_argument("--source-commit")
+    parser.add_argument("--source-tree")
     args = parser.parse_args()
-    print(json.dumps(verify(args.reference.resolve()), sort_keys=True))
+    if args.actual is not None:
+        if not args.source_commit or not args.source_tree:
+            parser.error("--actual requires --source-commit and --source-tree")
+        result = verify_actual(args.actual.resolve(), args.source_commit, args.source_tree)
+    else:
+        if args.source_commit or args.source_tree:
+            parser.error("--source-commit/--source-tree require --actual")
+        result = verify(args.reference.resolve())
+    print(json.dumps(result, sort_keys=True))
