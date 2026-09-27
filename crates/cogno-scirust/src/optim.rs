@@ -174,7 +174,8 @@ impl AdamW {
         validate_hyperparams(self.lr, self.beta1, self.beta2, self.eps, self.weight_decay)?;
         if workspace.values.len() != param.len() {
             return Err(SciRustError::Shape {
-                lhs: vec![workspace.values.len()], rhs: vec![param.len()],
+                lhs: vec![workspace.values.len()],
+                rhs: vec![param.len()],
             });
         }
         workspace.candidate.lr = self.lr;
@@ -184,10 +185,16 @@ impl AdamW {
         workspace.candidate.weight_decay = self.weight_decay;
         workspace.candidate.state.m.copy_from_slice(&self.state.m);
         workspace.candidate.state.v.copy_from_slice(&self.state.v);
-        workspace.candidate.state.v_hat.copy_from_slice(&self.state.v_hat);
+        workspace
+            .candidate
+            .state
+            .v_hat
+            .copy_from_slice(&self.state.v_hat);
         workspace.candidate.state.step = self.state.step;
         workspace.values.copy_from_slice(param);
-        workspace.candidate.step_candidate(&mut workspace.values, grad)?;
+        workspace
+            .candidate
+            .step_candidate(&mut workspace.values, grad)?;
         param.copy_from_slice(&workspace.values);
         std::mem::swap(self, &mut workspace.candidate);
         Ok(())
