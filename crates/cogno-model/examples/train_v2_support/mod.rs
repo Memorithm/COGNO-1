@@ -242,3 +242,94 @@ mod tests {
         }
     }
 }
+
+pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
+    use cogno_model::{
+        bpe_checkpoint::encode_checkpoint, bpe_cognitive::BpeCognitiveModel,
+        training_order::epoch_order,
+    };
+    use cogno_scirust::{
+        CognitiveClassification, SequenceCognitiveAdamW, SequenceCognitiveConfig,
+        SequenceCognitiveHeads, SequenceEncoderConfig,
+    };
+    std::fs::create_dir(out).map_err(|e| e.to_string())?;
+    std::fs::write(out.join("protocol.tsv"), &a.protocol_bytes).map_err(|e| e.to_string())?;
+    std::fs::write(out.join("plan.tsv"), plan(a)).map_err(|e| e.to_string())?;
+    let p = &a.protocol;
+    let rows: Vec<_> = a
+        .corpus
+        .records()
+        .iter()
+        .filter(|r| r.split == CorpusSplit::Train)
+        .collect();
+    let mut completed_updates = 0;
+    for arm in &p.arms {
+        for &seed in &p.seeds {
+            let mut model = SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
+                encoder: SequenceEncoderConfig {
+                    vocab_size: a.tokenizer.vocab_size(),
+                    max_tokens: p.context,
+                    embedding_dim: p.embedding,
+                    hidden_dim: p.hidden,
+                    seed,
+                },
+                num_classes: 2,
+                num_rules: 1,
+                classification_seed: 1,
+                preference_seed: 2,
+                symbolic_seed: 3,
+                contradiction_seed: 4,
+            })
+            .map_err(|e| format!("{e:?}"))?;
+            let mut optimizer = SequenceCognitiveAdamW::try_new(p.learning_rate, &model)
+                .map_err(|e| format!("{e:?}"))?;
+            for epoch in 0..p.epochs {
+                let merge_count = prefix(arm, epoch, a.tokenizer.vocab_size() - 259);
+                let encoded: Vec<_> = rows
+                    .iter()
+                    .map(|row| {
+                        a.tokenizer
+                            .encode_with_merge_prefix(&row.source, merge_count)
+                            .map_err(|e| format!("{e:?}"))
+                    })
+                    .collect::<Result<_, _>>()?;
+                let order =
+                    epoch_order(rows.len(), seed, epoch as u64).map_err(|e| format!("{e:?}"))?;
+                for batch in order.chunks(p.batch) {
+                    let examples: Vec<_> = batch
+                        .iter()
+                        .map(|&i| CognitiveClassification {
+                            token_ids: &encoded[i],
+                            target_class: rows[i].label,
+                        })
+                        .collect();
+                    if examples.len() == 1 {
+                        model
+                            .train_classification_step(&mut optimizer, examples[0])
+                            .map_err(|e| format!("{e:?}"))?;
+                    } else {
+                        model
+                            .train_classification_minibatch_step(&mut optimizer, &examples)
+                            .map_err(|e| format!("{e:?}"))?;
+                    }
+                    completed_updates += 1;
+                }
+            }
+            let model = BpeCognitiveModel::from_heads(
+                a.tokenizer.clone(),
+                model,
+                a.tokenizer.fingerprint(),
+                2,
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            let bytes = encode_checkpoint(&model);
+            std::fs::write(out.join(format!("{arm}-seed-{seed}.cbpc")), bytes)
+                .map_err(|e| e.to_string())?;
+            eprintln!("completed arm={arm} seed={seed} updates={completed_updates}");
+        }
+    }
+    if completed_updates != a.updates {
+        return Err("update accounting mismatch".into());
+    }
+    Ok(())
+}
