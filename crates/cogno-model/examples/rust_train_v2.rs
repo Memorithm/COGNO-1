@@ -3,7 +3,7 @@
 mod train_v2_support;
 use std::path::Path;
 use train_v2_support::*;
-const USAGE: &str = "rust_train_v2 COMMAND PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE [paths]\ncommands: plan; train NEW_OUTPUT; verify OUTPUT COMPLETE_SHA; select OUTPUT COMPLETE_SHA NEW_SELECTION; test OUTPUT COMPLETE_SHA SELECTION NEW_TEST_OUTPUT; resume PRIOR_OUTPUT NEW_OUTPUT";
+const USAGE: &str = "rust_train_v2 COMMAND PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE [paths]\ncommands: plan; train NEW_OUTPUT; verify OUTPUT COMPLETE_SHA; select OUTPUT COMPLETE_SHA NEW_SELECTION; test OUTPUT COMPLETE_SHA SELECTION NEW_TEST_OUTPUT; resume PRIOR_OUTPUT NEW_OUTPUT; compare-graphs NEW_OUTPUT ROUNDS";
 fn main() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
@@ -37,6 +37,11 @@ fn main() -> Result<(), String> {
         Some("resume") if args.len() == 7 => {
             let a = admit(&args[1..5])?;
             train(&a, Path::new(&args[6]), Some(Path::new(&args[5])))?;
+        }
+        Some("compare-graphs") if args.len() == 7 => {
+            let a = admit(&args[1..5])?;
+            let rounds = args[6].parse::<usize>().map_err(|_| "invalid rounds")?;
+            compare_graphs(&a, Path::new(&args[5]), rounds)?;
         }
         _ => return Err(USAGE.into()),
     }

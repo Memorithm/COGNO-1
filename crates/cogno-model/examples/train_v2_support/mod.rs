@@ -501,6 +501,118 @@ pub fn train(a: &Admission, out: &Path, prior: Option<&Path>) -> Result<(), Stri
     Ok(())
 }
 
+fn graph_admission(a: &Admission, graph: EncoderGraph) -> Result<Admission, String> {
+    let original = std::str::from_utf8(&a.protocol_bytes).map_err(|e| e.to_string())?;
+    let mut protocol = String::new();
+    for line in original.lines() {
+        if line.starts_with("encoder_graph\t") {
+            continue;
+        }
+        protocol.push_str(if line.starts_with("version\t") {
+            "version\trust-train-v3"
+        } else {
+            line
+        });
+        protocol.push('\n');
+    }
+    protocol.push_str(&format!("encoder_graph\t{}\n", graph.name()));
+    Ok(Admission {
+        protocol: Protocol::parse(protocol.as_bytes())?,
+        protocol_bytes: protocol.into_bytes(),
+        corpus: a.corpus.clone(),
+        tokenizer: a.tokenizer.clone(),
+        updates: a.updates,
+    })
+}
+
+/// Repeated full training comparisons, with exact artifact parity required.
+/// Timings include training, metrics, checkpoint I/O and bundle verification;
+/// admitted corpus loading/tokenizer fitting and cross-graph comparisons are excluded.
+pub fn compare_graphs(a: &Admission, out: &Path, rounds: usize) -> Result<(), String> {
+    use std::io::Write;
+    if !(1..=5).contains(&rounds) {
+        return Err("comparison rounds must be in 1..=5".into());
+    }
+    let updates = a
+        .updates
+        .checked_mul(rounds)
+        .and_then(|n| n.checked_mul(2))
+        .ok_or("comparison update budget overflow")?;
+    if updates > a.protocol.max_updates {
+        return Err(format!("comparison update budget exceeded: {updates}"));
+    }
+    let dense = graph_admission(a, EncoderGraph::Dense)?;
+    let gather = graph_admission(a, EncoderGraph::Gather)?;
+    std::fs::create_dir(out).map_err(|e| e.to_string())?;
+    write_new(&out.join("source-protocol.tsv"), &a.protocol_bytes)?;
+    let mut samples = std::fs::File::create(out.join("samples.tsv")).map_err(|e| e.to_string())?;
+    writeln!(samples, "round\tfirst_graph\tdense_ns\tgather_ns\tmatched_files\tdense_bundle_sha256\tgather_bundle_sha256")
+        .map_err(|e| e.to_string())?;
+    for round in 0..rounds {
+        let paths = [
+            out.join(format!("round-{round}-dense")),
+            out.join(format!("round-{round}-gather")),
+        ];
+        let order = if round.is_multiple_of(2) {
+            [0, 1]
+        } else {
+            [1, 0]
+        };
+        let mut elapsed = [0u128; 2];
+        for index in order {
+            let start = std::time::Instant::now();
+            train(
+                if index == 0 { &dense } else { &gather },
+                &paths[index],
+                None,
+            )?;
+            elapsed[index] = start.elapsed().as_nanos();
+        }
+        let matched = compare_training_artifacts(&dense, &paths[0], &paths[1])?;
+        let bundles = [
+            digest(&read_bounded(&paths[0].join("COMPLETE"), 65536)?),
+            digest(&read_bounded(&paths[1].join("COMPLETE"), 65536)?),
+        ];
+        writeln!(
+            samples,
+            "{round}\t{}\t{}\t{}\t{matched}\t{}\t{}",
+            if order[0] == 0 { "dense" } else { "gather" },
+            elapsed[0],
+            elapsed[1],
+            bundles[0],
+            bundles[1]
+        )
+        .map_err(|e| e.to_string())?;
+        samples.flush().map_err(|e| e.to_string())?;
+    }
+    let complete = format!("rust-graph-comparison-v1\nsource_protocol_sha256\t{}\nrounds\t{rounds}\nupdates\t{updates}\ncheckpoints_per_graph_per_round\t{}\nsamples_sha256\t{}\nmodel_promoted\tfalse\n",
+        digest(&a.protocol_bytes), a.protocol.arms.len() * a.protocol.seeds.len(),
+        digest(&read_bounded(&out.join("samples.tsv"), 65536)?));
+    write_new(&out.join("COMPLETE"), complete.as_bytes())?;
+    println!(
+        "GRAPH_COMPARISON_COMPLETE_SHA256={}",
+        digest(complete.as_bytes())
+    );
+    Ok(())
+}
+
+fn compare_training_artifacts(a: &Admission, left: &Path, right: &Path) -> Result<usize, String> {
+    let mut matched = 0;
+    for arm in &a.protocol.arms {
+        for &seed in &a.protocol.seeds {
+            for name in run_files(arm, seed) {
+                if read_bounded(&left.join(&name), 8 * 1024 * 1024)?
+                    != read_bounded(&right.join(&name), 8 * 1024 * 1024)?
+                {
+                    return Err(format!("dense/gather training artifact differs: {name}"));
+                }
+                matched += 1;
+            }
+        }
+    }
+    Ok(matched)
+}
+
 fn predictions(
     model: &cogno_model::bpe_cognitive::BpeCognitiveModel,
     a: &Admission,
@@ -981,6 +1093,59 @@ mod qualification {
         std::fs::write(&args[3], "changed").unwrap();
         assert!(admit(&args).is_err());
     }
+    #[test]
+    fn graph_comparison_records_all_rounds_and_checks_artifact_parity() {
+        let dir = Scratch::new();
+        let (a, _) = fixture(&dir.0, 2);
+        let out = dir.0.join("comparison");
+        compare_graphs(&a, &out, 2).unwrap();
+        let samples = std::fs::read_to_string(out.join("samples.tsv")).unwrap();
+        let rows: Vec<_> = samples
+            .lines()
+            .skip(1)
+            .map(|l| l.split('\t').collect::<Vec<_>>())
+            .collect();
+        assert_eq!(rows.len(), 2);
+        for (round, row) in rows.iter().enumerate() {
+            assert_eq!(row[0], round.to_string());
+            assert_eq!(row[1], if round == 0 { "dense" } else { "gather" });
+            assert!(row[2].parse::<u128>().unwrap() > 0);
+            assert!(row[3].parse::<u128>().unwrap() > 0);
+            assert_eq!(row[4], "12");
+            for (graph, column) in [("dense", 5), ("gather", 6)] {
+                assert_eq!(
+                    row[column],
+                    digest(
+                        &std::fs::read(out.join(format!("round-{round}-{graph}/COMPLETE")))
+                            .unwrap()
+                    )
+                );
+            }
+        }
+        let complete = std::fs::read_to_string(out.join("COMPLETE")).unwrap();
+        assert!(complete.contains("rounds\t2\nupdates\t64\n"));
+        assert!(complete.contains(&digest(samples.as_bytes())));
+        assert!(compare_graphs(&a, &out, 2).is_err());
+        std::fs::write(out.join("round-0-gather/full-seed-1.cbpc"), b"changed").unwrap();
+        assert!(compare_training_artifacts(
+            &a,
+            &out.join("round-0-dense"),
+            &out.join("round-0-gather")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn graph_comparison_budget_covers_both_graphs_and_every_round() {
+        let dir = Scratch::new();
+        let (a, _) = fixture(&dir.0, 1);
+        for rounds in [0, 3, 6, usize::MAX] {
+            let out = dir.0.join(format!("refused-{rounds}"));
+            assert!(compare_graphs(&a, &out, rounds).is_err());
+            assert!(!out.exists());
+        }
+    }
+
     #[test]
     fn v3_gather_reproduces_dense_training_and_refuses_cross_graph_resume() {
         for batch in [1, 2] {
