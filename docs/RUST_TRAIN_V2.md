@@ -103,8 +103,9 @@ seed**. Invalid rounds or an excessive total budget fail before creating output.
 Every pair must reproduce identical checkpoint bytes, epoch journals and
 train/validation predictions before a timing row is accepted. The sample table
 records every elapsed nanosecond count, order, matched-file count and both bundle
-identities. The final marker binds the input protocol and sample table and is
-written after all rounds pass. Its hash is printed for independent retention.
+identities. The v2 final marker binds the input protocol, its corpus and
+provenance hashes, and the sample table; it is written after all rounds pass. Its
+hash is printed for independent retention.
 No fastest-round selection, speedup assertion or test-based model selection occurs.
 
 Timing includes training, metrics, checkpoint I/O and bundle verification. Shared
