@@ -118,3 +118,10 @@ The same verifier can check a fresh RemoteOps summary after the run has produced
 ```sh
 python3 scripts/verify_rust50_v3_graph_evidence.py --actual /path/to/summary.json --source-commit <commit> --source-tree <tree>
 ```
+
+
+## Rust50 v3 runtime-verified rerun after the UTF-8 admission fix
+
+RemoteOps run `36348846012` (job `108703433769`) completed successfully after RemoteOps #61 pinned COGNO-1 `8d71d7cfbe2d4bd4a8f7710e62370d9317bb00b5`. The run checked the committed records, rebuilt the current source on Thor with Rust 1.97.1, and emitted all three accepted markers.
+
+The fresh comparison retained 55,296 updates and 18 matched files, with dense `28,464,820,093 ns` and gather `4,802,861,883 ns`. Bundle identities remained unchanged. This is a bounded aarch64 CPU shape check with no GPU training, no model promotion, and no general speedup or model-quality claim. The exact record is `thor-v3-runtime-verified-summary-latest.json`; the verifier and tamper tests cover it.
