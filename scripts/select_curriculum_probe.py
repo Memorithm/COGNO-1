@@ -9,7 +9,9 @@ ARMS = ('full', 'byte_mix', 'half_mix', 'cycle_mix')
 SEEDS = (1, 7, 42)
 
 
-def select(rows):
+def select(rows, validation_count=16):
+    if type(validation_count) is not int or validation_count not in (16, 48):
+        raise ValueError('unknown fixed validation budget')
     groups = {(a, s): {} for a in ARMS for s in SEEDS}
     for row in rows:
         if row['split'] != 'validation':
@@ -25,8 +27,8 @@ def select(rows):
             raise ValueError('duplicate source or invalid observation')
         groups[key][digest] = y, p
     reference = {h: y for h, (y, _) in groups['full', 1].items()}
-    if len(reference) != 16 or set(reference.values()) != {0, 1}:
-        raise ValueError('sixteen validation rows and both labels required')
+    if len(reference) != validation_count or set(reference.values()) != {0, 1}:
+        raise ValueError('fixed validation rows and both labels required')
     scores = []
     for arm in ARMS:
         losses = []

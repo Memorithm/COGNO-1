@@ -35,8 +35,12 @@ fn prefix(arm: &str, epoch: usize, merges: usize) -> usize {
 }
 fn main() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 4 {
-        return Err("usage: bpe_curriculum_probe CORPUS CORPUS_SHA NEW_OUTPUT_DIR".into());
+    let domain_holdout = args.len() == 5 && args[4] == "--domain-holdout-v1";
+    if args.len() != 4 && !domain_holdout {
+        return Err(
+            "usage: bpe_curriculum_probe CORPUS CORPUS_SHA NEW_OUTPUT_DIR [--domain-holdout-v1]"
+                .into(),
+        );
     }
     let corpus = RustCorpus::read(
         std::fs::File::open(&args[1]).map_err(|e| e.to_string())?,
@@ -49,15 +53,20 @@ fn main() -> Result<(), String> {
         .filter(|r| r.split == CorpusSplit::Train)
         .collect();
     // Fixed campaign budget, not a general-purpose unbounded training entry point.
-    if train.len() != 64
-        || rows.len() != 96
+    let (train_count, total_count, validation_count) = if domain_holdout {
+        (192, 288, 48)
+    } else {
+        (64, 96, 16)
+    };
+    if train.len() != train_count
+        || rows.len() != total_count
         || rows
             .iter()
             .filter(|r| r.split == CorpusSplit::Validation)
             .count()
-            != 16
+            != validation_count
     {
-        return Err("fixed campaign requires 64/16/16 rows".into());
+        return Err("fixed campaign split counts differ".into());
     }
     let sources: Vec<_> = train.iter().map(|r| r.source.as_slice()).collect();
     let tokenizer = BpeTokenizer::train(&sources, 384, 512).map_err(|e| format!("{e:?}"))?;
