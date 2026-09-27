@@ -243,6 +243,38 @@ mod tests {
     }
 }
 
+pub fn metrics(
+    model: &cogno_scirust::SequenceCognitiveHeads,
+    a: &Admission,
+    split: CorpusSplit,
+) -> Result<(usize, usize, f64), String> {
+    let mut count = 0;
+    let mut correct = 0;
+    let mut nll = 0.0;
+    for row in a.corpus.records().iter().filter(|r| r.split == split) {
+        let tokens = a
+            .tokenizer
+            .encode(&row.source)
+            .map_err(|e| format!("{e:?}"))?;
+        let probs = model
+            .classification_probabilities(&tokens)
+            .map_err(|e| format!("{e:?}"))?;
+        if probs.len() != 2
+            || probs
+                .iter()
+                .any(|p| !p.is_finite() || !(0.0..=1.0).contains(p))
+        {
+            return Err("invalid predicted probabilities".into());
+        }
+        count += 1;
+        correct += usize::from(usize::from(probs[1] > probs[0]) == row.label);
+        nll -= f64::from(probs[row.label]).clamp(1e-7, 1.0 - 1e-7).ln();
+    }
+    if count == 0 {
+        return Err("empty metric split".into());
+    }
+    Ok((count, correct, nll / count as f64))
+}
 pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
     use cogno_model::{
         bpe_checkpoint::encode_checkpoint, bpe_cognitive::BpeCognitiveModel,
@@ -252,6 +284,7 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
         CognitiveClassification, SequenceCognitiveAdamW, SequenceCognitiveConfig,
         SequenceCognitiveHeads, SequenceEncoderConfig,
     };
+    use std::io::Write;
     std::fs::create_dir(out).map_err(|e| e.to_string())?;
     std::fs::write(out.join("protocol.tsv"), &a.protocol_bytes).map_err(|e| e.to_string())?;
     std::fs::write(out.join("plan.tsv"), plan(a)).map_err(|e| e.to_string())?;
@@ -281,6 +314,13 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
                 contradiction_seed: 4,
             })
             .map_err(|e| format!("{e:?}"))?;
+            let mut epoch_log =
+                std::fs::File::create(out.join(format!("{arm}-seed-{seed}.epochs.tsv")))
+                    .map_err(|e| e.to_string())?;
+            writeln!(epoch_log, "epoch\tupdates\ttrain_rows_seen\temitted_tokens\ttrain_count\ttrain_correct\ttrain_nll\tvalidation_count\tvalidation_correct\tvalidation_nll").map_err(|e| e.to_string())?;
+            let mut run_updates = 0;
+            let mut seen = 0;
+            let mut emitted = 0;
             let mut optimizer = SequenceCognitiveAdamW::try_new(p.learning_rate, &model)
                 .map_err(|e| format!("{e:?}"))?;
             for epoch in 0..p.epochs {
@@ -313,7 +353,25 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
                             .map_err(|e| format!("{e:?}"))?;
                     }
                     completed_updates += 1;
+                    run_updates += 1;
+                    seen += batch.len();
+                    emitted += batch.iter().map(|&i| encoded[i].len()).sum::<usize>();
                 }
+                let tr = metrics(&model, a, CorpusSplit::Train)?;
+                let va = metrics(&model, a, CorpusSplit::Validation)?;
+                writeln!(
+                    epoch_log,
+                    "{}\t{run_updates}\t{seen}\t{emitted}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    epoch + 1,
+                    tr.0,
+                    tr.1,
+                    tr.2,
+                    va.0,
+                    va.1,
+                    va.2
+                )
+                .map_err(|e| e.to_string())?;
+                epoch_log.flush().map_err(|e| e.to_string())?;
             }
             let model = BpeCognitiveModel::from_heads(
                 a.tokenizer.clone(),
