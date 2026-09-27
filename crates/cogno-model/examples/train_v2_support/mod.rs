@@ -275,7 +275,7 @@ pub fn metrics(
     }
     Ok((count, correct, nll / count as f64))
 }
-pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
+pub fn train(a: &Admission, out: &Path, prior: Option<&Path>) -> Result<(), String> {
     use cogno_model::{
         bpe_checkpoint::encode_checkpoint, bpe_cognitive::BpeCognitiveModel,
         training_order::epoch_order,
@@ -285,6 +285,12 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
         SequenceCognitiveHeads, SequenceEncoderConfig,
     };
     use std::io::Write;
+    if let Some(prior) = prior
+        && (read_bounded(&prior.join("protocol.tsv"), 4096)? != a.protocol_bytes
+            || read_bounded(&prior.join("plan.tsv"), 4096)? != plan(a).as_bytes())
+    {
+        return Err("resume protocol mismatch".into());
+    }
     std::fs::create_dir(out).map_err(|e| e.to_string())?;
     std::fs::write(out.join("protocol.tsv"), &a.protocol_bytes).map_err(|e| e.to_string())?;
     std::fs::write(out.join("plan.tsv"), plan(a)).map_err(|e| e.to_string())?;
@@ -298,6 +304,24 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
     let mut completed_updates = 0;
     for arm in &p.arms {
         for &seed in &p.seeds {
+            if let Some(prior) = prior {
+                let marker = prior.join(format!("{arm}-seed-{seed}.DONE"));
+                if marker.try_exists().map_err(|e| e.to_string())? {
+                    verify_run(a, prior, arm, seed)?;
+                    for name in run_files(arm, seed)
+                        .into_iter()
+                        .chain([format!("{arm}-seed-{seed}.DONE")])
+                    {
+                        write_new(
+                            &out.join(&name),
+                            &read_bounded(&prior.join(&name), 8 * 1024 * 1024)?,
+                        )?;
+                    }
+                    completed_updates += rows.len().div_ceil(p.batch) * p.epochs;
+                    eprintln!("reused completed arm={arm} seed={seed}");
+                    continue;
+                }
+            }
             let mut model = SequenceCognitiveHeads::try_new(SequenceCognitiveConfig {
                 encoder: SequenceEncoderConfig {
                     vocab_size: a.tokenizer.vocab_size(),
@@ -392,7 +416,15 @@ pub fn train(a: &Admission, out: &Path) -> Result<(), String> {
                 predictions(&restored, a, false)?,
             )
             .map_err(|e| e.to_string())?;
-            eprintln!("completed arm={arm} seed={seed} updates={completed_updates}");
+            let done = run_manifest(a, out, arm, seed)?;
+            write_new(
+                &out.join(format!("{arm}-seed-{seed}.DONE")),
+                done.as_bytes(),
+            )?;
+            eprintln!(
+                "completed arm={arm} seed={seed} updates={completed_updates} run_sha256={}",
+                digest(done.as_bytes())
+            );
         }
     }
     if completed_updates != a.updates {
@@ -446,7 +478,7 @@ fn files(a: &Admission) -> Vec<String> {
     let mut names = vec!["protocol.tsv".to_owned(), "plan.tsv".to_owned()];
     for arm in &a.protocol.arms {
         for seed in &a.protocol.seeds {
-            for suffix in ["cbpc", "epochs.tsv", "predictions.tsv"] {
+            for suffix in ["cbpc", "epochs.tsv", "predictions.tsv", "DONE"] {
                 names.push(format!("{arm}-seed-{seed}.{suffix}"));
             }
         }
@@ -503,6 +535,7 @@ pub fn verify(a: &Admission, out: &Path, expected: &str) -> Result<(), String> {
     }
     for arm in &a.protocol.arms {
         for &seed in &a.protocol.seeds {
+            verify_run(a, out, arm, seed)?;
             let model = load_run(a, out, arm, seed)?;
             let actual = read_bounded(
                 &out.join(format!("{arm}-seed-{seed}.predictions.tsv")),
@@ -604,5 +637,115 @@ pub fn test_selected(
     ));
     write_new(&destination.join("COMPLETE"), manifest.as_bytes())?;
     println!("TEST_COMPLETE_SHA256={}", digest(manifest.as_bytes()));
+    Ok(())
+}
+
+fn run_files(arm: &str, seed: u64) -> Vec<String> {
+    ["cbpc", "epochs.tsv", "predictions.tsv"]
+        .iter()
+        .map(|suffix| format!("{arm}-seed-{seed}.{suffix}"))
+        .collect()
+}
+fn run_manifest(a: &Admission, out: &Path, arm: &str, seed: u64) -> Result<String, String> {
+    let mut manifest = format!(
+        "rust-train-v2-run\nprotocol_sha256\t{}\narm\t{arm}\nseed\t{seed}\nfile\tsha256\n",
+        digest(&a.protocol_bytes)
+    );
+    for name in run_files(arm, seed) {
+        manifest.push_str(&format!(
+            "{name}\t{}\n",
+            digest(&read_bounded(&out.join(&name), 8 * 1024 * 1024)?)
+        ));
+    }
+    Ok(manifest)
+}
+fn verify_run(a: &Admission, out: &Path, arm: &str, seed: u64) -> Result<(), String> {
+    if read_bounded(&out.join(format!("{arm}-seed-{seed}.DONE")), 4096)?
+        != run_manifest(a, out, arm, seed)?.as_bytes()
+    {
+        return Err("completed run inventory mismatch".into());
+    }
+    let model = load_run(a, out, arm, seed)?;
+    if read_bounded(
+        &out.join(format!("{arm}-seed-{seed}.predictions.tsv")),
+        8 * 1024 * 1024,
+    )? != predictions(&model, a, false)?.as_bytes()
+    {
+        return Err("completed run prediction mismatch".into());
+    }
+    let bytes = read_bounded(
+        &out.join(format!("{arm}-seed-{seed}.epochs.tsv")),
+        128 * 1024,
+    )?;
+    let text = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
+    let lines: Vec<_> = text.lines().collect();
+    if lines.len() != a.protocol.epochs + 1 || !text.ends_with('\n') || lines[0] != "epoch\tupdates\ttrain_rows_seen\temitted_tokens\ttrain_count\ttrain_correct\ttrain_nll\tvalidation_count\tvalidation_correct\tvalidation_nll" { return Err("epoch journal shape differs".into()); }
+    let train_rows: Vec<_> = a
+        .corpus
+        .records()
+        .iter()
+        .filter(|r| r.split == CorpusSplit::Train)
+        .collect();
+    let validation_count = a
+        .corpus
+        .records()
+        .iter()
+        .filter(|r| r.split == CorpusSplit::Validation)
+        .count();
+    let mut emitted = 0;
+    for (epoch, line) in lines[1..].iter().enumerate() {
+        let fields: Vec<_> = line.split('\t').collect();
+        if fields.len() != 10 {
+            return Err("epoch journal columns differ".into());
+        }
+        let merge_count = prefix(arm, epoch, a.tokenizer.vocab_size() - 259);
+        for row in &train_rows {
+            emitted += a
+                .tokenizer
+                .encode_with_merge_prefix(&row.source, merge_count)
+                .map_err(|e| format!("{e:?}"))?
+                .len();
+        }
+        let expected = [
+            epoch + 1,
+            (epoch + 1) * train_rows.len().div_ceil(a.protocol.batch),
+            (epoch + 1) * train_rows.len(),
+            emitted,
+            train_rows.len(),
+        ];
+        for (field, n) in fields[..5].iter().zip(expected) {
+            if field.parse::<usize>().ok() != Some(n) {
+                return Err("epoch update/exposure accounting differs".into());
+            }
+        }
+        if fields[7].parse::<usize>().ok() != Some(validation_count) {
+            return Err("validation count differs".into());
+        }
+        for (idx, max) in [(5, train_rows.len()), (8, validation_count)] {
+            if fields[idx].parse::<usize>().ok().is_none_or(|n| n > max) {
+                return Err("invalid correct count".into());
+            }
+        }
+        for idx in [6, 9] {
+            if fields[idx]
+                .parse::<f64>()
+                .ok()
+                .is_none_or(|n| !n.is_finite() || n < 0.0)
+            {
+                return Err("invalid epoch loss".into());
+            }
+        }
+        if epoch + 1 == a.protocol.epochs {
+            let tr = metrics(model.heads(), a, CorpusSplit::Train)?;
+            let va = metrics(model.heads(), a, CorpusSplit::Validation)?;
+            if fields[5] != tr.1.to_string()
+                || fields[6] != tr.2.to_string()
+                || fields[8] != va.1.to_string()
+                || fields[9] != va.2.to_string()
+            {
+                return Err("final epoch metrics differ from checkpoint".into());
+            }
+        }
+    }
     Ok(())
 }
