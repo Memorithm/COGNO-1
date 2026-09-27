@@ -7,7 +7,8 @@
 
 use crate::tokenizer::{BOS_TOKEN, EOS_TOKEN, SEP_TOKEN};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
 
 const BASE: usize = 259;
 const MAGIC: &[u8; 8] = b"CBPE0001";
@@ -39,6 +40,32 @@ pub struct BpeTokenizer {
     max_tokens: usize,
     merges: Vec<(u16, u16)>,
     pieces: Vec<Vec<u8>>,
+    ranks: BTreeMap<(u16, u16), u16>,
+}
+
+/// Caller-owned scratch space for rank-heap encoding. Reusing this value avoids
+/// rebuilding its allocations. It stores no model parameters and may be reused
+/// with a different tokenizer. Input remains bounded by `MAX_BPE_BYTES`.
+#[derive(Debug, Default)]
+pub struct BpeWorkspace {
+    nodes: Vec<BpeNode>,
+    candidates: BinaryHeap<Reverse<(u16, usize, usize)>>,
+    output: Vec<u16>,
+}
+
+#[derive(Debug)]
+struct BpeNode {
+    id: u16,
+    prev: Option<usize>,
+    next: Option<usize>,
+    alive: bool,
+}
+
+impl BpeWorkspace {
+    /// Empty scratch buffers; storage grows only for admitted bounded inputs.
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl BpeTokenizer {
@@ -53,6 +80,7 @@ impl BpeTokenizer {
             max_tokens,
             merges: Vec::with_capacity(merges.len()),
             pieces,
+            ranks: BTreeMap::new(),
         };
         for &pair in merges {
             model.append_merge(pair)?;
@@ -79,6 +107,7 @@ impl BpeTokenizer {
             return Err(BpeError::InvalidMerge);
         }
         self.pieces.push(piece);
+        self.ranks.insert(pair, self.merges.len() as u16);
         self.merges.push(pair);
         Ok(())
     }
@@ -184,6 +213,74 @@ impl BpeTokenizer {
         out.extend(ids);
         out.push(EOS_TOKEN);
         Ok(out)
+    }
+
+    /// Exact rank-priority encoding using a reusable heap and linked positions.
+    /// This opt-in path has the same framing, IDs and refusal rules as `encode`.
+    /// An error leaves no usable output in the workspace. Stale heap entries are
+    /// discarded by validating live adjacency before each merge.
+    pub fn encode_with_workspace<'a>(
+        &self,
+        bytes: &[u8],
+        workspace: &'a mut BpeWorkspace,
+    ) -> Result<&'a [u16], BpeError> {
+        workspace.output.clear();
+        if bytes.len() > MAX_BPE_BYTES {
+            return Err(BpeError::Capacity);
+        }
+        workspace.nodes.clear();
+        workspace.candidates.clear();
+        workspace
+            .nodes
+            .extend(bytes.iter().enumerate().map(|(i, &b)| BpeNode {
+                id: u16::from(b),
+                prev: i.checked_sub(1),
+                next: (i + 1 < bytes.len()).then_some(i + 1),
+                alive: true,
+            }));
+        for left in 0..bytes.len().saturating_sub(1) {
+            self.queue_candidate(workspace, left);
+        }
+        let mut count = bytes.len();
+        while let Some(Reverse((rank, left, right))) = workspace.candidates.pop() {
+            if !workspace.nodes[left].alive
+                || !workspace.nodes[right].alive
+                || workspace.nodes[left].next != Some(right)
+                || (workspace.nodes[left].id, workspace.nodes[right].id)
+                    != self.merges[usize::from(rank)]
+            {
+                continue;
+            }
+            workspace.nodes[left].id = (BASE + usize::from(rank)) as u16;
+            workspace.nodes[left].next = workspace.nodes[right].next;
+            workspace.nodes[right].alive = false;
+            if let Some(next) = workspace.nodes[left].next {
+                workspace.nodes[next].prev = Some(left);
+            }
+            count -= 1;
+            if let Some(prev) = workspace.nodes[left].prev {
+                self.queue_candidate(workspace, prev);
+            }
+            self.queue_candidate(workspace, left);
+        }
+        if count + 2 > self.max_tokens {
+            return Err(BpeError::Capacity);
+        }
+        workspace.output.push(BOS_TOKEN);
+        workspace
+            .output
+            .extend(workspace.nodes.iter().filter(|n| n.alive).map(|n| n.id));
+        workspace.output.push(EOS_TOKEN);
+        Ok(&workspace.output)
+    }
+
+    fn queue_candidate(&self, workspace: &mut BpeWorkspace, left: usize) {
+        if let Some(right) = workspace.nodes[left].next {
+            let pair = (workspace.nodes[left].id, workspace.nodes[right].id);
+            if let Some(&rank) = self.ranks.get(&pair) {
+                workspace.candidates.push(Reverse((rank, left, right)));
+            }
+        }
     }
 
     /// Training augmentation only: apply exactly the first `merge_count` ranks.
@@ -455,6 +552,47 @@ mod tests {
             }
         }
         model
+    }
+
+    #[test]
+    fn heap_encoding_matches_rank_scans_and_workspace_reuse() {
+        let mut workspace = BpeWorkspace::new();
+        for rules in [
+            vec![],
+            vec![(0, 0), (259, 0), (1, 2)],
+            vec![(1, 2), (0, 1), (0, 259)],
+        ] {
+            let t = BpeTokenizer::from_merges(512, &rules).unwrap();
+            for n in 0..=8u32 {
+                for mut x in 0..3usize.pow(n) {
+                    let bytes: Vec<u8> = (0..n)
+                        .map(|_| {
+                            let b = (x % 3) as u8;
+                            x /= 3;
+                            b
+                        })
+                        .collect();
+                    assert_eq!(
+                        t.encode_with_workspace(&bytes, &mut workspace).unwrap(),
+                        t.encode(&bytes).unwrap()
+                    );
+                }
+            }
+        }
+        let t = BpeTokenizer::train(&[b"fn main() { let x = vec![1,2]; }"], 300, 512).unwrap();
+        for n in [0, 1, 511, 512, MAX_BPE_BYTES, MAX_BPE_BYTES + 1] {
+            let bytes = vec![b'x'; n];
+            assert_eq!(
+                t.encode_with_workspace(&bytes, &mut workspace)
+                    .map(<[u16]>::to_vec),
+                t.encode(&bytes)
+            );
+        }
+        assert!(workspace.output.is_empty());
+        assert_eq!(
+            t.encode_with_workspace(b"", &mut workspace).unwrap(),
+            [BOS_TOKEN, EOS_TOKEN]
+        );
     }
 
     #[test]
