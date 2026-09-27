@@ -43,3 +43,9 @@ Each checkpoint is reloaded and compared exactly with its in-memory model before
 `rust_train_v2 verify PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA`
 
 Verification rejects incomplete inventories, changed bytes or protocol/configuration mismatches and independently recomputes every stored prediction from its checkpoint. A valid bundle certifies reproducible artifact contents, not that a claimed training history or compiler label is truthful. No test outcomes enter the completed training bundle.
+
+## Validation-only arm selection
+
+`rust_train_v2 select PROTOCOL PROTOCOL_SHA CORPUS PROVENANCE OUTPUT_DIR COMPLETE_SHA NEW_SELECTION_FILE`
+
+The selector first verifies the complete Cartesian product of preregistered arms and seeds, then recomputes final-checkpoint validation NLL. It selects the lowest mean across **all** seeds, with exact ties resolved by protocol arm order. The report retains every arm, seed count and repeated observation count. It does not choose the best seed or epoch. Repeated source observations across seeds are not independent test cases. Selection is recorded in a new file with both protocol and bundle identities; an existing selection file is refused.

@@ -515,3 +515,52 @@ pub fn verify(a: &Admission, out: &Path, expected: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+fn selection(a: &Admission, out: &Path, expected: &str) -> Result<(String, String), String> {
+    verify(a, out, expected)?;
+    let mut scores = Vec::new();
+    for arm in &a.protocol.arms {
+        let mut sum = 0.0;
+        let mut correct = 0;
+        let mut count = 0;
+        for &seed in &a.protocol.seeds {
+            let model = load_run(a, out, arm, seed)?;
+            let (n, c, nll) = metrics(model.heads(), a, CorpusSplit::Validation)?;
+            sum += nll;
+            correct += c;
+            count += n;
+        }
+        scores.push((arm, sum / a.protocol.seeds.len() as f64, count, correct));
+    }
+    let mut best = 0;
+    for i in 1..scores.len() {
+        if scores[i].1 < scores[best].1 {
+            best = i;
+        }
+    }
+    let arm = scores[best].0.clone();
+    let mut report = format!("rust-train-v2-selection\nprotocol_sha256\t{}\nbundle_sha256\t{expected}\nselected_arm\t{arm}\nrule\tmean_seed_validation_nll_then_protocol_order\narm\tseed_count\tvalidation_observations\tvalidation_correct\tmean_validation_nll\n", digest(&a.protocol_bytes));
+    for (name, nll, count, correct) in scores {
+        report.push_str(&format!(
+            "{name}\t{}\t{count}\t{correct}\t{nll}\n",
+            a.protocol.seeds.len()
+        ));
+    }
+    Ok((arm, report))
+}
+fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    f.write_all(bytes).map_err(|e| e.to_string())?;
+    f.sync_all().map_err(|e| e.to_string())
+}
+pub fn select(a: &Admission, out: &Path, expected: &str, destination: &Path) -> Result<(), String> {
+    let (_, report) = selection(a, out, expected)?;
+    write_new(destination, report.as_bytes())?;
+    println!("SELECTION_SHA256={}", digest(report.as_bytes()));
+    Ok(())
+}
