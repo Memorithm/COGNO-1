@@ -1,0 +1,56 @@
+{
+  "schema": "cogno-rust50-qualification-v1",
+  "baseline_commit": "c55761a0ec257672b0d029cc3eea37c4ea761024",
+  "rust_toolchain": "1.97.1",
+  "purpose": "Engineering qualification and reproducibility, not new evidence of Rust expertise",
+  "frozen_regression": {
+    "corpus_sha256": "fa327c59f97f46b5ddbf8d120e0283ce7fbb80085a31fcca0d7b9a004cc5fe1f",
+    "arms": ["full", "byte_mix", "half_mix", "cycle_mix"],
+    "seeds": [1, 7, 42],
+    "epochs": 24,
+    "expected_checkpoints": 12,
+    "expected_predictions": 3456,
+    "predictions_sha256": "051f5e2936629a81c92c89e3cf6161b7240d4e28dbcbc2c9e193362a15c356d3",
+    "acceptance": "All frozen predictions and checkpoint hashes must reproduce exactly"
+  },
+  "configurable_trainer": {
+    "corpus": "same frozen 192/48/48 domain split",
+    "arms": ["full", "cycle_mix"],
+    "seeds": [1, 7, 42],
+    "epochs": 24,
+    "batch_size": 1,
+    "vocab_size": 384,
+    "max_tokens": 512,
+    "embedding_dim": 8,
+    "hidden_dim": 16,
+    "learning_rate": 0.003,
+    "selection": "Mean validation NLL over all three seeds; declared arm order breaks ties",
+    "test": "Selected arm only, after validation selection; previously observed test set",
+    "promotion": false
+  },
+  "external_panel": {
+    "purpose": "Qualify acquisition, repository grouping and compiler labels",
+    "minimum_distinct_upstream_repositories": 3,
+    "execute_programs": false,
+    "blind_test": false,
+    "expertise_claim": false
+  },
+  "performance": {
+    "equivalence_first": true,
+    "report_raw_timings": true,
+    "minimum_speedup_gate": null,
+    "rule": "Report regressions and benefits for the measured shapes only; no trading-latency extrapolation"
+  },
+  "remote": {
+    "host": "Thor",
+    "controller": "Memorithm/RemoteOps",
+    "execution": "bounded CPU job, pinned source commit, separate output directory",
+    "gpu_training": false
+  },
+  "reporting": {
+    "retain_all_seeds": true,
+    "retain_failures": true,
+    "new_hyperparameter_search": false,
+    "model_promoted": false
+  }
+}
