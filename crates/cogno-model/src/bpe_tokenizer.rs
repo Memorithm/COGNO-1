@@ -625,7 +625,10 @@ mod tests {
         );
         assert!(t.encode_batch(&[], &mut workspace).unwrap().is_empty());
         assert_eq!(
-            t.encode_batch(&vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1], &mut workspace),
+            t.encode_batch(
+                &vec![b"".as_slice(); MAX_BPE_TRAIN_RECORDS + 1],
+                &mut workspace
+            ),
             Err(BpeError::Capacity)
         );
         let full = vec![0; MAX_BPE_TRAIN_BYTES];
