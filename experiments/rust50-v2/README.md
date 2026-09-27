@@ -105,6 +105,14 @@ The gate marker and successful Thor job produced the same 55,296 updates, 18 mat
 
 The complete gated record is retained in `thor-v3-gated-graph-summary.json`. The verifier now checks both the original v3 evidence and this post-gate rerun, while the RemoteOps log retains the `COGNO_COMMITTED_V3_EVIDENCE_VERIFIED` marker.
 
+## Rust50 v3 runtime-verified rerun on Thor
+
+RemoteOps run `36327304698` (job `108642451598`) completed successfully at RemoteOps commit `8a50d46723b4566cdaf04c08d32704659f349549`, after checking the committed record and the freshly generated summary. It ran COGNO-1 commit `9989cf5edd2f9d34a037877d2af746762715a84e`, tree `702e5e90135820027b66d93caef63a1f71cbb5ef`, on Rust 1.97.1 and `aarch64`.
+
+The runtime verifier passed before the final completion marker: 55,296 updates, 18 matched files, dense `28,714,368,040 ns`, gather `4,841,435,851 ns`, and the previously recorded bundle identities. This is a bounded one-host CPU shape check with no GPU training, no promotion, and no general speedup or model-quality claim.
+
+The exact record is retained in `thor-v3-runtime-verified-summary.json`; the failed pre-fix run was not accepted as evidence.
+
 The same verifier can check a fresh RemoteOps summary after the run has produced it:
 
 ```sh
