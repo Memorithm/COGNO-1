@@ -40,8 +40,8 @@ pub mod cognitive_soft_adjustment;
 pub mod dialogue_candidates;
 pub mod dialogue_snapshot;
 pub mod dialogue_store;
-pub mod executor;
 pub mod effect_reconciliation;
+pub mod executor;
 pub mod kv_controller;
 pub mod meta_activation;
 pub mod model_controlled_restart;
@@ -107,12 +107,12 @@ pub use dialogue_candidates::{
 };
 pub use dialogue_snapshot::{DialogueSnapshot, DialogueSnapshotError};
 pub use dialogue_store::{DialogueStoreError, PersistentDialogueStore};
-pub use executor::{ToolExecutor, ToolOutcome};
 pub use effect_reconciliation::{
     reconcile_ambiguous_effect, EffectReconciliationDecision, EffectReconciliationReason,
-    ReproposalCandidate, RemoteOpsEffectReceipt, RemoteOpsEffectReceiptVerifier,
+    RemoteOpsEffectReceipt, RemoteOpsEffectReceiptVerifier, ReproposalCandidate,
     SideEffectResolution, AXCOG4_EFFECT_RECEIPT_SCHEMA_V1,
 };
+pub use executor::{ToolExecutor, ToolOutcome};
 pub use kv_controller::{KvController, KvError};
 pub use meta_activation::{
     ControlledMetaActivationError, HostMetaAttestation, MetaActivationAuthority,

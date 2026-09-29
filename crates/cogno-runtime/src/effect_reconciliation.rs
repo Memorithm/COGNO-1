@@ -58,13 +58,10 @@ impl RemoteOpsEffectReceipt {
         }
         Ok(Self {
             schema_version: AXCOG4_EFFECT_RECEIPT_SCHEMA_V1.to_owned(),
-            attempt_id_sha256: hash_reference(
-                b"cogno-1:axcog4:attempt-id:v1\0",
-                attempt_id,
-            )
-            .ok_or(ReceiptBuildError::InvalidReference {
-                field: "attempt_id",
-            })?,
+            attempt_id_sha256: hash_reference(b"cogno-1:axcog4:attempt-id:v1\0", attempt_id)
+                .ok_or(ReceiptBuildError::InvalidReference {
+                    field: "attempt_id",
+                })?,
             workspace_snapshot_sha256: context.workspace_snapshot_sha256,
             model_artifact_sha256: context.model_artifact_sha256,
             task_binding_sha256: context.task_binding_sha256,
@@ -171,8 +168,7 @@ pub fn reconcile_ambiguous_effect(
     receipt: &RemoteOpsEffectReceipt,
     verifier: &impl RemoteOpsEffectReceiptVerifier,
 ) -> EffectReconciliationDecision {
-    let Some(attempt_id_sha256) =
-        hash_reference(b"cogno-1:axcog4:attempt-id:v1\0", attempt_id)
+    let Some(attempt_id_sha256) = hash_reference(b"cogno-1:axcog4:attempt-id:v1\0", attempt_id)
     else {
         return EffectReconciliationDecision::NeedExternalReconciliation(
             EffectReconciliationReason::InvalidAttemptId,
@@ -235,11 +231,9 @@ pub fn reconcile_ambiguous_effect(
         );
     }
     match receipt.resolution {
-        SideEffectResolution::Unknown => {
-            EffectReconciliationDecision::NeedExternalReconciliation(
-                EffectReconciliationReason::OutcomeUnknown,
-            )
-        }
+        SideEffectResolution::Unknown => EffectReconciliationDecision::NeedExternalReconciliation(
+            EffectReconciliationReason::OutcomeUnknown,
+        ),
         SideEffectResolution::ConfirmedEffect => {
             EffectReconciliationDecision::RetryBlockedByConfirmedEffect
         }
@@ -301,8 +295,14 @@ mod tests {
     };
 
     static TOOLS: &[ToolId] = &[ToolId(7)];
-    static EFFECTS: &[cogno_core::CapabilityClassification] =
-        &[CapabilityClassification::new(CapabilityId(9), CapabilityClass::Effect)];
+    static EFFECTS: &[cogno_core::CapabilityClassification] = &[CapabilityClassification::new(
+        CapabilityId(9),
+        CapabilityClass::Effect,
+    )];
+    static READS: &[CapabilityClassification] = &[CapabilityClassification::new(
+        CapabilityId(9),
+        CapabilityClass::Read,
+    )];
 
     struct AcceptReceipt;
 
@@ -320,19 +320,12 @@ mod tests {
         }
     }
 
-    fn scope<'a>(
-        task_binding: &'a [u8],
-        workspace: u8,
-        model: u8,
-    ) -> TaskCapabilityScope<'a> {
+    fn scope<'a>(task_binding: &'a [u8], workspace: u8, model: u8) -> TaskCapabilityScope<'a> {
         TaskCapabilityScope::new_with_provenance(
             task_binding,
             TOOLS,
             EFFECTS,
-            TaskExecutionProvenance::new(
-                WorkspaceSnapshotSha256([workspace; 32]),
-                [model; 32],
-            ),
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([workspace; 32]), [model; 32]),
         )
     }
 
@@ -509,11 +502,17 @@ mod tests {
         let read_scope = TaskCapabilityScope::new_with_provenance(
             b"task-1",
             TOOLS,
-            &[CapabilityClassification::new(CapabilityId(9), CapabilityClass::Read)],
+            READS,
             TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x22; 32]),
         );
         assert_eq!(
-            reconcile_ambiguous_effect("attempt-1", &read_scope, &proposal, &receipt, &AcceptReceipt),
+            reconcile_ambiguous_effect(
+                "attempt-1",
+                &read_scope,
+                &proposal,
+                &receipt,
+                &AcceptReceipt
+            ),
             EffectReconciliationDecision::NeedExternalReconciliation(
                 EffectReconciliationReason::NonEffectProposal
             )
