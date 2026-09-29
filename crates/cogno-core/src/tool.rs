@@ -19,6 +19,29 @@ pub struct ToolId(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CapabilityId(pub u32);
 
+/// Host-owned category for a capability. Model proposals carry only a
+/// capability ID; they cannot select or upgrade this category.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum CapabilityClass {
+    Read,
+    Reason,
+    Effect,
+}
+
+/// Deterministic registry entry assigning exactly one class to a capability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CapabilityClassification {
+    pub capability_id: CapabilityId,
+    pub class: CapabilityClass,
+}
+
+impl CapabilityClassification {
+    #[must_use]
+    pub const fn new(capability_id: CapabilityId, class: CapabilityClass) -> Self {
+        Self { capability_id, class }
+    }
+}
+
 /// Short, opaque justification code. The model supplies a code, not free text
 /// that could double as instructions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -30,15 +53,14 @@ pub const MAX_TASK_BINDING_BYTES: usize = 128;
 /// Host-provided capability context for one admitted task.
 ///
 /// The binding is deliberately opaque to COGNO-1. SciRust Hub owns task
-/// identity and admission; this type only carries the already-selected scope
-/// into the deterministic domain boundary. Model output cannot add tools or
-/// capabilities because the proposal is checked against this host-owned
-/// context and the runtime's own allowlists.
+/// identity and admission; this type carries the already-selected tool list
+/// and capability classes into the deterministic domain boundary. The model
+/// proposal contains only an ID and cannot choose its own class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TaskCapabilityScope<'a> {
     pub task_binding: &'a [u8],
     pub positive_tools: &'a [ToolId],
-    pub allowed_capabilities: &'a [CapabilityId],
+    pub capability_classifications: &'a [CapabilityClassification],
 }
 
 impl<'a> TaskCapabilityScope<'a> {
@@ -48,13 +70,9 @@ impl<'a> TaskCapabilityScope<'a> {
     pub const fn new(
         task_binding: &'a [u8],
         positive_tools: &'a [ToolId],
-        allowed_capabilities: &'a [CapabilityId],
+        capability_classifications: &'a [CapabilityClassification],
     ) -> Self {
-        Self {
-            task_binding,
-            positive_tools,
-            allowed_capabilities,
-        }
+        Self { task_binding, positive_tools, capability_classifications }
     }
 
     /// Check the cheap, deterministic shape of a host-provided scope.
@@ -73,21 +91,33 @@ impl<'a> TaskCapabilityScope<'a> {
                 return Err(TaskScopeError::DuplicateTool(*tool));
             }
         }
-        for (index, capability) in self.allowed_capabilities.iter().enumerate() {
-            if self.allowed_capabilities[index + 1..].contains(capability) {
-                return Err(TaskScopeError::DuplicateCapability(*capability));
+        for (index, classification) in self.capability_classifications.iter().enumerate() {
+            if self.capability_classifications[index + 1..]
+                .iter()
+                .any(|other| other.capability_id == classification.capability_id)
+            {
+                return Err(TaskScopeError::DuplicateCapability(classification.capability_id));
             }
         }
         Ok(())
     }
 
-    /// Check only the task-local positive lists. The runtime still intersects
-    /// these lists with its process-wide policy and applies the shell-shape
-    /// hard constraint before any future execution.
+    /// Return the host-assigned class for one capability, if it is in scope.
+    #[must_use]
+    pub fn capability_class(&self, capability_id: CapabilityId) -> Option<CapabilityClass> {
+        self.capability_classifications
+            .iter()
+            .find(|entry| entry.capability_id == capability_id)
+            .map(|entry| entry.class)
+    }
+
+    /// Check the task-local positive tool list and require a classified grant.
+    /// The runtime still intersects this scope with its own registry and
+    /// applies hard constraints before any future execution.
     #[must_use]
     pub fn permits(&self, proposal: &ToolProposalView<'_>) -> bool {
         self.positive_tools.contains(&proposal.tool_id)
-            && self.allowed_capabilities.contains(&proposal.capability_id)
+            && self.capability_class(proposal.capability_id).is_some()
     }
 }
 
@@ -163,7 +193,10 @@ mod tests {
     #[test]
     fn valid_scope_permits_only_the_intersection_candidate() {
         let tools = [ToolId(1)];
-        let capabilities = [CapabilityId(2)];
+        let capabilities = [CapabilityClassification::new(
+            CapabilityId(2),
+            CapabilityClass::Read,
+        )];
         let scope = TaskCapabilityScope::new(b"task-1", &tools, &capabilities);
         let arguments = [TypedArgument::Bytes(b"payload")];
         let permitted = ToolProposalView {
@@ -199,15 +232,24 @@ mod tests {
 
     #[test]
     fn duplicate_scope_entries_are_rejected() {
-        let duplicate_tool =
-            TaskCapabilityScope::new(b"task-1", &[ToolId(1), ToolId(1)], &[CapabilityId(1)]);
+        let duplicate_tool = TaskCapabilityScope::new(
+            b"task-1",
+            &[ToolId(1), ToolId(1)],
+            &[CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read)],
+        );
         assert_eq!(
             duplicate_tool.validate(),
             Err(TaskScopeError::DuplicateTool(ToolId(1)))
         );
 
-        let duplicate_capability =
-            TaskCapabilityScope::new(b"task-1", &[ToolId(1)], &[CapabilityId(1), CapabilityId(1)]);
+        let duplicate_capability = TaskCapabilityScope::new(
+            b"task-1",
+            &[ToolId(1)],
+            &[
+                CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
+                CapabilityClassification::new(CapabilityId(1), CapabilityClass::Effect),
+            ],
+        );
         assert_eq!(
             duplicate_capability.validate(),
             Err(TaskScopeError::DuplicateCapability(CapabilityId(1)))

@@ -23,8 +23,8 @@ use crate::taste_decision::{
 };
 use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
-    ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy, TaskCapabilityScope,
-    ToolProposalView,
+    CapabilityClass, ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy,
+    TaskCapabilityScope, ToolProposalView,
 };
 use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 
@@ -334,8 +334,13 @@ impl Runtime {
                     .reject(cogno_core::RejectReason::Unauthorized, None);
             }
             ToolOutcome::DryRunAuthorized => {
-                self.audit
-                    .tool_authorize(Some("dry-run authorized".to_string()));
+                let label = match scope.capability_class(p.capability_id) {
+                    Some(CapabilityClass::Read) => "dry-run authorized: read",
+                    Some(CapabilityClass::Reason) => "dry-run authorized: reason",
+                    Some(CapabilityClass::Effect) => "dry-run authorized: effect",
+                    None => "dry-run authorized: unknown class",
+                };
+                self.audit.tool_authorize(Some(label.to_string()));
             }
         }
         o

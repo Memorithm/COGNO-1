@@ -334,6 +334,36 @@ fn phase5_executor_rejects_unknown_tool_even_when_enabled() {
 }
 
 #[test]
+fn runtime_task_authorization_audits_the_class_as_dry_run() {
+    use cogno_core::{
+        CapabilityClass, CapabilityClassification, CapabilityId, ReasonCode, TaskCapabilityScope,
+        ToolId, ToolProposalView, TypedArgument,
+    };
+    static TOOLS: &[ToolId] = &[ToolId(1)];
+    static CAPABILITIES: &[CapabilityClassification] = &[
+        CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
+    ];
+    let mut runtime = Runtime::try_new(cfg()).unwrap();
+    runtime.tools = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
+    let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
+    let arguments = [TypedArgument::Bytes(b"read-only payload")];
+    let proposal = ToolProposalView {
+        tool_id: ToolId(1),
+        capability_id: CapabilityId(1),
+        arguments: &arguments,
+        justification_code: ReasonCode(1),
+    };
+
+    assert_eq!(
+        runtime.execute_tool_for_task(&scope, &proposal),
+        ToolOutcome::DryRunAuthorized
+    );
+    let record = runtime.audit.records.last().expect("authorization audit");
+    assert_eq!(record.decision, "tool_authorize");
+    assert_eq!(record.note.as_deref(), Some("dry-run authorized: read"));
+}
+
+#[test]
 fn pipeline_rejects_malformed_proposal_at_structural_stage() {
     let p = Pipeline;
     let ev = [EvidenceId::from_u64(0)]; // zero evidence id is malformed
