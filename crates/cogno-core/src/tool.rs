@@ -246,11 +246,8 @@ mod tests {
             CapabilityId(1),
             CapabilityClass::Read,
         )];
-        let duplicate_tool = TaskCapabilityScope::new(
-            b"task-1",
-            &duplicate_tool_ids,
-            &one_capability,
-        );
+        let duplicate_tool =
+            TaskCapabilityScope::new(b"task-1", &duplicate_tool_ids, &one_capability);
         assert_eq!(
             duplicate_tool.validate(),
             Err(TaskScopeError::DuplicateTool(ToolId(1)))
