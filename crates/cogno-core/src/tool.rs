@@ -50,25 +50,59 @@ impl CapabilityClassification {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ReasonCode(pub u16);
 
+/// Hash of the complete immutable workspace manifest supplied by the host.
+///
+/// RemoteOps owns the manifest format and must include every source, generated
+/// input, and exact object ID needed to materialize the task workspace.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct WorkspaceSnapshotSha256(pub [u8; 32]);
+
+/// Exact non-secret provenance supplied by the host for one task execution.
+///
+/// COGNO-1 validates only that these identifiers are present and non-empty.
+/// The host remains responsible for verifying the workspace materialization and
+/// the installed model artifact against these digests.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TaskExecutionProvenance {
+    pub workspace_snapshot_sha256: WorkspaceSnapshotSha256,
+    pub model_artifact_sha256: [u8; 32],
+}
+
+impl TaskExecutionProvenance {
+    /// Bind an admitted task to its exact workspace snapshot and model artifact.
+    #[must_use]
+    pub const fn new(
+        workspace_snapshot_sha256: WorkspaceSnapshotSha256,
+        model_artifact_sha256: [u8; 32],
+    ) -> Self {
+        Self {
+            workspace_snapshot_sha256,
+            model_artifact_sha256,
+        }
+    }
+}
+
 /// Maximum size of the opaque task binding supplied by the host.
 pub const MAX_TASK_BINDING_BYTES: usize = 128;
 
 /// Host-provided capability context for one admitted task.
 ///
 /// The binding is deliberately opaque to COGNO-1. SciRust Hub owns task
-/// identity and admission; this type carries the already-selected tool list
-/// and capability classes into the deterministic domain boundary. The model
-/// proposal contains only an ID and cannot choose its own class.
+/// identity and admission; this type carries the already-selected tool list,
+/// capability classes, and verified provenance references into the
+/// deterministic domain boundary. The model proposal contains only an ID and
+/// cannot choose its own class or provenance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TaskCapabilityScope<'a> {
     pub task_binding: &'a [u8],
     pub positive_tools: &'a [ToolId],
     pub capability_classifications: &'a [CapabilityClassification],
+    pub provenance: Option<TaskExecutionProvenance>,
 }
 
 impl<'a> TaskCapabilityScope<'a> {
-    /// Construct a task scope without claiming that the binding is
-    /// authenticated. Upstream admission remains responsible for that.
+    /// Construct a scope without execution provenance. It remains useful for
+    /// validating malformed shapes, but cannot authorize a task-scoped tool.
     #[must_use]
     pub const fn new(
         task_binding: &'a [u8],
@@ -79,6 +113,24 @@ impl<'a> TaskCapabilityScope<'a> {
             task_binding,
             positive_tools,
             capability_classifications,
+            provenance: None,
+        }
+    }
+
+    /// Construct a task scope bound to host-verified workspace and model
+    /// references. Upstream admission still owns authentication and verification.
+    #[must_use]
+    pub const fn new_with_provenance(
+        task_binding: &'a [u8],
+        positive_tools: &'a [ToolId],
+        capability_classifications: &'a [CapabilityClassification],
+        provenance: TaskExecutionProvenance,
+    ) -> Self {
+        Self {
+            task_binding,
+            positive_tools,
+            capability_classifications,
+            provenance: Some(provenance),
         }
     }
 
@@ -107,6 +159,15 @@ impl<'a> TaskCapabilityScope<'a> {
                     classification.capability_id,
                 ));
             }
+        }
+        let Some(provenance) = self.provenance else {
+            return Err(TaskScopeError::MissingProvenance);
+        };
+        if provenance.workspace_snapshot_sha256.0 == [0; 32] {
+            return Err(TaskScopeError::EmptyWorkspaceSnapshot);
+        }
+        if provenance.model_artifact_sha256 == [0; 32] {
+            return Err(TaskScopeError::EmptyModelArtifactDigest);
         }
         Ok(())
     }
@@ -137,6 +198,9 @@ pub enum TaskScopeError {
     BindingTooLarge { observed: usize, maximum: usize },
     DuplicateTool(ToolId),
     DuplicateCapability(CapabilityId),
+    MissingProvenance,
+    EmptyWorkspaceSnapshot,
+    EmptyModelArtifactDigest,
 }
 
 /// Type-tagged argument to a tool. Shell-shaped free text is suspicious: argv
@@ -150,6 +214,11 @@ pub enum TypedArgument<'a> {
     Path(&'a str),
 }
 
+/// Maximum number of typed arguments accepted for a task-scoped proposal.
+pub const MAX_TOOL_PROPOSAL_ARGUMENTS: usize = 128;
+/// Maximum combined payload size accepted for a task-scoped proposal.
+pub const MAX_TOOL_PROPOSAL_ARGUMENT_BYTES: usize = 64 * 1024;
+
 /// Typed tool proposal produced by the model (§7). Never executed directly.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToolProposalView<'a> {
@@ -157,6 +226,31 @@ pub struct ToolProposalView<'a> {
     pub capability_id: CapabilityId,
     pub arguments: &'a [TypedArgument<'a>],
     pub justification_code: ReasonCode,
+}
+
+/// Check the bounded shape of the proposal before scanning or hashing its
+/// arguments. This reads only the argument tags and lengths.
+#[must_use]
+pub fn tool_proposal_within_limits(proposal: &ToolProposalView<'_>) -> bool {
+    if proposal.arguments.len() > MAX_TOOL_PROPOSAL_ARGUMENTS {
+        return false;
+    }
+    let mut total_bytes = 0_usize;
+    for argument in proposal.arguments {
+        let length = match argument {
+            TypedArgument::Text(value) | TypedArgument::Path(value) => value.len(),
+            TypedArgument::Bytes(value) => value.len(),
+            TypedArgument::Int(_) => std::mem::size_of::<i64>(),
+        };
+        let Some(next_total) = total_bytes.checked_add(length) else {
+            return false;
+        };
+        if next_total > MAX_TOOL_PROPOSAL_ARGUMENT_BYTES {
+            return false;
+        }
+        total_bytes = next_total;
+    }
+    true
 }
 
 fn contains_shell_meta(s: &str) -> bool {
@@ -201,12 +295,19 @@ mod tests {
 
     #[test]
     fn valid_scope_permits_only_the_intersection_candidate() {
+        let provenance =
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([1; 32]), [2; 32]);
         let tools = [ToolId(1)];
         let capabilities = [CapabilityClassification::new(
             CapabilityId(2),
             CapabilityClass::Read,
         )];
-        let scope = TaskCapabilityScope::new(b"task-1", &tools, &capabilities);
+        let scope = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            &tools,
+            &capabilities,
+            provenance,
+        );
         let arguments = [TypedArgument::Bytes(b"payload")];
         let permitted = ToolProposalView {
             tool_id: ToolId(1),
@@ -224,6 +325,35 @@ mod tests {
     }
 
     #[test]
+    fn typed_proposal_arguments_are_bounded() {
+        let accepted_payload = vec![0_u8; MAX_TOOL_PROPOSAL_ARGUMENT_BYTES];
+        let accepted_arguments = [TypedArgument::Bytes(&accepted_payload)];
+        let accepted = ToolProposalView {
+            tool_id: ToolId(1),
+            capability_id: CapabilityId(1),
+            arguments: &accepted_arguments,
+            justification_code: ReasonCode(1),
+        };
+        assert!(tool_proposal_within_limits(&accepted));
+
+        let oversized_payload = vec![0_u8; MAX_TOOL_PROPOSAL_ARGUMENT_BYTES + 1];
+        let oversized_arguments = [TypedArgument::Bytes(&oversized_payload)];
+        let oversized = ToolProposalView {
+            arguments: &oversized_arguments,
+            ..accepted
+        };
+        assert!(!tool_proposal_within_limits(&oversized));
+
+        let too_many_arguments =
+            vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
+        let too_many = ToolProposalView {
+            arguments: &too_many_arguments,
+            ..accepted
+        };
+        assert!(!tool_proposal_within_limits(&too_many));
+    }
+
+    #[test]
     fn malformed_scope_fails_closed() {
         let empty = TaskCapabilityScope::new(b"", &[], &[]);
         assert_eq!(empty.validate(), Err(TaskScopeError::EmptyBinding));
@@ -236,6 +366,34 @@ mod tests {
                 observed: MAX_TASK_BINDING_BYTES + 1,
                 maximum: MAX_TASK_BINDING_BYTES,
             })
+        );
+
+        let missing_provenance = TaskCapabilityScope::new(b"task-1", &[], &[]);
+        assert_eq!(
+            missing_provenance.validate(),
+            Err(TaskScopeError::MissingProvenance)
+        );
+
+        let empty_workspace = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            &[],
+            &[],
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0; 32]), [2; 32]),
+        );
+        assert_eq!(
+            empty_workspace.validate(),
+            Err(TaskScopeError::EmptyWorkspaceSnapshot)
+        );
+
+        let empty_model = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            &[],
+            &[],
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([1; 32]), [0; 32]),
+        );
+        assert_eq!(
+            empty_model.validate(),
+            Err(TaskScopeError::EmptyModelArtifactDigest)
         );
     }
 

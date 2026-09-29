@@ -9,7 +9,7 @@ use crate::cognitive_decision::CognitiveRewardDecision;
 use crate::cognitive_observation::CognitiveObservation;
 use crate::cognitive_reward::AppliedCognitiveReward;
 use crate::taste_decision::TasteDecision;
-use cogno_core::{ContextReport, RejectReason};
+use cogno_core::{CapabilityClass, ContextReport, RejectReason};
 
 /// One verified-preference influence recorded after a decision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,6 +83,19 @@ impl From<&AppliedCognitiveReward> for CognitiveRewardAudit {
     }
 }
 
+/// Structured, non-secret provenance for one task-scoped tool authorization.
+///
+/// The result digest covers the exact typed model proposal, not an executed
+/// tool result. Raw task bindings and proposal arguments are never copied here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ToolAuthorizationProvenance {
+    pub capability_class: CapabilityClass,
+    pub workspace_snapshot_sha256: [u8; 32],
+    pub model_artifact_sha256: [u8; 32],
+    pub task_binding_sha256: [u8; 32],
+    pub result_sha256: [u8; 32],
+}
+
 /// One audit record. Pure data; no allocation on hot paths beyond pushing
 /// the record itself (audit happens after the decision/observation, never in
 /// the critical hard-gate path).
@@ -95,6 +108,7 @@ pub struct AuditRecord {
     pub cognitive: Option<CognitiveObservation>,
     pub cognitive_reward: Option<CognitiveRewardAudit>,
     pub cognitive_decision: Option<CognitiveRewardDecision>,
+    pub tool_provenance: Option<ToolAuthorizationProvenance>,
 }
 
 /// Hard cap on the in-memory audit buffer (T16): an attacker generating
@@ -133,6 +147,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
@@ -147,6 +162,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
@@ -162,6 +178,25 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
+        });
+    }
+
+    /// Record a task-scoped dry-run authorization with exact provenance.
+    pub fn tool_authorize_with_provenance(
+        &mut self,
+        note: Option<String>,
+        provenance: ToolAuthorizationProvenance,
+    ) {
+        self.push_record(AuditRecord {
+            decision: "tool_authorize",
+            reason: None,
+            note,
+            taste: None,
+            cognitive: None,
+            cognitive_reward: None,
+            cognitive_decision: None,
+            tool_provenance: Some(provenance),
         });
     }
 
@@ -179,6 +214,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
@@ -193,6 +229,7 @@ impl Audit {
             cognitive: Some(observation.clone()),
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
@@ -207,6 +244,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: Some(CognitiveRewardAudit::from(applied)),
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
@@ -220,6 +258,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: Some(decision.clone()),
+            tool_provenance: None,
         });
     }
 
@@ -236,6 +275,7 @@ impl Audit {
             cognitive: None,
             cognitive_reward: None,
             cognitive_decision: None,
+            tool_provenance: None,
         });
     }
 
