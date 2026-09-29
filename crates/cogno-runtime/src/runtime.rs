@@ -30,11 +30,11 @@ use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 use sha2::{Digest, Sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ToolResultProvenanceDigests {
-    workspace_snapshot_sha256: [u8; 32],
-    model_artifact_sha256: [u8; 32],
-    task_binding_sha256: [u8; 32],
-    result_sha256: [u8; 32],
+pub(crate) struct ToolResultProvenanceDigests {
+    pub(crate) workspace_snapshot_sha256: [u8; 32],
+    pub(crate) model_artifact_sha256: [u8; 32],
+    pub(crate) task_binding_sha256: [u8; 32],
+    pub(crate) result_sha256: [u8; 32],
 }
 
 fn append_len_prefixed(hash: &mut Sha256, bytes: &[u8]) -> Option<()> {
@@ -46,7 +46,7 @@ fn append_len_prefixed(hash: &mut Sha256, bytes: &[u8]) -> Option<()> {
 
 /// Bind the canonical task context and exact typed proposal without retaining
 /// raw arguments in the audit record.
-fn tool_result_provenance_digests(
+pub(crate) fn tool_result_provenance_digests(
     scope: &TaskCapabilityScope<'_>,
     proposal: &ToolProposalView<'_>,
 ) -> Option<ToolResultProvenanceDigests> {
