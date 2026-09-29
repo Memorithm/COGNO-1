@@ -161,9 +161,6 @@ pub enum EffectReconciliationDecision {
     ReproposalCandidate(ReproposalCandidate),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReceiptBuildErrorPlaceholder {}
-
 /// Bind a durable RemoteOps receipt to the current task and proposal before a
 /// caller may consider another authorization attempt.
 #[must_use]
