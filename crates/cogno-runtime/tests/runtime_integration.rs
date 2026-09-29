@@ -299,7 +299,7 @@ fn phase5_executor_enforces_capability_allowlist() {
 }
 
 #[test]
-fn phase5_executor_when_enabled_authorizes_known_non_shell() {
+fn phase5_executor_without_task_context_never_authorizes_non_shell() {
     use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
     static TOOLS: &[ToolId] = &[ToolId(7)];
     static CAPS: &[CapabilityId] = &[CapabilityId(1)];
@@ -311,7 +311,10 @@ fn phase5_executor_when_enabled_authorizes_known_non_shell() {
         arguments: &args,
         justification_code: ReasonCode(1),
     };
-    assert_eq!(exec.execute(&p), ToolOutcome::DryRunAuthorized);
+    assert_eq!(
+        exec.execute(&p),
+        ToolOutcome::Refused(RejectReason::Unauthorized)
+    );
 }
 
 #[test]
@@ -331,6 +334,37 @@ fn phase5_executor_rejects_unknown_tool_even_when_enabled() {
         exec.execute(&p),
         ToolOutcome::Refused(RejectReason::Unauthorized)
     );
+}
+
+#[test]
+fn runtime_task_authorization_audits_the_class_as_dry_run() {
+    use cogno_core::{
+        CapabilityClass, CapabilityClassification, CapabilityId, ReasonCode, TaskCapabilityScope,
+        ToolId, ToolProposalView, TypedArgument,
+    };
+    static TOOLS: &[ToolId] = &[ToolId(1)];
+    static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+        CapabilityId(1),
+        CapabilityClass::Read,
+    )];
+    let mut runtime = Runtime::try_new(cfg()).unwrap();
+    runtime.tools = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
+    let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
+    let arguments = [TypedArgument::Bytes(b"read-only payload")];
+    let proposal = ToolProposalView {
+        tool_id: ToolId(1),
+        capability_id: CapabilityId(1),
+        arguments: &arguments,
+        justification_code: ReasonCode(1),
+    };
+
+    assert_eq!(
+        runtime.execute_tool_for_task(&scope, &proposal),
+        ToolOutcome::DryRunAuthorized
+    );
+    let record = runtime.audit.records.last().expect("authorization audit");
+    assert_eq!(record.decision, "tool_authorize");
+    assert_eq!(record.note.as_deref(), Some("dry-run authorized: read"));
 }
 
 #[test]

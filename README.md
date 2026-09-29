@@ -268,6 +268,7 @@ contrôlées par le gate §24.
 - `docs/ARCHITECTURE.md` — séparation d'autorité et pipeline obligatoire ;
 - `docs/MODEL_CARD.md` — architecture neuronale, V4, Meta et limites ;
 - `docs/THREAT_MODEL.md` — modèle de menace ;
+- `docs/AX_TASK_CAPABILITIES.md` — classes de capacités AXCOG2 ;
 - `docs/MEMORY_MODEL.md` — budgets et mémoire ;
 - `docs/DATA_GOVERNANCE.md` — provenance, classification et secrets ;
 - `docs/DEPENDENCIES.md` — inventaire des dépendances ;
