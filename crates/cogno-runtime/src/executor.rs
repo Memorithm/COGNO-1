@@ -54,10 +54,9 @@ impl ToolExecutor {
         }
     }
 
-    /// Phase 5 construction: tools enabled by the host after audit, with an
-    /// explicit positive tool list and an explicit capability allowlist. Even
-    /// enabled, the executor enforces capability, tool-list and shell checks
-    /// before returning `DryRunAuthorized`.
+    /// Legacy unscoped construction. The positive lists are retained for
+    /// compatibility, but this executor cannot authorize a proposal without a
+    /// task binding; use `phase5_classified` and `execute_for_task` for dry runs.
     pub fn phase5(
         tools_enabled: bool,
         positive_tools: &'static [ToolId],
@@ -96,10 +95,9 @@ impl ToolExecutor {
         matching.next().is_none().then_some(class)
     }
 
-    /// Decide a tool proposal. The MVP refuses everything. When enabled, the
-    /// proposal must reference a capability on the allowlist (S2), a tool on
-    /// the positive list, and must not match the forbidden `sh -c <text>`
-    /// shape (`looks_like_shell_invocation`).
+    /// Decide an unscoped tool proposal. This entry point has no host task
+    /// binding and therefore never authorizes a proposal, even when the legacy
+    /// runtime allowlists match. Shell-shaped inputs retain their hard refusal.
     pub fn execute(&self, p: &ToolProposalView<'_>) -> ToolOutcome {
         if !self.tools_enabled || !self.capability_classifications.is_empty() {
             // A classified policy requires the host-provided task binding;
@@ -115,11 +113,9 @@ impl ToolExecutor {
         if cogno_core::looks_like_shell_invocation(p) {
             return ToolOutcome::Refused(RejectReason::HardConstraint);
         }
-        // Phase 5 (not enabled here) would now spawn the tool with separate
-        // argv elements, duration/memory/output/process/network limits, root
-        // confinement, and emit an audit record. We never execute anything in
-        // cogno-runtime itself: this is a library, not a syscall gateway.
-        ToolOutcome::DryRunAuthorized
+        // A proposal without the host task binding and classified scope must
+        // never be authorized by this entry point.
+        ToolOutcome::Refused(RejectReason::Unauthorized)
     }
 
     /// Decide a tool proposal inside a host-provided task scope.

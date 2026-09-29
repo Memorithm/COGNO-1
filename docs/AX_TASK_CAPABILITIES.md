@@ -25,8 +25,9 @@ Une proposition task-scoped est admise uniquement si :
 4. les contrôles déterministes existants, dont le rejet des formes shell, passent.
 
 Une classe absente, dupliquée ou différente entre runtime et tâche est refusée.
-Le chemin `ToolExecutor::execute` sans binding refuse également quand un
-registre classé est configuré ; il faut passer par `execute_for_task`.
+Le chemin `ToolExecutor::execute` sans binding refuse toute proposition,
+même si les anciennes allowlists correspondent. Seul `execute_for_task` peut
+produire une autorisation dry-run, après intersection des classes et des listes.
 
 ## Limite d’exécution
 

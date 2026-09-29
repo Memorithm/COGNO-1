@@ -299,7 +299,7 @@ fn phase5_executor_enforces_capability_allowlist() {
 }
 
 #[test]
-fn phase5_executor_when_enabled_authorizes_known_non_shell() {
+fn phase5_executor_without_task_context_never_authorizes_non_shell() {
     use cogno_core::{CapabilityId, ReasonCode, ToolId, ToolProposalView, TypedArgument};
     static TOOLS: &[ToolId] = &[ToolId(7)];
     static CAPS: &[CapabilityId] = &[CapabilityId(1)];
@@ -311,7 +311,10 @@ fn phase5_executor_when_enabled_authorizes_known_non_shell() {
         arguments: &args,
         justification_code: ReasonCode(1),
     };
-    assert_eq!(exec.execute(&p), ToolOutcome::DryRunAuthorized);
+    assert_eq!(
+        exec.execute(&p),
+        ToolOutcome::Refused(RejectReason::Unauthorized)
+    );
 }
 
 #[test]
