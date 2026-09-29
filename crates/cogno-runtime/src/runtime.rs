@@ -514,8 +514,7 @@ mod provenance_tests {
     use super::*;
     use cogno_core::{
         CapabilityClassification, CapabilityId, ReasonCode, TaskExecutionProvenance, ToolId,
-        WorkspaceSnapshotSha256, MAX_TOOL_PROPOSAL_ARGUMENTS,
-        MAX_TOOL_PROPOSAL_ARGUMENT_BYTES,
+        WorkspaceSnapshotSha256, MAX_TOOL_PROPOSAL_ARGUMENTS, MAX_TOOL_PROPOSAL_ARGUMENT_BYTES,
     };
 
     fn scope<'a>(
@@ -524,12 +523,7 @@ mod provenance_tests {
         capabilities: &'a [CapabilityClassification],
         provenance: TaskExecutionProvenance,
     ) -> TaskCapabilityScope<'a> {
-        TaskCapabilityScope::new_with_provenance(
-            task_binding,
-            tools,
-            capabilities,
-            provenance,
-        )
+        TaskCapabilityScope::new_with_provenance(task_binding, tools, capabilities, provenance)
     }
 
     #[test]

@@ -295,19 +295,14 @@ mod tests {
 
     #[test]
     fn valid_scope_permits_only_the_intersection_candidate() {
-        let provenance =
-            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([1; 32]), [2; 32]);
+        let provenance = TaskExecutionProvenance::new(WorkspaceSnapshotSha256([1; 32]), [2; 32]);
         let tools = [ToolId(1)];
         let capabilities = [CapabilityClassification::new(
             CapabilityId(2),
             CapabilityClass::Read,
         )];
-        let scope = TaskCapabilityScope::new_with_provenance(
-            b"task-1",
-            &tools,
-            &capabilities,
-            provenance,
-        );
+        let scope =
+            TaskCapabilityScope::new_with_provenance(b"task-1", &tools, &capabilities, provenance);
         let arguments = [TypedArgument::Bytes(b"payload")];
         let permitted = ToolProposalView {
             tool_id: ToolId(1),
@@ -344,8 +339,7 @@ mod tests {
         };
         assert!(!tool_proposal_within_limits(&oversized));
 
-        let too_many_arguments =
-            vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
+        let too_many_arguments = vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
         let too_many = ToolProposalView {
             arguments: &too_many_arguments,
             ..accepted
