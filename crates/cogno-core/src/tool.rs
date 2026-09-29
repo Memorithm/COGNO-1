@@ -38,7 +38,10 @@ pub struct CapabilityClassification {
 impl CapabilityClassification {
     #[must_use]
     pub const fn new(capability_id: CapabilityId, class: CapabilityClass) -> Self {
-        Self { capability_id, class }
+        Self {
+            capability_id,
+            class,
+        }
     }
 }
 
@@ -72,7 +75,11 @@ impl<'a> TaskCapabilityScope<'a> {
         positive_tools: &'a [ToolId],
         capability_classifications: &'a [CapabilityClassification],
     ) -> Self {
-        Self { task_binding, positive_tools, capability_classifications }
+        Self {
+            task_binding,
+            positive_tools,
+            capability_classifications,
+        }
     }
 
     /// Check the cheap, deterministic shape of a host-provided scope.
@@ -96,7 +103,9 @@ impl<'a> TaskCapabilityScope<'a> {
                 .iter()
                 .any(|other| other.capability_id == classification.capability_id)
             {
-                return Err(TaskScopeError::DuplicateCapability(classification.capability_id));
+                return Err(TaskScopeError::DuplicateCapability(
+                    classification.capability_id,
+                ));
             }
         }
         Ok(())
@@ -232,24 +241,28 @@ mod tests {
 
     #[test]
     fn duplicate_scope_entries_are_rejected() {
+        let duplicate_tool_ids = [ToolId(1), ToolId(1)];
+        let one_capability = [CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Read,
+        )];
         let duplicate_tool = TaskCapabilityScope::new(
             b"task-1",
-            &[ToolId(1), ToolId(1)],
-            &[CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read)],
+            &duplicate_tool_ids,
+            &one_capability,
         );
         assert_eq!(
             duplicate_tool.validate(),
             Err(TaskScopeError::DuplicateTool(ToolId(1)))
         );
 
-        let duplicate_capability = TaskCapabilityScope::new(
-            b"task-1",
-            &[ToolId(1)],
-            &[
-                CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-                CapabilityClassification::new(CapabilityId(1), CapabilityClass::Effect),
-            ],
-        );
+        let one_tool = [ToolId(1)];
+        let duplicate_capabilities = [
+            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
+            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Effect),
+        ];
+        let duplicate_capability =
+            TaskCapabilityScope::new(b"task-1", &one_tool, &duplicate_capabilities);
         assert_eq!(
             duplicate_capability.validate(),
             Err(TaskScopeError::DuplicateCapability(CapabilityId(1)))

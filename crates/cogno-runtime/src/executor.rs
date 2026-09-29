@@ -163,9 +163,10 @@ mod tests {
             CapabilityClassification::new(CapabilityId(2), CapabilityClass::Effect),
         ];
         static TASK_TOOLS: &[ToolId] = &[ToolId(1)];
-        static TASK_CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-        ];
+        static TASK_CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Read,
+        )];
         let executor = ToolExecutor::phase5_classified(true, RUNTIME_TOOLS, RUNTIME_CAPABILITIES);
         let scope = TaskCapabilityScope::new(b"task-1", TASK_TOOLS, TASK_CAPABILITIES);
         let arguments = [TypedArgument::Bytes(b"payload")];
@@ -205,12 +206,15 @@ mod tests {
     #[test]
     fn task_and_runtime_classification_must_match() {
         static TOOLS: &[ToolId] = &[ToolId(1)];
-        static RUNTIME_CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-        ];
-        static TASK_CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Effect),
-        ];
+        static RUNTIME_CAPABILITIES: &[CapabilityClassification] =
+            &[CapabilityClassification::new(
+                CapabilityId(1),
+                CapabilityClass::Read,
+            )];
+        static TASK_CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Effect,
+        )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, RUNTIME_CAPABILITIES);
         let scope = TaskCapabilityScope::new(b"task-1", TOOLS, TASK_CAPABILITIES);
         let arguments = [TypedArgument::Bytes(b"payload")];
@@ -233,9 +237,10 @@ mod tests {
             CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
             CapabilityClassification::new(CapabilityId(1), CapabilityClass::Effect),
         ];
-        static TASK_CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-        ];
+        static TASK_CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Read,
+        )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, RUNTIME_CAPABILITIES);
         let scope = TaskCapabilityScope::new(b"task-1", TOOLS, TASK_CAPABILITIES);
         let arguments = [TypedArgument::Bytes(b"payload")];
@@ -254,9 +259,10 @@ mod tests {
     #[test]
     fn task_scope_preserves_hard_shell_rejection() {
         static TOOLS: &[ToolId] = &[ToolId(1)];
-        static CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-        ];
+        static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Read,
+        )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
         let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
         let arguments = [TypedArgument::Text("read ; delete")];
@@ -275,9 +281,10 @@ mod tests {
     #[test]
     fn malformed_task_scope_is_refused_before_authorization() {
         static TOOLS: &[ToolId] = &[ToolId(1)];
-        static CAPABILITIES: &[CapabilityClassification] = &[
-            CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-        ];
+        static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+            CapabilityId(1),
+            CapabilityClass::Read,
+        )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
         let scope = TaskCapabilityScope::new(b"", TOOLS, CAPABILITIES);
         let arguments = [TypedArgument::Bytes(b"payload")];

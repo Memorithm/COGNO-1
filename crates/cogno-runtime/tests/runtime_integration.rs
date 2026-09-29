@@ -343,9 +343,10 @@ fn runtime_task_authorization_audits_the_class_as_dry_run() {
         ToolId, ToolProposalView, TypedArgument,
     };
     static TOOLS: &[ToolId] = &[ToolId(1)];
-    static CAPABILITIES: &[CapabilityClassification] = &[
-        CapabilityClassification::new(CapabilityId(1), CapabilityClass::Read),
-    ];
+    static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+        CapabilityId(1),
+        CapabilityClass::Read,
+    )];
     let mut runtime = Runtime::try_new(cfg()).unwrap();
     runtime.tools = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
     let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
