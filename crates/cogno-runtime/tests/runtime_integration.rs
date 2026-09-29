@@ -340,7 +340,7 @@ fn phase5_executor_rejects_unknown_tool_even_when_enabled() {
 fn runtime_task_authorization_audits_the_class_as_dry_run() {
     use cogno_core::{
         CapabilityClass, CapabilityClassification, CapabilityId, ReasonCode, TaskCapabilityScope,
-        ToolId, ToolProposalView, TypedArgument,
+        TaskExecutionProvenance, ToolId, ToolProposalView, TypedArgument, WorkspaceSnapshotSha256,
     };
     static TOOLS: &[ToolId] = &[ToolId(1)];
     static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
@@ -349,7 +349,12 @@ fn runtime_task_authorization_audits_the_class_as_dry_run() {
     )];
     let mut runtime = Runtime::try_new(cfg()).unwrap();
     runtime.tools = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
-    let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
+    let scope = TaskCapabilityScope::new_with_provenance(
+        b"task-1",
+        TOOLS,
+        CAPABILITIES,
+        TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x22; 32]),
+    );
     let arguments = [TypedArgument::Bytes(b"read-only payload")];
     let proposal = ToolProposalView {
         tool_id: ToolId(1),
@@ -365,6 +370,52 @@ fn runtime_task_authorization_audits_the_class_as_dry_run() {
     let record = runtime.audit.records.last().expect("authorization audit");
     assert_eq!(record.decision, "tool_authorize");
     assert_eq!(record.note.as_deref(), Some("dry-run authorized: read"));
+    let provenance = record
+        .tool_provenance
+        .as_ref()
+        .expect("structured tool provenance");
+    assert_eq!(provenance.capability_class, CapabilityClass::Read);
+    assert_eq!(provenance.workspace_snapshot_sha256, [0x11; 32]);
+    assert_eq!(provenance.model_artifact_sha256, [0x22; 32]);
+    assert_ne!(provenance.task_binding_sha256, [0; 32]);
+    assert_ne!(provenance.result_sha256, [0; 32]);
+}
+
+#[test]
+fn runtime_refuses_tool_result_over_the_provenance_limit() {
+    use cogno_core::{
+        CapabilityClass, CapabilityClassification, CapabilityId, ReasonCode, TaskCapabilityScope,
+        TaskExecutionProvenance, ToolId, ToolProposalView, TypedArgument, WorkspaceSnapshotSha256,
+    };
+    static TOOLS: &[ToolId] = &[ToolId(1)];
+    static CAPABILITIES: &[CapabilityClassification] = &[CapabilityClassification::new(
+        CapabilityId(1),
+        CapabilityClass::Read,
+    )];
+    let mut runtime = Runtime::try_new(cfg()).unwrap();
+    runtime.tools = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
+    let scope = TaskCapabilityScope::new_with_provenance(
+        b"task-1",
+        TOOLS,
+        CAPABILITIES,
+        TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x22; 32]),
+    );
+    let oversized_payload = vec![b'x'; 64 * 1024 + 1];
+    let arguments = [TypedArgument::Bytes(&oversized_payload)];
+    let proposal = ToolProposalView {
+        tool_id: ToolId(1),
+        capability_id: CapabilityId(1),
+        arguments: &arguments,
+        justification_code: ReasonCode(1),
+    };
+
+    assert_eq!(
+        runtime.execute_tool_for_task(&scope, &proposal),
+        ToolOutcome::Refused(RejectReason::Unauthorized)
+    );
+    let record = runtime.audit.records.last().expect("refusal audit");
+    assert_eq!(record.decision, "reject");
+    assert!(record.tool_provenance.is_none());
 }
 
 #[test]

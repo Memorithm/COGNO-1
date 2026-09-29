@@ -81,7 +81,10 @@ pub mod taste_validation_store;
 pub mod verified_taste_profile;
 
 pub use admission::{Admission, AdmissionError};
-pub use audit::{Audit, CognitiveRewardAudit, TasteDecisionAudit, TasteInfluenceAudit};
+pub use audit::{
+    Audit, CognitiveRewardAudit, TasteDecisionAudit, TasteInfluenceAudit,
+    ToolAuthorizationProvenance,
+};
 pub use cognitive_decision::{
     decide_with_applied_cognitive_rewards, CognitiveDecisionCandidate, CognitiveDecisionError,
     CognitiveDecisionTrace, CognitiveRewardDecision, MAX_COGNITIVE_DECISION_CANDIDATES,

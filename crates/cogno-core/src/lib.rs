@@ -114,8 +114,10 @@ pub use taste::{
     MAX_TASTE_CONFIDENCE_BPS, MAX_TASTE_EVIDENCE_IDS, MAX_TASTE_SOURCE_ID_BYTES,
 };
 pub use tool::{
-    classify_tool_proposal, looks_like_shell_invocation, CapabilityClass, CapabilityClassification,
-    CapabilityId, ReasonCode, TaskCapabilityScope, TaskScopeError, ToolId, ToolProposalView,
-    TypedArgument, MAX_TASK_BINDING_BYTES, MVP_TOOLS_ENABLED,
+    classify_tool_proposal, looks_like_shell_invocation, tool_proposal_within_limits,
+    CapabilityClass, CapabilityClassification, CapabilityId, ReasonCode, TaskCapabilityScope,
+    TaskExecutionProvenance, TaskScopeError, ToolId, ToolProposalView, TypedArgument,
+    WorkspaceSnapshotSha256, MAX_TASK_BINDING_BYTES, MAX_TOOL_PROPOSAL_ARGUMENTS,
+    MAX_TOOL_PROPOSAL_ARGUMENT_BYTES, MVP_TOOLS_ENABLED,
 };
 pub use validators::{structural, symbolic};

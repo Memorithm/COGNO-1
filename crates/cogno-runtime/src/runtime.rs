@@ -7,7 +7,7 @@
 //! pure evaluator.
 
 use crate::admission::{Admission, AdmissionError};
-use crate::audit::Audit;
+use crate::audit::{Audit, ToolAuthorizationProvenance};
 use crate::executor::{ToolExecutor, ToolOutcome};
 use crate::kv_controller::{KvController, KvError};
 use crate::meta_activation::{
@@ -23,10 +23,85 @@ use crate::taste_decision::{
 };
 use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfile};
 use cogno_core::{
-    CapabilityClass, ContextReport, MemoryBudget, MetaObjective, QueueFullPolicy, SafetyPolicy,
-    TaskCapabilityScope, ToolProposalView,
+    tool_proposal_within_limits, CapabilityClass, ContextReport, MemoryBudget, MetaObjective,
+    QueueFullPolicy, SafetyPolicy, TaskCapabilityScope, ToolProposalView, TypedArgument,
 };
 use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
+use sha2::{Digest, Sha256};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ToolResultProvenanceDigests {
+    workspace_snapshot_sha256: [u8; 32],
+    model_artifact_sha256: [u8; 32],
+    task_binding_sha256: [u8; 32],
+    result_sha256: [u8; 32],
+}
+
+fn append_len_prefixed(hash: &mut Sha256, bytes: &[u8]) -> Option<()> {
+    let length = u64::try_from(bytes.len()).ok()?;
+    hash.update(length.to_le_bytes());
+    hash.update(bytes);
+    Some(())
+}
+
+/// Bind the canonical task context and exact typed proposal without retaining
+/// raw arguments in the audit record.
+fn tool_result_provenance_digests(
+    scope: &TaskCapabilityScope<'_>,
+    proposal: &ToolProposalView<'_>,
+) -> Option<ToolResultProvenanceDigests> {
+    if !tool_proposal_within_limits(proposal) {
+        return None;
+    }
+    let provenance = scope.provenance?;
+    let mut task_binding_hash = Sha256::new();
+    task_binding_hash.update(b"cogno-1:task-binding:v1\0");
+    append_len_prefixed(&mut task_binding_hash, scope.task_binding)?;
+    let binding_digest = task_binding_hash.finalize();
+    let mut task_binding_sha256 = [0_u8; 32];
+    task_binding_sha256.copy_from_slice(&binding_digest);
+
+    let argument_count = u64::try_from(proposal.arguments.len()).ok()?;
+    let mut result_hash = Sha256::new();
+    result_hash.update(b"cogno-1:tool-proposal-result:v1\0");
+    result_hash.update(provenance.workspace_snapshot_sha256.0);
+    result_hash.update(provenance.model_artifact_sha256);
+    append_len_prefixed(&mut result_hash, scope.task_binding)?;
+    result_hash.update(proposal.tool_id.0.to_le_bytes());
+    result_hash.update(proposal.capability_id.0.to_le_bytes());
+    result_hash.update(proposal.justification_code.0.to_le_bytes());
+    result_hash.update(argument_count.to_le_bytes());
+    for argument in proposal.arguments {
+        match argument {
+            TypedArgument::Text(value) => {
+                result_hash.update([0x01]);
+                append_len_prefixed(&mut result_hash, value.as_bytes())?;
+            }
+            TypedArgument::Bytes(value) => {
+                result_hash.update([0x02]);
+                append_len_prefixed(&mut result_hash, value)?;
+            }
+            TypedArgument::Int(value) => {
+                result_hash.update([0x03]);
+                result_hash.update(value.to_le_bytes());
+            }
+            TypedArgument::Path(value) => {
+                result_hash.update([0x04]);
+                append_len_prefixed(&mut result_hash, value.as_bytes())?;
+            }
+        }
+    }
+    let result_digest = result_hash.finalize();
+    let mut result_sha256 = [0_u8; 32];
+    result_sha256.copy_from_slice(&result_digest);
+
+    Some(ToolResultProvenanceDigests {
+        workspace_snapshot_sha256: provenance.workspace_snapshot_sha256.0,
+        model_artifact_sha256: provenance.model_artifact_sha256,
+        task_binding_sha256,
+        result_sha256,
+    })
+}
 
 /// Runtime configuration (validated by the construction).
 #[derive(Clone, Debug)]
@@ -318,32 +393,54 @@ impl Runtime {
 
     /// Decide and audit a tool proposal inside a host-provided task scope.
     ///
-    /// The scope is not supplied by the model. It is checked against both the
-    /// runtime-wide policy and the task-local positive lists, while the normal
-    /// audit path remains unchanged.
+    /// A dry-run authorization is bound to the exact workspace snapshot,
+    /// installed model digest, opaque task binding, and canonical typed result.
+    /// No tool is executed and no raw argument is copied into the audit.
     pub fn execute_tool_for_task(
         &mut self,
         scope: &TaskCapabilityScope<'_>,
         p: &ToolProposalView<'_>,
     ) -> ToolOutcome {
-        let o = self.tools.execute_for_task(scope, p);
-        match o {
+        let outcome = self.tools.execute_for_task(scope, p);
+        match outcome {
             ToolOutcome::Refused(_) => {
                 self.rejections = self.rejections.saturating_add(1);
                 self.audit
                     .reject(cogno_core::RejectReason::Unauthorized, None);
+                outcome
             }
             ToolOutcome::DryRunAuthorized => {
-                let label = match scope.capability_class(p.capability_id) {
-                    Some(CapabilityClass::Read) => "dry-run authorized: read",
-                    Some(CapabilityClass::Reason) => "dry-run authorized: reason",
-                    Some(CapabilityClass::Effect) => "dry-run authorized: effect",
-                    None => "dry-run authorized: unknown class",
+                let Some(class) = scope.capability_class(p.capability_id) else {
+                    return self.refuse_tool_authorization();
                 };
-                self.audit.tool_authorize(Some(label.to_string()));
+                let Some(digests) = tool_result_provenance_digests(scope, p) else {
+                    return self.refuse_tool_authorization();
+                };
+                let label = match class {
+                    CapabilityClass::Read => "dry-run authorized: read",
+                    CapabilityClass::Reason => "dry-run authorized: reason",
+                    CapabilityClass::Effect => "dry-run authorized: effect",
+                };
+                self.audit.tool_authorize_with_provenance(
+                    Some(label.to_string()),
+                    ToolAuthorizationProvenance {
+                        capability_class: class,
+                        workspace_snapshot_sha256: digests.workspace_snapshot_sha256,
+                        model_artifact_sha256: digests.model_artifact_sha256,
+                        task_binding_sha256: digests.task_binding_sha256,
+                        result_sha256: digests.result_sha256,
+                    },
+                );
+                outcome
             }
         }
-        o
+    }
+
+    fn refuse_tool_authorization(&mut self) -> ToolOutcome {
+        self.rejections = self.rejections.saturating_add(1);
+        self.audit
+            .reject(cogno_core::RejectReason::Unauthorized, None);
+        ToolOutcome::Refused(cogno_core::RejectReason::Unauthorized)
     }
 
     /// Activate the §4 meta-objective only from a sealed, held-out eligible
@@ -409,5 +506,94 @@ impl Runtime {
             rejections: self.rejections,
             truncations: self.truncations,
         }
+    }
+}
+
+#[cfg(test)]
+mod provenance_tests {
+    use super::*;
+    use cogno_core::{
+        CapabilityClassification, CapabilityId, ReasonCode, TaskExecutionProvenance, ToolId,
+        WorkspaceSnapshotSha256, MAX_TOOL_PROPOSAL_ARGUMENTS, MAX_TOOL_PROPOSAL_ARGUMENT_BYTES,
+    };
+
+    fn scope<'a>(
+        task_binding: &'a [u8],
+        tools: &'a [ToolId],
+        capabilities: &'a [CapabilityClassification],
+        provenance: TaskExecutionProvenance,
+    ) -> TaskCapabilityScope<'a> {
+        TaskCapabilityScope::new_with_provenance(task_binding, tools, capabilities, provenance)
+    }
+
+    #[test]
+    fn typed_result_digest_binds_task_workspace_model_and_argument_type() {
+        let tools = [ToolId(7)];
+        let capabilities = [CapabilityClassification::new(
+            CapabilityId(3),
+            CapabilityClass::Read,
+        )];
+        let provenance =
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x22; 32]);
+        let task_scope = scope(b"task-1", &tools, &capabilities, provenance);
+        let text_arguments = [TypedArgument::Text("same")];
+        let text_result = ToolProposalView {
+            tool_id: ToolId(7),
+            capability_id: CapabilityId(3),
+            arguments: &text_arguments,
+            justification_code: ReasonCode(9),
+        };
+        let baseline = tool_result_provenance_digests(&task_scope, &text_result)
+            .expect("valid task result provenance");
+
+        let byte_arguments = [TypedArgument::Bytes(b"same")];
+        let byte_result = ToolProposalView {
+            arguments: &byte_arguments,
+            ..text_result
+        };
+        let typed = tool_result_provenance_digests(&task_scope, &byte_result)
+            .expect("valid byte result provenance");
+        assert_ne!(baseline.result_sha256, typed.result_sha256);
+
+        let other_task = scope(b"task-2", &tools, &capabilities, provenance);
+        let task_bound = tool_result_provenance_digests(&other_task, &text_result)
+            .expect("valid alternate task provenance");
+        assert_ne!(baseline.task_binding_sha256, task_bound.task_binding_sha256);
+        assert_ne!(baseline.result_sha256, task_bound.result_sha256);
+
+        let other_workspace =
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x33; 32]), [0x22; 32]);
+        let workspace_bound = scope(b"task-1", &tools, &capabilities, other_workspace);
+        assert_ne!(
+            baseline.result_sha256,
+            tool_result_provenance_digests(&workspace_bound, &text_result)
+                .expect("valid alternate workspace provenance")
+                .result_sha256
+        );
+
+        let other_model =
+            TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x44; 32]);
+        let model_bound = scope(b"task-1", &tools, &capabilities, other_model);
+        assert_ne!(
+            baseline.result_sha256,
+            tool_result_provenance_digests(&model_bound, &text_result)
+                .expect("valid alternate model provenance")
+                .result_sha256
+        );
+
+        let oversized_bytes = vec![0_u8; MAX_TOOL_PROPOSAL_ARGUMENT_BYTES + 1];
+        let oversized_arguments = [TypedArgument::Bytes(&oversized_bytes)];
+        let oversized_result = ToolProposalView {
+            arguments: &oversized_arguments,
+            ..text_result
+        };
+        assert!(tool_result_provenance_digests(&task_scope, &oversized_result).is_none());
+
+        let too_many_arguments = vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
+        let excessive_result = ToolProposalView {
+            arguments: &too_many_arguments,
+            ..text_result
+        };
+        assert!(tool_result_provenance_digests(&task_scope, &excessive_result).is_none());
     }
 }

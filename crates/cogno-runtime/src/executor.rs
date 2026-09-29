@@ -11,8 +11,8 @@
 //! `Unauthorized` for every proposal — fail closed (S10).
 
 use cogno_core::{
-    CapabilityClass, CapabilityClassification, CapabilityId, RejectReason, TaskCapabilityScope,
-    ToolId, ToolProposalView, MVP_TOOLS_ENABLED,
+    tool_proposal_within_limits, CapabilityClass, CapabilityClassification, CapabilityId,
+    RejectReason, TaskCapabilityScope, ToolId, ToolProposalView, MVP_TOOLS_ENABLED,
 };
 
 /// Deterministic outcome of a tool proposal.
@@ -20,7 +20,8 @@ use cogno_core::{
 pub enum ToolOutcome {
     /// MVP gate: no tool may run.
     Refused(RejectReason),
-    /// Would be authorized in Phase 5; recorded but never executed here.
+    /// Runtime policy permits the proposal for dry-run after provenance and
+    /// audit binding; no tool is executed.
     DryRunAuthorized,
 }
 
@@ -125,12 +126,12 @@ impl ToolExecutor {
     /// shape only here; SciRust Hub remains responsible for task identity and
     /// admission. A malformed or over-broad scope therefore cannot expand
     /// authority and is refused before the existing hard checks.
-    pub fn execute_for_task(
+    pub(crate) fn execute_for_task(
         &self,
         scope: &TaskCapabilityScope<'_>,
         p: &ToolProposalView<'_>,
     ) -> ToolOutcome {
-        if scope.validate().is_err() {
+        if scope.validate().is_err() || !tool_proposal_within_limits(p) {
             return ToolOutcome::Refused(RejectReason::Unauthorized);
         }
         if !self.tools_enabled {
@@ -153,7 +154,14 @@ impl ToolExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cogno_core::{ReasonCode, TaskCapabilityScope, TypedArgument};
+    use cogno_core::{
+        ReasonCode, TaskCapabilityScope, TaskExecutionProvenance, TypedArgument,
+        WorkspaceSnapshotSha256,
+    };
+
+    fn test_provenance() -> TaskExecutionProvenance {
+        TaskExecutionProvenance::new(WorkspaceSnapshotSha256([0x11; 32]), [0x22; 32])
+    }
 
     #[test]
     fn task_scope_intersects_runtime_allowlists() {
@@ -168,7 +176,12 @@ mod tests {
             CapabilityClass::Read,
         )];
         let executor = ToolExecutor::phase5_classified(true, RUNTIME_TOOLS, RUNTIME_CAPABILITIES);
-        let scope = TaskCapabilityScope::new(b"task-1", TASK_TOOLS, TASK_CAPABILITIES);
+        let scope = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            TASK_TOOLS,
+            TASK_CAPABILITIES,
+            test_provenance(),
+        );
         let arguments = [TypedArgument::Bytes(b"payload")];
         let allowed = ToolProposalView {
             tool_id: ToolId(1),
@@ -216,7 +229,12 @@ mod tests {
             CapabilityClass::Effect,
         )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, RUNTIME_CAPABILITIES);
-        let scope = TaskCapabilityScope::new(b"task-1", TOOLS, TASK_CAPABILITIES);
+        let scope = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            TOOLS,
+            TASK_CAPABILITIES,
+            test_provenance(),
+        );
         let arguments = [TypedArgument::Bytes(b"payload")];
         let proposal = ToolProposalView {
             tool_id: ToolId(1),
@@ -242,7 +260,12 @@ mod tests {
             CapabilityClass::Read,
         )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, RUNTIME_CAPABILITIES);
-        let scope = TaskCapabilityScope::new(b"task-1", TOOLS, TASK_CAPABILITIES);
+        let scope = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            TOOLS,
+            TASK_CAPABILITIES,
+            test_provenance(),
+        );
         let arguments = [TypedArgument::Bytes(b"payload")];
         let proposal = ToolProposalView {
             tool_id: ToolId(1),
@@ -264,7 +287,12 @@ mod tests {
             CapabilityClass::Read,
         )];
         let executor = ToolExecutor::phase5_classified(true, TOOLS, CAPABILITIES);
-        let scope = TaskCapabilityScope::new(b"task-1", TOOLS, CAPABILITIES);
+        let scope = TaskCapabilityScope::new_with_provenance(
+            b"task-1",
+            TOOLS,
+            CAPABILITIES,
+            test_provenance(),
+        );
         let arguments = [TypedArgument::Text("read ; delete")];
         let proposal = ToolProposalView {
             tool_id: ToolId(1),
