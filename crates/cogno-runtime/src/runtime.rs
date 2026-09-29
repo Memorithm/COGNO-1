@@ -25,7 +25,6 @@ use crate::verified_taste_profile::{VerifiedTastePreference, VerifiedTasteProfil
 use cogno_core::{
     tool_proposal_within_limits, CapabilityClass, ContextReport, MemoryBudget, MetaObjective,
     QueueFullPolicy, SafetyPolicy, TaskCapabilityScope, ToolProposalView, TypedArgument,
-    MAX_TOOL_PROPOSAL_ARGUMENTS, MAX_TOOL_PROPOSAL_ARGUMENT_BYTES,
 };
 use cogno_model::{MetaReviewedCandidate, SciRustSequenceCognitiveReadOnlyModel};
 use sha2::{Digest, Sha256};
@@ -515,7 +514,8 @@ mod provenance_tests {
     use super::*;
     use cogno_core::{
         CapabilityClassification, CapabilityId, ReasonCode, TaskExecutionProvenance, ToolId,
-        WorkspaceSnapshotSha256,
+        WorkspaceSnapshotSha256, MAX_TOOL_PROPOSAL_ARGUMENTS,
+        MAX_TOOL_PROPOSAL_ARGUMENT_BYTES,
     };
 
     fn scope<'a>(
