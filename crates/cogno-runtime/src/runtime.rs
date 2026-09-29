@@ -595,8 +595,7 @@ mod provenance_tests {
         };
         assert!(tool_result_provenance_digests(&task_scope, &oversized_result).is_none());
 
-        let too_many_arguments =
-            vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
+        let too_many_arguments = vec![TypedArgument::Int(1); MAX_TOOL_PROPOSAL_ARGUMENTS + 1];
         let excessive_result = ToolProposalView {
             arguments: &too_many_arguments,
             ..text_result
