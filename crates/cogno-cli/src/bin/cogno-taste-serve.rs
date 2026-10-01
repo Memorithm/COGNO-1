@@ -79,8 +79,22 @@ impl PackagePersister for DurableInbox {
     fn persist(&mut self, package: &TastePackage) -> Result<(), TransportError> {
         let digest = package.digest_hex();
         let inbox = self.store_root.join(INBOX_DIR);
-        std::fs::create_dir_all(&inbox)
-            .map_err(|error| TransportError::Io(format!("cannot create inbox: {error}")))?;
+        match std::fs::create_dir(&inbox) {
+            Ok(()) => {
+                #[cfg(unix)]
+                File::open(&self.store_root)
+                    .and_then(|directory| directory.sync_all())
+                    .map_err(|error| {
+                        TransportError::Io(format!("cannot sync inbox parent: {error}"))
+                    })?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(TransportError::Io(format!(
+                    "cannot create inbox: {error}"
+                )))
+            }
+        }
         let target = inbox.join(format!("{digest}.md"));
         if target.exists() {
             let stored = TastePackage::load_file(&target)?;
