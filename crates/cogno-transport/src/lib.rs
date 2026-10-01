@@ -689,15 +689,16 @@ mod tests {
             let settings = granted();
             let mut seen = BTreeSet::new();
             let mut persister = RejectingPersister;
-            let mut cfg = SessionConfig {
-                settings: &settings,
-                auth_token: None,
-                max_requests: DEFAULT_MAX_REQUESTS,
-                seen_digests: &mut seen,
-                package_persister: Some(&mut persister),
+            let result = {
+                let mut cfg = SessionConfig {
+                    settings: &settings,
+                    auth_token: None,
+                    max_requests: DEFAULT_MAX_REQUESTS,
+                    seen_digests: &mut seen,
+                    package_persister: Some(&mut persister),
+                };
+                serve_request(&mut server, &mut cfg, None)
             };
-            let result = serve_request(&mut server, &mut cfg, None);
-            drop(cfg);
             (result, seen)
         });
 
