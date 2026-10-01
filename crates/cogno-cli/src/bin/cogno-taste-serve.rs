@@ -89,11 +89,7 @@ impl PackagePersister for DurableInbox {
                     })?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => {
-                return Err(TransportError::Io(format!(
-                    "cannot create inbox: {error}"
-                )))
-            }
+            Err(error) => return Err(TransportError::Io(format!("cannot create inbox: {error}"))),
         }
         let target = inbox.join(format!("{digest}.md"));
         if target.exists() {
