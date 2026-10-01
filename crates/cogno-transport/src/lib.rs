@@ -48,6 +48,13 @@ pub const MAX_PAYLOAD_BYTES: usize = cogno_runtime::MAX_PACKAGE_DOCUMENT_BYTES;
 /// Default per-connection request budget.
 pub const DEFAULT_MAX_REQUESTS: usize = 8;
 
+/// Receiver hook that must durably retain a verified package before the
+/// protocol is allowed to acknowledge it with `OK`.
+pub trait PackagePersister: std::fmt::Debug {
+    /// Persist `package` durably or fail the request before acknowledgement.
+    fn persist(&mut self, package: &TastePackage) -> Result<(), TransportError>;
+}
+
 /// Outcome of a completed push.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PushOutcome {
@@ -69,7 +76,6 @@ pub enum SessionEvent {
 }
 
 /// Server-side configuration for one connection.
-#[derive(Debug)]
 pub struct SessionConfig<'a> {
     /// Consent gates for this host.
     pub settings: &'a TasteSettings,
@@ -79,6 +85,21 @@ pub struct SessionConfig<'a> {
     pub max_requests: usize,
     /// Idempotency memory: digests already accepted (per host, caller-owned).
     pub seen_digests: &'a mut BTreeSet<String>,
+    /// Optional durable inbox. When configured, a verified PUSH is only
+    /// acknowledged after this hook succeeds.
+    pub package_persister: Option<&'a mut dyn PackagePersister>,
+}
+
+impl std::fmt::Debug for SessionConfig<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionConfig")
+            .field("settings", self.settings)
+            .field("auth_token", &self.auth_token.map(|_| "[redacted]"))
+            .field("max_requests", &self.max_requests)
+            .field("seen_digests", &self.seen_digests)
+            .field("package_persister", &self.package_persister.is_some())
+            .finish()
+    }
 }
 
 /// Failure modes of the framing and consent layers.
@@ -450,10 +471,20 @@ fn serve_push<S: Read + Write>(
             let digest = package.digest_hex();
             // Idempotency: an already-accepted digest is acknowledged without
             // counting twice anywhere downstream.
-            if !config.seen_digests.insert(digest.clone()) {
+            if config.seen_digests.contains(&digest) {
                 answer(stream, &format!("DUP {digest}"))?;
                 return Ok(PushOutcome::Duplicate(digest));
             }
+            // The durable sink is part of the acceptance boundary: never send
+            // OK and never mutate in-memory idempotency state first. A sender
+            // can safely retry after a storage failure.
+            if let Some(persister) = config.package_persister.as_deref_mut()
+                && let Err(error) = persister.persist(&package)
+            {
+                answer(stream, "ERR persistence_failed")?;
+                return Err(error);
+            }
+            config.seen_digests.insert(digest.clone());
             answer(stream, &format!("OK {digest}"))?;
             Ok(PushOutcome::Accepted(digest))
         }
@@ -597,6 +628,7 @@ mod tests {
             auth_token: None,
             max_requests: DEFAULT_MAX_REQUESTS,
             seen_digests: seen,
+            package_persister: None,
         }
     }
 
@@ -638,6 +670,49 @@ mod tests {
         assert_eq!(second, PushOutcome::Duplicate(expected));
         drop(client);
         let _ = server_job.join().expect("join");
+    }
+
+    #[derive(Debug)]
+    struct RejectingPersister;
+
+    impl PackagePersister for RejectingPersister {
+        fn persist(&mut self, _package: &TastePackage) -> Result<(), TransportError> {
+            Err(TransportError::Io("inbox unavailable".to_string()))
+        }
+    }
+
+    #[test]
+    fn push_is_not_acknowledged_or_remembered_before_persistence() {
+        let (mut client, mut server) = std::os::unix::net::UnixStream::pair().expect("pair");
+        let pkg = package();
+        let server_job = std::thread::spawn(move || {
+            let settings = granted();
+            let mut seen = BTreeSet::new();
+            let mut persister = RejectingPersister;
+            let result = {
+                let mut cfg = SessionConfig {
+                    settings: &settings,
+                    auth_token: None,
+                    max_requests: DEFAULT_MAX_REQUESTS,
+                    seen_digests: &mut seen,
+                    package_persister: Some(&mut persister),
+                };
+                serve_request(&mut server, &mut cfg, None)
+            };
+            (result, seen)
+        });
+
+        let outcome = push_package(&mut client, &pkg, &granted()).expect("wire rejection");
+        assert_eq!(
+            outcome,
+            PushOutcome::Rejected("persistence_failed".to_string())
+        );
+        let (server_result, seen) = server_job.join().expect("join");
+        assert_eq!(
+            server_result,
+            Err(TransportError::Io("inbox unavailable".to_string()))
+        );
+        assert!(seen.is_empty());
     }
 
     #[test]
@@ -685,6 +760,7 @@ mod tests {
                 auth_token: Some("s3cret-token"),
                 max_requests: DEFAULT_MAX_REQUESTS,
                 seen_digests: &mut seen,
+                package_persister: None,
             };
             serve_session(&mut { server }, &mut cfg, None)
         });

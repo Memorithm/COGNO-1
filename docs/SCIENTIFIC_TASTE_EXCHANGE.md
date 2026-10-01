@@ -87,13 +87,21 @@ COGNO-TASTE/1 GET <digest> [AUTH <token>]\n          ->  PKG <len>\n<payload> | 
 
 Durcissements :
 
-- **auth** : secret partagé via variable d'environnement
-  `COGNO_TASTE_TOKEN` (jamais en argv), comparaison en temps constant ;
+- **auth** : le serveur TCP refuse de démarrer sans secret partagé
+  `COGNO_TASTE_TOKEN` de 32 à 128 octets ASCII non blancs (jamais en argv),
+  comparaison en temps constant ;
   refus ⇒ `ERR auth_failed` après drainage complet de la trame ;
+- **délais** : chaque flux TCP accepté possède des délais de lecture et
+  d'écriture indépendants (5 s par défaut, réglables avec
+  `--io-timeout-ms`, maximum 5 min), de sorte qu'un pair silencieux ne bloque
+  pas indéfiniment le récepteur ;
 - **sessions** : jusqu'à `--max-pushes` requêtes par connexion puis
   `ERR too_many_requests` ;
-- **idempotence** : digest déjà accepté ⇒ `DUP` (mémoire par session côté
-  bibliothèque ; persistée dans `taste.accepted.log` côté CLI serveur) ;
+- **inbox durable et idempotence** : un `PUSH` vérifié est écrit puis synchronisé
+  atomiquement dans `<root>/taste.inbox/<digest>.md` avant l'envoi de `OK` ;
+  l'index `taste.accepted.log` est synchronisé ensuite et l'inbox vérifiée est
+  la source de reprise. Un digest déjà conservé ⇒ `DUP` ; une erreur de
+  stockage ⇒ `ERR persistence_failed`, jamais un faux acquittement ;
 - **pull** : récupération par digest avec re-vérification locale du digest
   demandé (`DigestMismatch` sinon) ;
 - **retry** : `push_with_retry` ne retente que les erreurs d'i/o ; refus de
