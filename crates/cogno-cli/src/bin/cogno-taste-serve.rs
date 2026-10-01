@@ -213,7 +213,6 @@ fn run() -> Result<(), String> {
     };
     let events = serve_session(&mut stream, &mut config, Some(&mut lookup))
         .map_err(|error| format!("session failed: {error}"))?;
-    drop(config);
     for event in events {
         match event {
             SessionEvent::Push(PushOutcome::Accepted(digest)) => {
