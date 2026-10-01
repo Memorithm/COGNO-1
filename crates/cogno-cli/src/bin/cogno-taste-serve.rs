@@ -63,7 +63,9 @@ fn loopback_bind_addresses(host: &str, port: u16) -> Result<Vec<SocketAddr>, Str
         .map_err(|error| format!("cannot resolve bind address {host}:{port}: {error}"))?
         .collect();
     if addresses.is_empty() {
-        return Err(format!("bind address {host}:{port} resolved to no endpoints"));
+        return Err(format!(
+            "bind address {host}:{port} resolved to no endpoints"
+        ));
     }
     if addresses.iter().any(|address| !address.ip().is_loopback()) {
         return Err(
