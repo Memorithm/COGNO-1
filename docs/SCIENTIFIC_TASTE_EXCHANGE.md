@@ -91,6 +91,11 @@ Durcissements :
   `COGNO_TASTE_TOKEN` de 32 à 128 octets ASCII non blancs (jamais en argv),
   comparaison en temps constant ;
   refus ⇒ `ERR auth_failed` après drainage complet de la trame ;
+- **frontière réseau** : le serveur TCP brut refuse toute adresse d'écoute qui
+  ne se résout pas exclusivement vers le loopback. Un pair distant doit passer
+  par un tunnel hôte chiffré et authentifié (par exemple SSH ou mTLS) qui se
+  termine sur ce loopback ; le secret applicatif reste obligatoire dans le
+  tunnel ;
 - **délais** : chaque flux TCP accepté possède des délais de lecture et
   d'écriture indépendants (5 s par défaut, réglables avec
   `--io-timeout-ms`, maximum 5 min), de sorte qu'un pair silencieux ne bloque

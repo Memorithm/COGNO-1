@@ -11,7 +11,7 @@ use cogno_transport::{
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -55,6 +55,25 @@ fn required_token(value: Option<String>) -> Result<String, String> {
         ));
     }
     Ok(token)
+}
+
+fn loopback_bind_addresses(host: &str, port: u16) -> Result<Vec<SocketAddr>, String> {
+    let addresses: Vec<_> = (host, port)
+        .to_socket_addrs()
+        .map_err(|error| format!("cannot resolve bind address {host}:{port}: {error}"))?
+        .collect();
+    if addresses.is_empty() {
+        return Err(format!(
+            "bind address {host}:{port} resolved to no endpoints"
+        ));
+    }
+    if addresses.iter().any(|address| !address.ip().is_loopback()) {
+        return Err(
+            "raw COGNO-TASTE TCP may only bind loopback; remote peers require an authenticated encrypted host tunnel terminating on loopback"
+                .to_string(),
+        );
+    }
+    Ok(addresses)
 }
 
 #[derive(Debug)]
@@ -190,7 +209,8 @@ fn run() -> Result<(), String> {
     // The host's own package is pullable by digest.
     let own_package: Option<PathBuf> = PathBuf::from(&store_root).join("taste.md").into();
 
-    let listener = TcpListener::bind((bind_addr.as_str(), port))
+    let bind_addresses = loopback_bind_addresses(&bind_addr, port)?;
+    let listener = TcpListener::bind(bind_addresses.as_slice())
         .map_err(|error| format!("cannot bind {bind_addr}:{port}: {error}"))?;
     let (mut stream, peer) = listener
         .accept()
@@ -259,5 +279,13 @@ mod tests {
         assert!(required_token(Some("x".repeat(MIN_TOKEN_BYTES))).is_ok());
         assert!(required_token(Some("x".repeat(MAX_TOKEN_BYTES + 1))).is_err());
         assert!(required_token(Some(format!("{} ", "x".repeat(MIN_TOKEN_BYTES)))).is_err());
+    }
+
+    #[test]
+    fn raw_tcp_bind_is_restricted_to_loopback() {
+        assert!(loopback_bind_addresses("127.0.0.1", 4000).is_ok());
+        assert!(loopback_bind_addresses("::1", 4000).is_ok());
+        assert!(loopback_bind_addresses("0.0.0.0", 4000).is_err());
+        assert!(loopback_bind_addresses("192.0.2.1", 4000).is_err());
     }
 }
