@@ -478,11 +478,11 @@ fn serve_push<S: Read + Write>(
             // The durable sink is part of the acceptance boundary: never send
             // OK and never mutate in-memory idempotency state first. A sender
             // can safely retry after a storage failure.
-            if let Some(persister) = config.package_persister.as_deref_mut() {
-                if let Err(error) = persister.persist(&package) {
-                    answer(stream, "ERR persistence_failed")?;
-                    return Err(error);
-                }
+            if let Some(persister) = config.package_persister.as_deref_mut()
+                && let Err(error) = persister.persist(&package)
+            {
+                answer(stream, "ERR persistence_failed")?;
+                return Err(error);
             }
             config.seen_digests.insert(digest.clone());
             answer(stream, &format!("OK {digest}"))?;
