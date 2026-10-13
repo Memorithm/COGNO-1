@@ -1,4 +1,8 @@
-//! SciRust backend wiring (COGNO-1 §SciRust #1–#8).
+//! COGNO-owned local backend wiring (COGNO-1 §SciRust #1–#8).
+//!
+//! `SciRustBackend` is a compatibility name, not a canonical SciRust adapter.
+//! Prefer the descriptive crate-root alias `LocalDifferentiableBackend` in new
+//! callers. Numerical qualification is scoped in `docs/SCIRUST_QUALIFICATION.md`.
 //!
 //! Assembles the autograd engine, the loss components, the calibration head,
 //! the cost measure, the optimizer and the bounded KV cache, and exposes a
@@ -31,7 +35,7 @@ pub struct BackendReport {
     pub kv_len: usize,
 }
 
-/// The SciRust backend. Fields are `pub` for fine-grained use from tests and
+/// The local COGNO backend (historical compatibility name). Fields are `pub` for fine-grained use from tests and
 /// the CLI; the host typically drives it through [`Self::objective`] which is
 /// the gated entry point. Manual `Debug` because `Box<dyn Optimizer>` is not
 /// `Debug` (the optimizer state is opaque by design).

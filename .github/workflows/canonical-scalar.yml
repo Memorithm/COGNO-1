@@ -1,0 +1,44 @@
+name: canonical scalar qualification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-scalar-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-scalar:
+    name: canonical scalar parity (exact sources)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: Memorithm/scirust
+          ref: 68d544679df465d3b85539c80926ed2644fbbba1
+          path: qualification/canonical
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
+        with:
+          toolchain: 1.97.1
+      - name: Execute bounded differential against original canonical modules
+        run: bash qualification/run.sh
+      - name: Retain identity and both actual output streams (no canonical code/binary)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-scalar-${{ github.event.pull_request.head.sha || github.sha }}
+          path: qualification/results/*.txt
+          if-no-files-found: error
+          retention-days: 90
