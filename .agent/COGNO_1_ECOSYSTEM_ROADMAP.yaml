@@ -25,7 +25,7 @@ ax_task_program:
 
 canonical_scalar_qualification_2026_10_13:
   finding: COG-COGNO-003
-  status: candidate_exact_head_CI_pending
+  status: resolved_scoped_scalar_qualification
   pull_request: 263
   candidate_sha: 0eab1c31a7c521dfc4d13fd8f404ebaebb61864a
   canonical_source: 68d544679df465d3b85539c80926ed2644fbbba1
@@ -36,4 +36,11 @@ canonical_scalar_qualification_2026_10_13:
   authority: deterministic_Rust_core_unchanged
   runtime_adoption: false
   limits: [no_complete_autograd_parity, no_GPU_or_performance_claim, no_model_promotion]
-  next: exact_head_all_gates_then_guarded_merge_and_target_requalification
+  next: preserve_local_identity_and_requalify_before_any_runtime_convergence
+
+  integrated_main_sha: 5c34537c95a6eef00816d6600f727d04628403bd
+  integrated_all_checks: 9_success
+  integrated_differential_run: 38427431822
+  integrated_artifact: 11829366508
+  integrated_archive_SHA256: edc7cc466fdccb81b12b1afcfff5096e4b5496798c5de2a9b802473ec0f3f9dc
+  observed_at: "2026-10-13T18:34:55.000+02:00"
