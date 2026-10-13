@@ -22,3 +22,18 @@ ax_task_program:
     - model_probability_never_becomes_permission
     - task_capability_does_not_bypass_deterministic_constraints
     - shared_transport_credentials_do_not_expand_task_authority
+
+canonical_scalar_qualification_2026_10_13:
+  finding: COG-COGNO-003
+  status: candidate_exact_head_CI_pending
+  pull_request: 263
+  candidate_sha: 0eab1c31a7c521dfc4d13fd8f404ebaebb61864a
+  canonical_source: 68d544679df465d3b85539c80926ed2644fbbba1
+  scope: finite_f32_scalar_forward_dot_relu_matmul
+  implementation: local_COGNO_tape_compatibility_names_preserved
+  contract: cogno.canonical-scalar-qualification@1
+  cases: 288
+  authority: deterministic_Rust_core_unchanged
+  runtime_adoption: false
+  limits: [no_complete_autograd_parity, no_GPU_or_performance_claim, no_model_promotion]
+  next: exact_head_all_gates_then_guarded_merge_and_target_requalification
