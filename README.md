@@ -284,4 +284,3 @@ contrôlées par le gate §24.
 ## Licence
 
 MIT — voir `LICENSE`.
-

@@ -167,4 +167,3 @@ Le protocole et les limites sont dans [SCIRUST_QUALIFICATION.md](SCIRUST_QUALIFI
 `#![forbid(unsafe_code)]` protège le code propriétaire du workspace. Les crates
 transitives peuvent contenir du code `unsafe`; leur présence est donc rendue
 explicite, verrouillée et soumise à revue de chaîne d'approvisionnement.
-
