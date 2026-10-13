@@ -48,7 +48,7 @@ inactif, outils désactivés**.
 | Composant | État |
 |-----------|------|
 | Noyau déterministe `cogno-core` | ✅ contraintes dures, sécurité, budgets, reward entier, décisions |
-| Backend différentiable `cogno-scirust` | ✅ autograd borné, optimisateurs, encodeur séquence, heads cognitifs |
+| Backend différentiable local `cogno-scirust` | ✅ implémentation COGNO, autograd borné, optimisateurs et heads ; nom historique, pas le backend canonique SciRust |
 | Tokenizer byte déterministe | ✅ vocabulaire 259, BOS/EOS/SEP, maximum global 512 tokens |
 | Encodeur cognitif partagé | ✅ classification + préférence + symbolique + contradiction + retrieval |
 | Objectif joint cinq tâches | ✅ une représentation partagée et une backward pass connectée |
@@ -78,6 +78,12 @@ de code, ni capacité financière. Aucun modèle n'est promu sur ces résultats.
 - [Regroupement explicite des projets](docs/RUST_PROJECT_SPLIT.md)
 
 ## Architecture du modèle V4
+
+`LocalDifferentiableBackend` est l'alias descriptif du backend local ; le nom
+`SciRustBackend` reste compatible. La qualification différentielle contre des
+primitives du dépôt **Memorithm/scirust**, épinglées par SHA, est décrite dans
+[SCIRUST_QUALIFICATION.md](docs/SCIRUST_QUALIFICATION.md). Elle ne constitue
+ni une migration du runtime, ni une qualification de tout l'autograd ou du GPU.
 
 Le modèle actuel n'est **pas un Transformer** et n'utilise pas d'attention.
 Il repose sur :

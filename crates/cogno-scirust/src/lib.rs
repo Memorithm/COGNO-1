@@ -1,7 +1,8 @@
-//! # cogno-scirust — optional differentiable, neuro-symbolic, contrastive backend for COGNO-1.
+//! # cogno-scirust — COGNO-owned local differentiable backend (compatibility crate name).
 //!
 //! This crate implements, in pure safe Rust and behind a fallible, bounded
-//! COGNO API, the SciRust-style capabilities required by the spec:
+//! COGNO API, the differentiable capabilities required by the spec. This is
+//! **not** the canonical `Memorithm/scirust` tensor/autograd implementation:
 //!
 //! 1. differentiable tensor computation for the COGNO objective
 //!    ([`engine`] — a Wengert-tape reverse-mode autograd engine);
@@ -43,17 +44,19 @@
 //! batches (order-preserving), not float-equality — matching the §8
 //! lexicographic tie-break which is order-based, not magnitude-based.
 //!
-//! ## Why self-contained (no external `scirust` dependency)
+//! ## Implementation identity and convergence boundary
 //!
-//! The external `scirust` crate (v0.0.5) does not compile on stable Rust 1.97
-//! (37 errors: `#[feature]` not allowed on stable, missing `Self: Sized`
-//! bounds, edition-incompatible code), has no autograd, pulls 20 transitive
-//! crates including `rdrand` (RDRAND `unsafe`), uses `panic!` extensively, and
-//! is unmaintained. The spec explicitly requires adapting such components
-//! behind a fallible, bounded COGNO API (§"L'intégration ne doit pas réutiliser
-//! aveuglément les prototypes existants"). §24 (minimal/pinned/audited deps)
-//! and §23 (`forbid(unsafe_code)`) reinforce this. See
-//! `docs/DEPENDENCIES.md` for the recorded decision.
+//! [`LocalDifferentiableBackend`] names the actual COGNO-owned implementation.
+//! [`SciRustBackend`] and the package name are retained for source compatibility,
+//! not as evidence of canonical SciRust execution. A historical evaluation of
+//! crates.io `scirust` 0.0.5 did **not** evaluate the Memorithm repository and
+//! cannot justify rejecting its current primitives.
+//!
+//! The qualification workflow compares admissible finite scalar dot, ReLU and
+//! matrix multiplication against exact canonical source modules. It does not
+//! replace this tape, qualify all gradients, or authorize convergence or model
+//! promotion. See `docs/SCIRUST_QUALIFICATION.md`. The shipped local backend
+//! retains its bounded/fallible API, safe-Rust policy and no external dependency.
 //!
 //! ## SIMD
 //!
@@ -98,6 +101,9 @@ pub mod sequence_symbolic;
 pub mod tensor;
 
 pub use backend::{BackendReport, Config, SciRustBackend};
+/// COGNO-owned local backend; the legacy `SciRustBackend` name remains compatible.
+/// This alias does not route execution into the canonical Memorithm SciRust.
+pub type LocalDifferentiableBackend = SciRustBackend;
 pub use calib::{
     CalibratedConfidence, Calibration, CalibrationFitConfig, CalibrationFitReport,
     MAX_CALIBRATION_EPOCHS, MAX_CALIBRATION_EXAMPLES,

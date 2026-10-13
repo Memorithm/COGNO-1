@@ -139,7 +139,30 @@ grep -E '^name = "' Cargo.lock \
 5. Exécuter `cargo fmt`, `cargo test --locked`, `cargo clippy --locked` et
    `cargo build --frozen --release`.
 
-## Note sur l'invariant `unsafe`
+## Qualification séparée du SciRust canonique
+
+Le nom historique `cogno-scirust` ne signifie pas que le backend tensoriel de
+`Memorithm/scirust` est utilisé. `LocalDifferentiableBackend` est une API alias
+de l'implémentation COGNO existante, sans nouvelle dépendance Cargo.
+
+Le workflow `canonical scalar qualification` compile séparément deux modules
+originaux de `Memorithm/scirust` à la révision
+`68d544679df465d3b85539c80926ed2644fbbba1`, sans features BLAS/rayon/SIMD et
+sans les copier dans les sources ou la distribution MIT de COGNO. Ce programme
+de qualification uniquement utilise `MatrixView` canonique (contenant du
+`unsafe` revu dans son dépôt propriétaire) et `ScalarBackend`; les crates COGNO
+conservent `forbid(unsafe_code)`. Les notices/licences SciRust sont conservées
+dans le checkout et leurs URL dans les preuves. Aucun binaire ou source SciRust
+n'est redistribué par l'artefact de résultats. La licence PolyForm Noncommercial
+1.0.0 de SciRust n'est ni remplacée ni étendue par la licence MIT de COGNO ;
+une adoption/distribution ultérieure doit respecter ses propres droits.
+
+Le gate vérifie le commit et les deux identités blob avant compilation ; tout
+repin impose une nouvelle revue et qualification. Cette source de test hors
+workspace ne change ni `Cargo.lock`, ni l'inventaire transitif ci-dessus.
+Le protocole et les limites sont dans [SCIRUST_QUALIFICATION.md](SCIRUST_QUALIFICATION.md).
+
+## Rappel sur l'invariant `unsafe`
 
 `#![forbid(unsafe_code)]` protège le code propriétaire du workspace. Les crates
 transitives peuvent contenir du code `unsafe`; leur présence est donc rendue
